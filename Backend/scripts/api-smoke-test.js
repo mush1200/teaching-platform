@@ -1,0 +1,371 @@
+/**
+ * 後端 API 冒煙驗證（等同 Postman 手動跑一輪 Happy Path）。
+ *
+ * 用法：
+ *   1) 終端 A：在 Backend 目錄執行 `npm run start`（依賴 Backend/.env 連線資料庫）
+ *      ⚠️ 若在 shell 先設了 PGDATABASE／PGHOST 等，會覆蓋 .env；請勿與 .env 不一致。
+ *   2) 終端 B：`npm run smoke` 或 `API_SMOKE_BASE=http://localhost:3000 node scripts/api-smoke-test.js`
+ *
+ * 選項環境變數：
+ *   API_SMOKE_BASE  預設 http://127.0.0.1:3000
+ *
+ * 涵蓋：health、auth、materials、cart、orders、upload-proof、admin approve/reject、
+ *       download、reviews、reports、admin 列表、DELETE cart（預期 404）。
+ */
+
+const BASE = process.env.API_SMOKE_BASE || "http://127.0.0.1:3000";
+
+function fail(msg) {
+  console.error("\x1b[31mFAIL\x1b[0m", msg);
+  process.exitCode = 1;
+}
+
+async function http(method, path, opts = {}) {
+  const url = `${BASE}${path}`;
+  const headers = { ...opts.headers };
+  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+  if (opts.body !== undefined && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { status: res.status, data };
+}
+
+function expect(name, cond, detail) {
+  if (!cond) {
+    fail(`${name}: ${detail}`);
+    throw new Error(detail);
+  }
+}
+
+async function main() {
+  const stamp = Date.now();
+  const emails = {
+    admin: `smoke_admin_${stamp}@test.local`,
+    teacher: `smoke_teacher_${stamp}@test.local`,
+    parent: `smoke_parent_${stamp}@test.local`,
+  };
+  const password = "SmokeTest1!";
+
+  console.log("Base URL:", BASE);
+
+  // Health
+  {
+    const { status, data } = await http("GET", "/health");
+    expect("GET /health", status === 200 && data?.status === "ok", JSON.stringify(data));
+    console.log("OK  GET /health");
+  }
+
+  // Register ×3
+  let adminToken;
+  let teacherToken;
+  let parentToken;
+  let teacherId;
+  let parentId;
+  {
+    const rA = await http("POST", "/auth/register", {
+      body: { email: emails.admin, password, role: "admin" },
+    });
+    expect("POST /auth/register admin", rA.status === 201 && rA.data?.token, JSON.stringify(rA.data));
+    adminToken = rA.data.token;
+
+    const rT = await http("POST", "/auth/register", {
+      body: { email: emails.teacher, password, role: "teacher" },
+    });
+    expect("POST /auth/register teacher", rT.status === 201 && rT.data?.token, JSON.stringify(rT.data));
+    teacherToken = rT.data.token;
+    teacherId = rT.data.user.id;
+
+    const rP = await http("POST", "/auth/register", {
+      body: { email: emails.parent, password, role: "parent" },
+    });
+    expect("POST /auth/register parent", rP.status === 201 && rP.data?.token, JSON.stringify(rP.data));
+    parentToken = rP.data.token;
+    parentId = rP.data.user.id;
+
+    console.log("OK  POST /auth/register (admin, teacher, parent)");
+  }
+
+  // GET /auth/me
+  {
+    const { status, data } = await http("GET", "/auth/me", { token: parentToken });
+    expect("GET /auth/me", status === 200 && data?.user?.id === parentId, JSON.stringify(data));
+    console.log("OK  GET /auth/me");
+  }
+
+  // POST /login
+  {
+    const { status, data } = await http("POST", "/auth/login", {
+      body: { email: emails.parent, password },
+    });
+    expect("POST /auth/login", status === 200 && data?.token, JSON.stringify(data));
+    console.log("OK  POST /auth/login");
+  }
+
+  // Teacher creates material
+  let materialId;
+  {
+    const { status, data } = await http("POST", "/materials", {
+      token: teacherToken,
+      body: {
+        title: `Smoke material ${stamp}`,
+        price: 100,
+        fileKey: `files/smoke_${stamp}.pdf`,
+        ipDeclarationAccepted: true,
+      },
+    });
+    expect("POST /materials", status === 201 && data?.id, JSON.stringify(data));
+    materialId = data.id;
+    console.log("OK  POST /materials");
+  }
+
+  // Admin publishes
+  {
+    const { status, data } = await http("PUT", `/materials/${materialId}`, {
+      token: adminToken,
+      body: { status: "published" },
+    });
+    expect("PUT /materials/:id publish", status === 200 && data?.status === "published", JSON.stringify(data));
+    console.log("OK  PUT /materials/:id (published)");
+  }
+
+  // GET /materials (anon)
+  {
+    const { status, data } = await http("GET", "/materials");
+    expect("GET /materials", status === 200 && Array.isArray(data?.items), JSON.stringify(data));
+    console.log("OK  GET /materials");
+  }
+
+  // GET /materials/:id
+  {
+    const { status, data } = await http("GET", `/materials/${materialId}`);
+    expect("GET /materials/:id", status === 200 && data?.id === materialId, JSON.stringify(data));
+    console.log("OK  GET /materials/:id");
+  }
+
+  // Cart + order
+  let cartItemId;
+  let orderId;
+  let orderItemId;
+  {
+    const teacherOrder = await http("POST", "/orders", { token: teacherToken, body: {} });
+    expect(
+      "POST /orders (teacher forbidden)",
+      teacherOrder.status === 403 &&
+        String(teacherOrder.data?.message || "").includes("Only parent can create order"),
+      JSON.stringify(teacherOrder.data)
+    );
+
+    const add = await http("POST", "/cart/items", {
+      token: parentToken,
+      body: { materialId, quantity: 1 },
+    });
+    expect("POST /cart/items", add.status === 200 || add.status === 201, JSON.stringify(add.data));
+    cartItemId = add.data.id;
+
+    const list = await http("GET", "/cart", { token: parentToken });
+    expect("GET /cart", list.status === 200 && list.data?.items?.length >= 1, JSON.stringify(list.data));
+
+    const ord = await http("POST", "/orders", { token: parentToken, body: {} });
+    expect(
+      "POST /orders",
+      ord.status === 201 && ord.data?.data?.order?.id,
+      JSON.stringify(ord.data)
+    );
+    orderId = ord.data.data.order.id;
+    orderItemId = ord.data.data.items[0].id;
+
+    const emptyAfter = await http("POST", "/orders", { token: parentToken, body: {} });
+    expect(
+      "POST /orders (empty cart)",
+      emptyAfter.status === 400 && emptyAfter.data?.message === "Cart is empty",
+      JSON.stringify(emptyAfter.data)
+    );
+
+    const my = await http("GET", "/orders/my", { token: parentToken });
+    expect("GET /orders/my", my.status === 200 && my.data?.items?.length >= 1, JSON.stringify(my.data));
+
+    console.log("OK  cart + POST /orders + GET /orders/my");
+  }
+
+  // Upload proof
+  let proofId;
+  {
+    const up = await http("POST", `/orders/${orderId}/upload-proof`, {
+      token: parentToken,
+      body: { proofUrl: "https://example.com/proof.png" },
+    });
+    expect("POST /orders/:id/upload-proof", up.status === 201 && up.data?.proof?.id, JSON.stringify(up.data));
+    proofId = up.data.proof.id;
+    console.log("OK  POST /orders/:id/upload-proof");
+  }
+
+  // Admin approve
+  {
+    const ap = await http("POST", `/admin/payment-proofs/${proofId}/approve`, {
+      token: adminToken,
+      body: {},
+    });
+    expect(
+      "POST /admin/payment-proofs/:id/approve",
+      ap.status === 200 && ap.data?.order?.status === "approved",
+      JSON.stringify(ap.data)
+    );
+    console.log("OK  POST /admin/payment-proofs/:id/approve");
+  }
+
+  // Second material + order + reject（覆蓋 POST …/reject）
+  {
+    const cre = await http("POST", "/materials", {
+      token: teacherToken,
+      body: {
+        title: `Smoke reject-flow ${stamp}`,
+        price: 50,
+        fileKey: `files/smoke_rej_${stamp}.pdf`,
+        ipDeclarationAccepted: true,
+      },
+    });
+    expect("POST /materials (reject flow)", cre.status === 201 && cre.data?.id, JSON.stringify(cre.data));
+    const materialRejectId = cre.data.id;
+
+    const pub = await http("PUT", `/materials/${materialRejectId}`, {
+      token: adminToken,
+      body: { status: "published" },
+    });
+    expect(
+      "PUT /materials/:id (reject flow publish)",
+      pub.status === 200 && pub.data?.status === "published",
+      JSON.stringify(pub.data)
+    );
+
+    const add = await http("POST", "/cart/items", {
+      token: parentToken,
+      body: { materialId: materialRejectId, quantity: 1 },
+    });
+    expect(
+      "POST /cart/items (reject flow)",
+      add.status === 200 || add.status === 201,
+      JSON.stringify(add.data)
+    );
+
+    const ord2 = await http("POST", "/orders", { token: parentToken, body: {} });
+    expect(
+      "POST /orders (reject flow)",
+      ord2.status === 201 && ord2.data?.data?.order?.id,
+      JSON.stringify(ord2.data)
+    );
+
+    const up2 = await http("POST", `/orders/${ord2.data.data.order.id}/upload-proof`, {
+      token: parentToken,
+      body: { proofUrl: "https://example.com/reject-proof.png" },
+    });
+    expect(
+      "POST …/upload-proof (reject flow)",
+      up2.status === 201 && up2.data?.proof?.id,
+      JSON.stringify(up2.data)
+    );
+    const proofRejectId = up2.data.proof.id;
+
+    const rj = await http("POST", `/admin/payment-proofs/${proofRejectId}/reject`, {
+      token: adminToken,
+      body: { note: "smoke test reject" },
+    });
+    expect(
+      "POST /admin/payment-proofs/:id/reject",
+      rj.status === 200 && rj.data?.proof?.review_status === "rejected",
+      JSON.stringify(rj.data)
+    );
+    console.log("OK  POST /admin/payment-proofs/:id/reject (+ second order flow)");
+  }
+
+  // Download
+  {
+    const dl = await http("GET", `/download/${materialId}`, { token: parentToken });
+    expect("GET /download/:materialId", dl.status === 200 && dl.data?.signedUrl, JSON.stringify(dl.data));
+    console.log("OK  GET /download/:materialId");
+  }
+
+  // Review
+  {
+    const rv = await http("POST", "/reviews", {
+      token: parentToken,
+      body: { orderItemId, rating: 5, comment: "smoke" },
+    });
+    expect("POST /reviews", rv.status === 201 && rv.data?.materialId === materialId, JSON.stringify(rv.data));
+    console.log("OK  POST /reviews");
+  }
+
+  // GET /me/reviews
+  {
+    const mr = await http("GET", "/me/reviews", { token: parentToken });
+    expect(
+      "GET /me/reviews",
+      mr.status === 200 && Array.isArray(mr.data) && mr.data.some((r) => r.orderItemId === orderItemId),
+      JSON.stringify(mr.data)
+    );
+    console.log("OK  GET /me/reviews");
+  }
+
+  // GET /materials/:id/reviews
+  {
+    const lr = await http("GET", `/materials/${materialId}/reviews`);
+    expect("GET /materials/:id/reviews", lr.status === 200 && Array.isArray(lr.data) && lr.data.length >= 1, JSON.stringify(lr.data));
+    console.log("OK  GET /materials/:id/reviews");
+  }
+
+  // Report
+  {
+    const rep = await http("POST", "/reports", {
+      token: parentToken,
+      body: { materialId, reason: "smoke report" },
+    });
+    expect("POST /reports", rep.status === 201 && rep.data?.material_id === materialId, JSON.stringify(rep.data));
+    console.log("OK  POST /reports");
+  }
+
+  // Admin lists
+  {
+    const m = await http("GET", "/admin/materials", { token: adminToken });
+    expect("GET /admin/materials", m.status === 200 && Array.isArray(m.data?.items), JSON.stringify(m.data));
+
+    const o = await http("GET", "/admin/orders", { token: adminToken });
+    expect("GET /admin/orders", o.status === 200 && Array.isArray(o.data?.items), JSON.stringify(o.data));
+
+    const logs = await http("GET", "/admin/logs", { token: adminToken });
+    expect("GET /admin/logs", logs.status === 200 && Array.isArray(logs.data?.items), JSON.stringify(logs.data));
+
+    const reps = await http("GET", "/admin/reports", { token: adminToken });
+    expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data?.items), JSON.stringify(reps.data));
+
+    console.log("OK  GET /admin/materials, /admin/orders, /admin/logs, /admin/reports");
+  }
+
+  // Cart delete (optional — cart empty after order; expect 404 or empty)
+  if (cartItemId) {
+    const del = await http("DELETE", `/cart/items/${cartItemId}`, { token: parentToken });
+    expect(
+      "DELETE /cart/items/:id",
+      del.status === 404 || del.status === 200,
+      `unexpected ${del.status}`
+    );
+    console.log("OK  DELETE /cart/items/:id (expected 404 after checkout)");
+  }
+
+  console.log("\n\x1b[32mAll smoke checks passed.\x1b[0m");
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

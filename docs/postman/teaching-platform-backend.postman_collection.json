@@ -1,0 +1,1073 @@
+{
+  "info": {
+    "name": "Teaching Platform — Backend MVP",
+    "description": "對應 docs/teaching-platform-mvp-spec-v1.2.md。需先啟動後端（npm run start）。一鍵跑：npm run postman（專案根目錄）",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "00 Setup",
+      "item": [
+        {
+          "name": "GET health（並設定 stamp）",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('stamp', Date.now());"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('ok', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "item": [
+        {
+          "name": "POST register admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('adminToken', j.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"smoke_admin_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "POST register teacher",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('teacherToken', j.token);",
+                  "pm.collectionVariables.set('teacherId', j.user.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"smoke_teacher_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"teacher\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "POST register parent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('parentToken', j.token);",
+                  "pm.collectionVariables.set('parentId', j.user.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"smoke_parent_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"parent\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "POST register parent B (review wrong owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('parentBToken', j.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"smoke_parent_b_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"parent\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "GET auth/me (parent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('user id', function () {",
+                  "  const pid = pm.collectionVariables.get('parentId');",
+                  "  pm.expect(pm.response.json().user.id).to.eql(pid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "POST auth/login (parent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('token', function () { pm.expect(pm.response.json().token).to.be.a('string'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"smoke_parent_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Materials",
+      "item": [
+        {
+          "name": "POST materials (teacher)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('materialId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman material A\",\n  \"price\": 100,\n  \"fileKey\": \"files/postman-a.pdf\",\n  \"ipDeclarationAccepted\": true\n}"
+            },
+            "url": "{{baseUrl}}/materials"
+          }
+        },
+        {
+          "name": "PUT materials publish (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 published', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql('published');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}"
+            },
+            "url": "{{baseUrl}}/materials/{{materialId}}"
+          }
+        },
+        {
+          "name": "GET materials (anon)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('items array', function () { pm.expect(pm.response.json().items).to.be.an('array'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/materials"
+          }
+        },
+        {
+          "name": "GET materials/:id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/materials/{{materialId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Cart & Orders",
+      "item": [
+        {
+          "name": "POST orders (no auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('Unauthorized', function () {",
+                  "  pm.expect(pm.response.json().message).to.eql('Unauthorized');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "POST orders (teacher forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Only parent', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('Only parent');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "POST cart/items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 or 201', function () { pm.expect([200,201]).to.include(pm.response.code); });",
+                  "pm.collectionVariables.set('cartItemId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"quantity\": 1\n}"
+            },
+            "url": "{{baseUrl}}/cart/items"
+          }
+        },
+        {
+          "name": "GET cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/cart"
+          }
+        },
+        {
+          "name": "POST orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.test('response shape', function () {",
+                  "  pm.expect(j.message).to.eql('Order created successfully');",
+                  "  pm.expect(j.data.order.status).to.eql('pending_payment');",
+                  "  pm.expect(j.data.items.length).to.be.at.least(1);",
+                  "  const sum = j.data.items.reduce((s, i) => s + i.subtotal, 0);",
+                  "  pm.expect(j.data.order.total_amount).to.eql(sum);",
+                  "  j.data.items.forEach(function (it) {",
+                  "    pm.expect(it).to.have.property('material_id');",
+                  "    pm.expect(it).to.have.property('material_title');",
+                  "    pm.expect(it).to.have.property('seller_id');",
+                  "    pm.expect(it.unit_price * it.quantity).to.eql(it.subtotal);",
+                  "  });",
+                  "});",
+                  "pm.collectionVariables.set('orderId', j.data.order.id);",
+                  "pm.collectionVariables.set('orderItemId', j.data.items[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "POST orders (empty cart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 empty cart', function () { pm.response.to.have.status(400); });",
+                  "pm.test('message', function () {",
+                  "  pm.expect(pm.response.json().message).to.eql('Cart is empty');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "GET orders/my",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/orders/my"
+          }
+        },
+        {
+          "name": "POST orders/:id/upload-proof",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('proofId', pm.response.json().proof.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proofUrl\": \"https://example.com/proof.png\"\n}"
+            },
+            "url": "{{baseUrl}}/orders/{{orderId}}/upload-proof"
+          }
+        },
+        {
+          "name": "POST /reviews (pending_payment → 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403 order not approved', function () { pm.response.to.have.status(403); });",
+                  "pm.test('message', function () {",
+                  "  pm.expect(pm.response.json().message).to.eql('order is not approved');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 5,\n  \"comment\": \"should fail\"\n}"
+            },
+            "url": "{{baseUrl}}/reviews"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Admin approve",
+      "item": [
+        {
+          "name": "POST admin/payment-proofs/:id/approve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 approved', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().order.status).to.eql('approved');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/admin/payment-proofs/{{proofId}}/approve"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Reject flow (2nd material)",
+      "item": [
+        {
+          "name": "POST materials B (teacher)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('materialIdB', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman material B\",\n  \"price\": 50,\n  \"fileKey\": \"files/postman-b.pdf\",\n  \"ipDeclarationAccepted\": true\n}"
+            },
+            "url": "{{baseUrl}}/materials"
+          }
+        },
+        {
+          "name": "PUT materials B publish (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}"
+            },
+            "url": "{{baseUrl}}/materials/{{materialIdB}}"
+          }
+        },
+        {
+          "name": "POST cart/items B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 or 201', function () { pm.expect([200,201]).to.include(pm.response.code); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"materialId\": \"{{materialIdB}}\",\n  \"quantity\": 1\n}"
+            },
+            "url": "{{baseUrl}}/cart/items"
+          }
+        },
+        {
+          "name": "POST orders B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('orderIdB', j.data.order.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "POST upload-proof B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('proofIdB', pm.response.json().proof.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proofUrl\": \"https://example.com/reject-proof.png\"\n}"
+            },
+            "url": "{{baseUrl}}/orders/{{orderIdB}}/upload-proof"
+          }
+        },
+        {
+          "name": "POST admin payment-proofs reject",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 rejected', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().proof.review_status).to.eql('rejected');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"postman smoke reject\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/payment-proofs/{{proofIdB}}/reject"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Download reviews reports",
+      "item": [
+        {
+          "name": "GET download/:materialId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('signedUrl', function () { pm.expect(pm.response.json().signedUrl).to.be.a('string'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/download/{{materialId}}"
+          }
+        },
+        {
+          "name": "POST reviews (approved order)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.test('shape', function () {",
+                  "  pm.expect(j).to.have.property('id');",
+                  "  pm.expect(j.materialId).to.eql(pm.collectionVariables.get('materialId'));",
+                  "  pm.expect(j.rating).to.eql(5);",
+                  "});",
+                  "pm.collectionVariables.set('reviewId', j.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 5,\n  \"comment\": \"postman\"\n}"
+            },
+            "url": "{{baseUrl}}/reviews"
+          }
+        },
+        {
+          "name": "POST reviews (duplicate order_item → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 conflict', function () { pm.response.to.have.status(409); });",
+                  "pm.test('message', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('review already exists');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 4,\n  \"comment\": \"duplicate\"\n}"
+            },
+            "url": "{{baseUrl}}/reviews"
+          }
+        },
+        {
+          "name": "GET /me/reviews",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 array', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "  pm.expect(a.some(function (r) { return r.orderItemId === pm.collectionVariables.get('orderItemId'); })).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/me/reviews"
+          }
+        },
+        {
+          "name": "GET materials/:id/reviews",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 array', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "  pm.expect(a.length).to.be.at.least(1);",
+                  "  pm.expect(a[0]).to.have.keys('id', 'rating', 'comment', 'createdAt');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/materials/{{materialId}}/reviews"
+          }
+        },
+        {
+          "name": "POST /reviews (other parent order → 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403 forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('message', function () {",
+                  "  pm.expect(pm.response.json().message).to.eql('forbidden');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentBToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 3,\n  \"comment\": \"wrong owner\"\n}"
+            },
+            "url": "{{baseUrl}}/reviews"
+          }
+        },
+        {
+          "name": "POST reports",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"reason\": \"postman report\"\n}"
+            },
+            "url": "{{baseUrl}}/reports"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Admin lists",
+      "item": [
+        {
+          "name": "GET admin/materials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/materials"
+          }
+        },
+        {
+          "name": "GET admin/orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/orders"
+          }
+        },
+        {
+          "name": "GET admin/orders?status=pending_payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/orders?status=pending_payment"
+          }
+        },
+        {
+          "name": "GET admin/logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/logs"
+          }
+        },
+        {
+          "name": "GET admin/reports",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/reports"
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Cart delete (expect 404 after checkout)",
+      "item": [
+        {
+          "name": "DELETE cart/items/:id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 or 200', function () {",
+                  "  pm.expect([404, 200]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/cart/items/{{cartItemId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "teaching-platform",
+  "private": true,
+  "scripts": {
+    "start": "node Backend/index.js",
+    "dev": "npm run dev --prefix Backend",
+    "postman": "npm run postman:newman --prefix Backend",
+    "smoke": "npm run smoke --prefix Backend"
+  }
+}

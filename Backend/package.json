@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "smoke": "node scripts/api-smoke-test.js",
+    "postman:newman": "newman run ../docs/postman/teaching-platform-backend.postman_collection.json -e ../docs/postman/local.postman_environment.json --timeout-request 60000"
   },
   "keywords": [],
   "author": "",
@@ -14,11 +17,13 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "newman": "^6.2.1",
     "nodemon": "^3.1.11"
   }
 }

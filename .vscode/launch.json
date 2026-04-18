@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Backend (no debug)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/Backend",
+      "program": "${workspaceFolder}/Backend/index.js",
+      "envFile": "${workspaceFolder}/Backend/.env",
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "noDebug": false
+    },
+    {
+      "name": "Debug Backend",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/Backend",
+      "program": "${workspaceFolder}/Backend/index.js",
+      "envFile": "${workspaceFolder}/Backend/.env",
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Attach Backend (9229)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ]
+}
