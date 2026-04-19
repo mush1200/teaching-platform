@@ -133,24 +133,30 @@ duplicate review for same material (unique constraint)
 
 ---
 
-# 8. Activity log actions (implemented)
+# 8. Activity log actions & admin audit API
 
-material.created
-material.published
-material.unpublished
+**Audit API（僅 admin，JWT）：**
 
-cart.added
-cart.removed
+- `GET /admin/activity-logs` — 全站紀錄；query：`actor_id`、`actor_role`（teacher / parent / admin）、`action`、`target_type`、`target_id`、`page`（預設 1）、`limit`（預設 20，最大 100）；排序固定 `created_at DESC`。
+- `GET /admin/activity-logs/:id` — 單筆；路徑 `:id` 須與列表項目 `id` 一致（canonical schema 為 `activity_logs.id` BIGSERIAL 之字串；若部署環境將該欄設為 UUID／TEXT，亦同左對齊）。
+- `GET /admin/users/:userId/activity-logs` — `actor_id = userId`，支援 `page` / `limit`。
+- `GET /admin/materials/:materialId/activity-logs` — `target_type = material` 且 `target_id = materialId`，支援 `page` / `limit`。
+- `GET /admin/orders/:orderId/activity-logs` — `target_type = order` 且 `target_id = orderId`，支援 `page` / `limit`。
 
-order_created
-payment_proof_uploaded
-payment_proof.approved
-payment_proof.rejected
+列表回傳 `{ items, pagination: { page, limit, total } }`。teacher / parent 不得查詢（403）；未登入 401。
 
-download.attempted
-download.denied
-download.allowed
+**Action 命名（沿用現行程式寫入；篩選時請用完全一致字串）：**
 
-review_created
-report_created
-report_reviewed
+- `material.created`、`material.published`、`material.unpublished`
+- `cart.added`、`cart.removed`
+- `order_created`、`payment_proof_uploaded`、`payment_proof.approved`、`payment_proof.rejected`
+- `download.attempted`、`download.denied`、`download.allowed`
+- `review_created`、`report_created`、`report_reviewed`
+
+（歷史資料若略有別名，仍以資料庫實際 `action` 為準；新開發請沿用上列。）
+
+---
+
+# 9. HTTP API 一覽
+
+完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。與後端不一致時以 `Backend/` 路由實作為準。

@@ -210,19 +210,6 @@ router.post("/payment-proofs/:id/reject", async (req, res) => {
   }
 });
 
-router.get("/logs", async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT id, actor_id, actor_role, target_type, target_id, action, meta, created_at
-       FROM activity_logs ORDER BY created_at DESC LIMIT 200`
-    );
-    return res.json({ items: result.rows });
-  } catch (err) {
-    console.error("admin list logs failed:", err);
-    return res.status(500).json({ message: "server error" });
-  }
-});
-
 router.get("/reports", async (req, res) => {
   try {
     const raw = req.query.status;

@@ -474,6 +474,17 @@ async function runIdempotentMigrations() {
       WHEN duplicate_object THEN NULL;
     END $$;
   `);
+
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_activity_logs_actor_id ON activity_logs(actor_id);`
+  );
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);`);
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_activity_logs_target ON activity_logs(target_type, target_id);`
+  );
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);`
+  );
 }
 
 function ensureCoreTables() {

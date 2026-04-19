@@ -403,13 +403,21 @@ async function main() {
     const o = await http("GET", "/admin/orders", { token: adminToken });
     expect("GET /admin/orders", o.status === 200 && Array.isArray(o.data?.items), JSON.stringify(o.data));
 
-    const logs = await http("GET", "/admin/logs", { token: adminToken });
-    expect("GET /admin/logs", logs.status === 200 && Array.isArray(logs.data?.items), JSON.stringify(logs.data));
+    const logs = await http("GET", "/admin/activity-logs?page=1&limit=20", { token: adminToken });
+    expect(
+      "GET /admin/activity-logs",
+      logs.status === 200 &&
+        Array.isArray(logs.data?.items) &&
+        logs.data?.pagination?.total != null &&
+        logs.data?.pagination?.page === 1 &&
+        logs.data?.pagination?.limit === 20,
+      JSON.stringify(logs.data)
+    );
 
     const reps = await http("GET", "/admin/reports", { token: adminToken });
     expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data), JSON.stringify(reps.data));
 
-    console.log("OK  GET /admin/materials, /admin/orders, /admin/logs, /admin/reports");
+    console.log("OK  GET /admin/materials, /admin/orders, /admin/activity-logs, /admin/reports");
   }
 
   // Cart delete (optional — cart empty after order; expect 404 or empty)

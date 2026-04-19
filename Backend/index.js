@@ -16,6 +16,7 @@ const reviewRoutes = require("./routes/review.routes");
 const meRouter = require("./routes/me");
 const reportsRouter = require("./routes/reports");
 const adminRouter = require("./routes/admin");
+const adminActivityLogsRouter = require("./routes/adminActivityLogs");
 const { ensureCoreTables } = require("./models/bootstrapModel");
 app.use(express.json());
 
@@ -28,6 +29,7 @@ app.use("/reviews", reviewRoutes);
 app.use("/me", meRouter);
 app.use("/reports", reportsRouter);
 app.use("/admin", adminRouter);
+app.use("/admin", adminActivityLogsRouter);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

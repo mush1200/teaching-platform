@@ -1004,13 +1004,24 @@
           }
         },
         {
-          "name": "GET admin/logs",
+          "name": "GET admin/activity-logs（分頁）",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test('items + pagination', function () {",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  pm.expect(j.pagination).to.exist;",
+                  "  pm.expect(j.pagination.page).to.eql(1);",
+                  "  pm.expect(j.pagination.limit).to.eql(20);",
+                  "  pm.expect(j.pagination.total).to.be.a('number');",
+                  "});",
+                  "if (j.items.length > 0) {",
+                  "  pm.collectionVariables.set('activityLogId', String(j.items[0].id));",
+                  "}"
                 ],
                 "type": "text/javascript"
               }
@@ -1021,7 +1032,166 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "url": "{{baseUrl}}/admin/logs"
+            "url": "{{baseUrl}}/admin/activity-logs?page=1&limit=20"
+          }
+        },
+        {
+          "name": "GET admin/activity-logs/:id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const id = pm.collectionVariables.get('activityLogId');",
+                  "if (id) {",
+                  "  pm.test('200 single', function () { pm.response.to.have.status(200); });",
+                  "  const j = pm.response.json();",
+                  "  pm.test('shape', function () {",
+                  "    pm.expect(j.id).to.eql(id);",
+                  "    pm.expect(j.action).to.be.a('string');",
+                  "    pm.expect(j.meta).to.exist;",
+                  "  });",
+                  "} else {",
+                  "  pm.test('no activityLogId — run list request first', function () { pm.expect(pm.response.code).to.be.oneOf([200,404]); });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/activity-logs/{{activityLogId}}"
+          }
+        },
+        {
+          "name": "GET admin/users/:userId/activity-logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test('items for actor', function () {",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  const pid = pm.collectionVariables.get('parentId');",
+                  "  j.items.forEach(function (row) { pm.expect(row.actor_id).to.eql(pid); });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/users/{{parentId}}/activity-logs?page=1&limit=10"
+          }
+        },
+        {
+          "name": "GET admin/materials/:materialId/activity-logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test('material target_type', function () {",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  const mid = pm.collectionVariables.get('materialId');",
+                  "  j.items.forEach(function (row) {",
+                  "    pm.expect(row.target_type).to.eql('material');",
+                  "    pm.expect(row.target_id).to.eql(mid);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/materials/{{materialId}}/activity-logs?page=1&limit=10"
+          }
+        },
+        {
+          "name": "GET admin/orders/:orderId/activity-logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test('order target_type', function () {",
+                  "  pm.expect(j.items).to.be.an('array');",
+                  "  const oid = pm.collectionVariables.get('orderId');",
+                  "  j.items.forEach(function (row) {",
+                  "    pm.expect(row.target_type).to.eql('order');",
+                  "    pm.expect(row.target_id).to.eql(oid);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/orders/{{orderId}}/activity-logs?page=1&limit=10"
+          }
+        },
+        {
+          "name": "GET admin/activity-logs（無 Token → 401）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', function () { pm.response.to.have.status(401); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/admin/activity-logs"
+          }
+        },
+        {
+          "name": "GET admin/activity-logs（parent Token → 403）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403', function () { pm.response.to.have.status(403); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/activity-logs"
           }
         },
         {

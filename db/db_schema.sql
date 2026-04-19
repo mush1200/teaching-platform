@@ -6,7 +6,8 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ---------------------------------------------------------------------------
--- Core tables (TEXT primary keys throughout)
+-- Core domain tables (TEXT primary keys)
+-- Exception: activity_logs.id is BIGSERIAL (§10 audit table).
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS users (
@@ -132,6 +133,12 @@ CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);
 CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
 
+CREATE INDEX IF NOT EXISTS idx_activity_logs_actor_id ON activity_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_target ON activity_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);
+
 -- Deployed databases may also apply incremental migrations touching `reports` / activity paths; reference copies under `Backend/migrations/`, for example:
 -- `20260420_day20_reports_reporter_status.sql`
 -- `20260420_day20b_report_reviewed_metadata.sql`
+-- `20260423_day22_activity_logs_indexes.sql`
