@@ -3,6 +3,8 @@ const db = require("../config/db");
 const { requireAuth, optionalAuth, requireRole } = require("../middlewares/auth");
 const { writeActivityLog } = require("../utils/activityLog");
 const reviewService = require("../services/review.service");
+const reportRepository = require("../repositories/report.repository");
+const { parseOptionalReportStatusQuery } = require("../utils/reportStatusQuery");
 
 const router = express.Router();
 
@@ -53,18 +55,16 @@ router.get("/:id/rating", async (req, res) => {
   }
 });
 
-/** Admin：某教材之檢舉列表。status — pending：已建立、管理員尚未標記已讀；reviewed：管理員已看過（不代表下架）。 */
+/** Admin：某教材之檢舉列表（與 GET /admin/materials/:materialId/reports 同欄位／同 optional status）。 */
 router.get("/:id/reports", requireAuth, requireRole("admin"), async (req, res) => {
   try {
+    const parsed = parseOptionalReportStatusQuery(req, res);
+    if (!parsed.valid) return;
     const materialId = String(req.params.id);
-    const result = await db.query(
-      `SELECT id, reason, status, created_at, reviewed_at
-       FROM reports
-       WHERE material_id = $1
-       ORDER BY created_at DESC`,
-      [materialId]
-    );
-    return res.json(result.rows);
+    const rows = await reportRepository.listReportsByMaterialId(materialId, {
+      status: parsed.status,
+    });
+    return res.json(rows);
   } catch (err) {
     console.error("list material reports failed:", err);
     return res.status(500).json({ message: "server error" });

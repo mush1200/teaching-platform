@@ -1246,6 +1246,155 @@
           }
         },
         {
+          "name": "GET admin/reports?status=bad → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 invalid status query', function () { pm.response.to.have.status(400); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/reports?status=resolved"
+          }
+        },
+        {
+          "name": "GET admin/materials/:materialId/reports",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 array scoped to material', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "  const mid = pm.collectionVariables.get('materialId');",
+                  "  a.forEach(function (r) { pm.expect(r.material_id).to.eql(mid); });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/materials/{{materialId}}/reports"
+          }
+        },
+        {
+          "name": "GET admin/materials/:materialId/reports?status=pending",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 pending only', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "  a.forEach(function (r) { pm.expect(r.status).to.eql('pending'); });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/materials/{{materialId}}/reports?status=pending"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id（無 Token → 401）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', function () { pm.response.to.have.status(401); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id（parent → 403）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403', function () { pm.response.to.have.status(403); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id（body 非 reviewed → 400）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', function () { pm.response.to.have.status(400); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pending\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
           "name": "PATCH admin/reports/:id → reviewed",
           "event": [
             {
@@ -1275,6 +1424,37 @@
               "raw": "{\n  \"status\": \"reviewed\"\n}"
             },
             "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "GET admin/activity-logs（驗證 report_reviewed）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 audit row', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.be.an('array');",
+                  "  const rid = pm.collectionVariables.get('reportId');",
+                  "  const hit = body.items.find(function (x) {",
+                  "    return x.action === 'report_reviewed' && x.target_type === 'report' && x.target_id === rid;",
+                  "  });",
+                  "  pm.expect(hit, 'report_reviewed log').to.exist;",
+                  "  pm.expect(hit.meta && hit.meta.status).to.eql('reviewed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/activity-logs?action=report_reviewed&target_type=report&target_id={{reportId}}&limit=20"
           }
         },
         {

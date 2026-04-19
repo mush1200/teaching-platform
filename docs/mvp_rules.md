@@ -44,7 +44,7 @@ download unapproved materials
 review unpurchased materials
 approve orders
 
-access admin-only report moderation endpoints (**GET** `/admin/reports`, **PATCH** `/admin/reports/:id`)
+access admin-only report moderation endpoints (**GET** `/admin/reports`, **GET** `/admin/materials/:materialId/reports`, **PATCH** `/admin/reports/:id`, **GET** `/materials/:id/reports` — admin JWT only)
 
 ---
 
@@ -151,7 +151,8 @@ duplicate review for same material (unique constraint)
 - `cart.added`、`cart.removed`
 - `order_created`、`payment_proof_uploaded`、`payment_proof.approved`、`payment_proof.rejected`
 - `download.attempted`、`download.denied`、`download.allowed`
-- `review_created`、`report_created`、`report_reviewed`
+- `review_created`
+- `report_created`、`report_reviewed`：`report_created` 之稽核列為 `target_type = material`、`target_id` = 教材 id；`report_reviewed` 之稽核列為 `target_type = report`、`target_id` = 該筆檢舉 id。
 
 （歷史資料若略有別名，仍以資料庫實際 `action` 為準；新開發請沿用上列。）
 
@@ -159,4 +160,4 @@ duplicate review for same material (unique constraint)
 
 # 9. HTTP API 一覽
 
-完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。與後端不一致時以 `Backend/` 路由實作為準。
+完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.3.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**

@@ -111,7 +111,9 @@ Rating is integer **1–5**; optional `comment`.
 **Admin HTTP (implemented):**
 
 - **GET** `/admin/reports` — JWT + `admin` only; response body is a JSON **array** of report rows. Optional query: `status=pending` or `status=reviewed` (invalid values → 400).
-- **PATCH** `/admin/reports/:id` — body must be `{"status":"reviewed"}`; only transition `pending` → `reviewed`; already reviewed → **409**; writes `activity_logs` with `action = report_reviewed` and `meta` containing `{"status":"reviewed"}`.
+- **GET** `/admin/materials/:materialId/reports` — JWT + `admin` only; JSON **array** of report rows for that material (same columns as `/admin/reports`). Optional query: `status=pending` or `status=reviewed` (invalid values → 400).
+- **GET** `/materials/:id/reports` — JWT + **admin** only; `:id` is material id. Same columns and optional `status` filter as **`GET /admin/materials/:materialId/reports`** (invalid `status` → **400**).
+- **PATCH** `/admin/reports/:id` — body must be `{"status":"reviewed"}`; only transition `pending` → `reviewed`; already reviewed → **409**; writes `activity_logs` with `action = report_reviewed`, `target_type = report`, `target_id` set to that report’s id, and `meta` containing `{"status":"reviewed"}`. (**POST** `/reports` emits **`report_created`** with `target_type = material` and the material id as `target_id`.)
 
 ---
 
@@ -167,7 +169,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials` | Optional JWT | List: anonymous sees **published** only; **teacher** sees own + published; **admin** sees all. Query none. |
 | GET | `/materials/:id/reviews` | — | Public list of reviews for material. |
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
-| GET | `/materials/:id/reports` | JWT (**admin**) | Reports for one material (`id` = material id). |
+| GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
 | GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. |
 | POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Body requires `title`, `price`, `fileKey`, `ipDeclarationAccepted: true`, etc. |
 | PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Update fields; **only admin** may send `status`. |
@@ -223,7 +225,7 @@ All routes below: **JWT + admin**. Non-admin **403**.
 | POST | `/admin/payment-proofs/:id/approve` | Approve pending proof; may set order `approved`; supersede other pending proofs. Body optional `note`. |
 | POST | `/admin/payment-proofs/:id/reject` | Reject pending proof; body **`note` required**. Order status unchanged. |
 | GET | `/admin/reports` | Array of reports; optional `status=pending` or `reviewed` (invalid → **400**). |
-| GET | `/admin/materials/:materialId/reports` | Same idea as material-scoped reports list. |
+| GET | `/admin/materials/:materialId/reports` | Same columns as **`GET /admin/reports`**; optional `status=pending` or `reviewed` (invalid → **400**). |
 | PATCH | `/admin/reports/:id` | Body `{ "status": "reviewed" }`; pending → reviewed only; duplicate transition **409**. |
 
 ### Admin — audit logs (`/admin`, `routes/adminActivityLogs.js`)

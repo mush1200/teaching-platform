@@ -2,6 +2,9 @@ const express = require("express");
 const db = require("../config/db");
 const { requireAuth, requireRole } = require("../middlewares/auth");
 const { writeActivityLog } = require("../utils/activityLog");
+const reportRepository = require("../repositories/report.repository");
+const reportAdminService = require("../services/reportAdmin.service");
+const { parseOptionalReportStatusQuery } = require("../utils/reportStatusQuery");
 
 const router = express.Router();
 router.use(requireAuth, requireRole("admin"));
@@ -212,44 +215,26 @@ router.post("/payment-proofs/:id/reject", async (req, res) => {
 
 router.get("/reports", async (req, res) => {
   try {
-    const raw = req.query.status;
-    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
-      const s = String(raw).trim();
-      if (s !== "pending" && s !== "reviewed") {
-        return res.status(400).json({ message: "status query must be pending or reviewed" });
-      }
-    }
-
-    const statusFilter =
-      raw !== undefined && raw !== null && String(raw).trim() !== ""
-        ? String(raw).trim()
-        : null;
-
-    const sql = statusFilter
-      ? `SELECT id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by
-         FROM reports WHERE status = $1 ORDER BY created_at DESC`
-      : `SELECT id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by
-         FROM reports ORDER BY created_at DESC`;
-    const result = statusFilter ? await db.query(sql, [statusFilter]) : await db.query(sql);
-    return res.json(result.rows);
+    const parsed = parseOptionalReportStatusQuery(req, res);
+    if (!parsed.valid) return;
+    const rows = await reportRepository.listReports({ status: parsed.status });
+    return res.json(rows);
   } catch (err) {
     console.error("admin list reports failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });
 
-/** 依教材查檢舉（與 GET /materials/:id/reports 相同資料，掛在 /admin 以避免部分環境路由未載入）。 */
+/** 依教材查檢舉；可選 query status=pending|reviewed（非法值 → 400）。 */
 router.get("/materials/:materialId/reports", async (req, res) => {
   try {
+    const parsed = parseOptionalReportStatusQuery(req, res);
+    if (!parsed.valid) return;
     const materialId = String(req.params.materialId);
-    const result = await db.query(
-      `SELECT id, reason, status, created_at, reviewed_at
-       FROM reports
-       WHERE material_id = $1
-       ORDER BY created_at DESC`,
-      [materialId]
-    );
-    return res.json(result.rows);
+    const rows = await reportRepository.listReportsByMaterialId(materialId, {
+      status: parsed.status,
+    });
+    return res.json(rows);
   } catch (err) {
     console.error("admin list material reports failed:", err);
     return res.status(500).json({ message: "server error" });
@@ -272,33 +257,14 @@ router.patch("/reports/:id", async (req, res) => {
       return res.status(400).json({ message: "only status \"reviewed\" is allowed" });
     }
 
-    const updated = await db.query(
-      `UPDATE reports
-       SET status = 'reviewed',
-           reviewed_at = NOW(),
-           reviewed_by = $2
-       WHERE id = $1 AND status = 'pending'
-       RETURNING id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by`,
-      [reportId, req.user.userId]
-    );
-
-    if (updated.rows.length === 0) {
-      const existing = await db.query(`SELECT id, status FROM reports WHERE id = $1 LIMIT 1`, [reportId]);
-      if (existing.rows.length === 0) return res.status(404).json({ message: "report not found" });
+    const result = await reportAdminService.reviewReport(reportId, req.user);
+    if (!result.ok) {
+      if (result.code === "not_found") {
+        return res.status(404).json({ message: "report not found" });
+      }
       return res.status(409).json({ message: "report already reviewed" });
     }
-
-    const row = updated.rows[0];
-    await writeActivityLog({
-      actorId: req.user.userId,
-      actorRole: req.user.role,
-      targetType: "report",
-      targetId: row.id,
-      action: "report_reviewed",
-      meta: { status: "reviewed" },
-    });
-
-    return res.json(row);
+    return res.json(result.report);
   } catch (err) {
     console.error("patch report failed:", err);
     return res.status(500).json({ message: "server error" });
