@@ -300,9 +300,9 @@ async function main() {
   {
     const rv = await http("POST", "/reviews", {
       token: parentToken,
-      body: { orderItemId, rating: 5, comment: "smoke" },
+      body: { material_id: materialId, rating: 5, comment: "smoke" },
     });
-    expect("POST /reviews", rv.status === 201 && rv.data?.materialId === materialId, JSON.stringify(rv.data));
+    expect("POST /reviews", rv.status === 201 && rv.data?.material_id === materialId, JSON.stringify(rv.data));
     console.log("OK  POST /reviews");
   }
 
@@ -311,7 +311,7 @@ async function main() {
     const mr = await http("GET", "/me/reviews", { token: parentToken });
     expect(
       "GET /me/reviews",
-      mr.status === 200 && Array.isArray(mr.data) && mr.data.some((r) => r.orderItemId === orderItemId),
+      mr.status === 200 && Array.isArray(mr.data) && mr.data.some((r) => r.material_id === materialId),
       JSON.stringify(mr.data)
     );
     console.log("OK  GET /me/reviews");
@@ -322,6 +322,17 @@ async function main() {
     const lr = await http("GET", `/materials/${materialId}/reviews`);
     expect("GET /materials/:id/reviews", lr.status === 200 && Array.isArray(lr.data) && lr.data.length >= 1, JSON.stringify(lr.data));
     console.log("OK  GET /materials/:id/reviews");
+  }
+
+  // GET /materials/:id/rating
+  {
+    const rt = await http("GET", `/materials/${materialId}/rating`);
+    expect(
+      "GET /materials/:id/rating",
+      rt.status === 200 && rt.data?.count >= 1 && rt.data?.average !== null && rt.data?.average !== undefined,
+      JSON.stringify(rt.data)
+    );
+    console.log("OK  GET /materials/:id/rating");
   }
 
   // Report

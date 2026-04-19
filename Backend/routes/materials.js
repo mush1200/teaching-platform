@@ -42,6 +42,17 @@ router.get("/:id/reviews", async (req, res) => {
   }
 });
 
+router.get("/:id/rating", async (req, res) => {
+  try {
+    const materialId = String(req.params.id);
+    const stats = await reviewService.getMaterialRatingStats(materialId);
+    return res.json(stats);
+  } catch (err) {
+    console.error("material rating stats failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const result = await db.query(

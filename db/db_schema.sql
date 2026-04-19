@@ -115,16 +115,15 @@ CREATE TABLE manual_payment_proofs (
 
 );
 
--- Day18: 評論綁定 order_item（每筆 order_item 至多一則）；核准後之訂單狀態欄位見 orders.status = approved（與後端一致）
+-- Day19: 評論綁定 material + parent（users.id）；每組 material 每位 parent 至多一則。
+-- 授權：orders.status = approved 且 order_item.material_id 一致、orders.user_id = parent_id。
 CREATE TABLE review (
 
  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
 
  material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
 
- order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
-
- reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ parent_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
 
@@ -132,7 +131,7 @@ CREATE TABLE review (
 
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
- UNIQUE(order_item_id)
+ UNIQUE(material_id, parent_id)
 
 );
 

@@ -5,7 +5,7 @@ const reviewService = require("../services/review.service");
 
 const router = express.Router();
 
-function requireParentReview(req, res, next) {
+function requireParentReviewer(req, res, next) {
   if (!req.user) return res.status(401).json({ message: "Unauthorized" });
   if (req.user.role !== "parent") {
     return res.status(403).json({ message: "Only parent can create review" });
@@ -13,12 +13,15 @@ function requireParentReview(req, res, next) {
   next();
 }
 
-router.post("/", requireAuth, requireParentReview, async (req, res) => {
+router.post("/", requireAuth, requireParentReviewer, async (req, res) => {
   try {
-    const { orderItemId, rating, comment } = req.body || {};
+    const body = req.body || {};
+    const materialId = body.material_id ?? body.materialId;
+    const { rating, comment } = body;
+
     const { response, audit } = await reviewService.createReview({
-      reviewerId: req.user.userId,
-      orderItemId,
+      parentId: req.user.userId,
+      materialId,
       rating,
       comment,
     });
@@ -26,14 +29,11 @@ router.post("/", requireAuth, requireParentReview, async (req, res) => {
     await writeActivityLog({
       actorId: req.user.userId,
       actorRole: req.user.role,
-      targetType: "review",
-      targetId: audit.reviewId,
+      targetType: "material",
+      targetId: audit.materialId,
       action: "review_created",
       meta: {
-        userId: audit.userId,
-        reviewId: audit.reviewId,
-        materialId: audit.materialId,
-        orderItemId: audit.orderItemId,
+        rating: audit.rating,
       },
     });
 
@@ -41,12 +41,10 @@ router.post("/", requireAuth, requireParentReview, async (req, res) => {
   } catch (err) {
     const code = err.code;
     if (code === "VALIDATION") return res.status(400).json({ message: err.message });
-    if (code === "NOT_FOUND") return res.status(404).json({ message: err.message });
-    if (code === "FORBIDDEN_OWNER" || code === "FORBIDDEN_STATUS") {
-      return res.status(403).json({ message: err.message });
-    }
+    if (code === "MATERIAL_NOT_FOUND") return res.status(404).json({ message: err.message });
+    if (code === "FORBIDDEN_ENTITLEMENT") return res.status(403).json({ message: err.message });
     if (code === "CONFLICT") return res.status(409).json({ message: err.message });
-    if (err.code === "23505") return res.status(409).json({ message: "review already exists for this order_item" });
+    if (err.code === "23505") return res.status(409).json({ message: "already reviewed" });
     console.error("create review failed:", err);
     return res.status(500).json({ message: "server error" });
   }

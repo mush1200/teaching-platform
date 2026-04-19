@@ -254,16 +254,60 @@ async function runIdempotentMigrations() {
     CREATE TABLE IF NOT EXISTS review (
       id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
       material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
-      order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
-      reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      parent_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
       comment TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (order_item_id)
+      UNIQUE (material_id, parent_id)
     );
   `);
+
+  // 舊庫仍為 Day18 結構時，須先遷移出 parent_id，才能建立 idx_review_parent_id。
+  await db.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'review' AND column_name = 'order_item_id'
+      ) THEN
+        ALTER TABLE review ADD COLUMN IF NOT EXISTS parent_id TEXT;
+        UPDATE review SET parent_id = reviewer_id WHERE parent_id IS NULL;
+        DELETE FROM review
+        WHERE id IN (
+          SELECT id FROM (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY material_id, parent_id
+                     ORDER BY created_at ASC, id ASC
+                   ) AS rn
+            FROM review
+            WHERE parent_id IS NOT NULL
+          ) t
+          WHERE rn > 1
+        );
+        ALTER TABLE review DROP CONSTRAINT IF EXISTS review_order_item_id_key;
+        ALTER TABLE review DROP CONSTRAINT IF EXISTS review_order_item_id_fkey;
+        ALTER TABLE review DROP COLUMN IF EXISTS order_item_id;
+        ALTER TABLE review DROP COLUMN IF EXISTS reviewer_id;
+        ALTER TABLE review ALTER COLUMN parent_id SET NOT NULL;
+        BEGIN
+          ALTER TABLE review
+            ADD CONSTRAINT review_parent_id_fkey
+            FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END;
+        BEGIN
+          ALTER TABLE review
+            ADD CONSTRAINT uq_review_material_parent UNIQUE (material_id, parent_id);
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END;
+      END IF;
+    END $$;
+  `);
+
   await db.query(`CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_review_reviewer_id ON review(reviewer_id);`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);`);
+  await db.query(`DROP INDEX IF EXISTS idx_review_reviewer_id;`);
 }
 
 function ensureCoreTables() {
@@ -345,16 +389,13 @@ function ensureCoreTables() {
         CREATE TABLE IF NOT EXISTS review (
           id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
           material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
-          order_item_id TEXT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
-          reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          parent_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
           comment TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          UNIQUE (order_item_id)
+          UNIQUE (material_id, parent_id)
         );
       `);
-      await db.query(`CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);`);
-      await db.query(`CREATE INDEX IF NOT EXISTS idx_review_reviewer_id ON review(reviewer_id);`);
       await db.query(`
         CREATE TABLE IF NOT EXISTS reports (
           id TEXT PRIMARY KEY,
