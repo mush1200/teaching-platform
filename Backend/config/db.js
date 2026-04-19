@@ -30,6 +30,10 @@ function buildDbConfig() {
 
 const pool = new Pool(buildDbConfig());
 
+pool.on("error", (err) => {
+  console.error("PostgreSQL pool idle-client error:", err.message);
+});
+
 module.exports = {
   query: (text, params) => pool.query(text, params),
   pool,

@@ -335,14 +335,64 @@ async function main() {
     console.log("OK  GET /materials/:id/rating");
   }
 
-  // Report
+  // Report（Day20：pending → reviewed；列表請用 GET /admin/materials/:materialId/reports）
   {
     const rep = await http("POST", "/reports", {
       token: parentToken,
-      body: { materialId, reason: "smoke report" },
+      body: { material_id: materialId, materialId, reason: "smoke report" },
     });
-    expect("POST /reports", rep.status === 201 && rep.data?.material_id === materialId, JSON.stringify(rep.data));
+    expect(
+      "POST /reports",
+      rep.status === 201 &&
+        rep.data?.material_id === materialId &&
+        rep.data?.reporter_id === parentId &&
+        rep.data?.status === "pending",
+      JSON.stringify(rep.data)
+    );
     console.log("OK  POST /reports");
+
+    const dup = await http("POST", "/reports", {
+      token: parentToken,
+      body: { material_id: materialId, materialId, reason: "duplicate" },
+    });
+    expect(
+      "POST /reports duplicate",
+      dup.status === 409 && dup.data?.message === "Already reported",
+      JSON.stringify(dup.data)
+    );
+
+    const mrRep = await http("GET", `/admin/materials/${materialId}/reports`, { token: adminToken });
+    expect(
+      "GET /admin/materials/:materialId/reports",
+      mrRep.status === 200 &&
+        Array.isArray(mrRep.data) &&
+        mrRep.data.some((r) => r.reason === "smoke report" && r.status === "pending"),
+      JSON.stringify(mrRep.data)
+    );
+    console.log("OK  GET /admin/materials/:materialId/reports");
+
+    const reportId = rep.data.id;
+    const reviewed = await http("PATCH", `/admin/reports/${reportId}`, {
+      token: adminToken,
+      body: { status: "reviewed" },
+    });
+    expect(
+      "PATCH /admin/reports/:id (reviewed)",
+      reviewed.status === 200 &&
+        reviewed.data?.status === "reviewed" &&
+        reviewed.data?.reviewed_at != null,
+      JSON.stringify(reviewed.data)
+    );
+    console.log("OK  PATCH /admin/reports/:id");
+
+    const mrRep2 = await http("GET", `/admin/materials/${materialId}/reports`, { token: adminToken });
+    expect(
+      "GET /admin/materials/:materialId/reports after reviewed",
+      mrRep2.status === 200 &&
+        mrRep2.data.some((r) => r.id === reportId && r.status === "reviewed"),
+      JSON.stringify(mrRep2.data)
+    );
+    console.log("OK  report status pending → reviewed");
   }
 
   // Admin lists

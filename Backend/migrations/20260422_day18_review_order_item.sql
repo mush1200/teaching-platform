@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- 舊版 CHECK 可能不含 approved，先卸除再對齊規格用語
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
 
--- 核准完成：paid → approved（與 teaching-platform-mvp-spec-v1.2 訂單 lifecycle 一致）
+-- 核准完成：paid → approved（與 docs/teaching-platform-mvp-spec-v1.3.md 訂單語意一致）
 UPDATE orders SET status = 'approved' WHERE status = 'paid';
 
 DROP TABLE IF EXISTS reviews CASCADE;

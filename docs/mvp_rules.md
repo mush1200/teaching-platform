@@ -1,11 +1,10 @@
 # MVP Rules
 
-# 0. 資料庫連線資訊
-host localhost
-database postgres
-port 5432
-username postgres
-password 123456
+# 0. 資料庫連線
+
+本機開發時以環境變數設定（例如 `Backend` 目錄的 `.env` 或 `DATABASE_URL` / `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE`），**不要**在版控文件內寫入實際密碼。
+
+---
 
 # 1. Authentication
 
@@ -18,24 +17,25 @@ JWT required for protected routes.
 Teacher:
 
 create material
-edit own material
+edit own material (metadata; **cannot** set `status` — only admin)
 view own materials
 
 Cannot:
 
 approve orders
 review payment proofs
+set material publish state
 
 ---
 
 Parent:
 
 browse published materials
-add to cart
+add to cart (with quantity)
 create order
 upload payment proof
 download approved materials
-review purchased materials
+review purchased materials (one review per material)
 report materials
 
 Cannot:
@@ -48,10 +48,9 @@ approve orders
 
 Admin:
 
-review materials
-approve orders
-reject orders
-view reports
+change material status (publish / unpublish)
+list and act on payment proofs (approve / reject proof)
+view reports; mark report as reviewed
 view activity logs
 
 ---
@@ -60,7 +59,7 @@ view activity logs
 
 published:
 
-visible to parents
+visible to parents (and in public list when not scoped to teacher)
 
 pending_review:
 
@@ -72,31 +71,41 @@ hidden from parents
 
 ---
 
-# 4. Order state transitions
+# 4. Order and payment state
 
-allowed:
+**Order (`orders.status`)**
 
-pending -> proof_uploaded
+- `pending_payment` — after checkout; remains while proofs are only uploaded.
+- `approved` — after admin approves a **pending** `manual_payment_proofs` row for that order.
 
-proof_uploaded -> approved
+**Not used on the order row:** `proof_uploaded` (proofs are tracked on `manual_payment_proofs`).
 
-proof_uploaded -> rejected
+**Payment proof (`manual_payment_proofs.review_status`)**
 
-not allowed:
+- `pending` | `approved` | `rejected`
+- Rejecting a proof does **not** change `orders.status` (order may stay `pending_payment`).
 
-pending -> approved
-pending -> rejected
+**Allowed admin path to paid order:** at least one proof is approved while order is `pending_payment` → order becomes `approved`.
 
-approved -> pending
+**Not allowed:** approve an order that is already `approved` via the same flow; skip proof review.
 
 ---
 
-# 5. Download authorization rule
+# 5. Report lifecycle (`reports.status`)
+
+- `pending` — created by parent.
+- `reviewed` — admin acknowledged (PATCH); does not imply material takedown.
+
+Same reporter cannot submit duplicate reports for the same material (`UNIQUE (material_id, reporter_id)`).
+
+---
+
+# 6. Download authorization rule
 
 ALLOW if:
 
-approved order exists
-AND order_item exists
+approved order (`orders.status = approved`)
+AND order_item exists for that material and buyer
 
 DENY if:
 
@@ -107,41 +116,39 @@ material not found
 
 ---
 
-# 6. Review authorization rule
+# 7. Review authorization rule
 
 ALLOW if:
 
-approved order exists
-AND material in order_items
+approved order exists for parent
+AND material appears in order_items for that order
 
 DENY if:
 
-not purchased
+not purchased / no matching approved order_item
 order not approved
+duplicate review for same material (unique constraint)
 
 ---
 
-# 7. Activity log required events
+# 8. Activity log actions (implemented)
 
-material_created
-material_updated
-material_published
-material_unpublished
+material.created
+material.published
+material.unpublished
 
-cart_item_added
-cart_item_removed
+cart.added
+cart.removed
 
 order_created
-
 payment_proof_uploaded
+payment_proof.approved
+payment_proof.rejected
 
-order_approved
-order_rejected
-
-download_attempt
-download_success
-download_denied
+download.attempted
+download.denied
+download.allowed
 
 review_created
-
 report_created
+report_reviewed

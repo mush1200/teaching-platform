@@ -226,12 +226,75 @@ router.get("/logs", async (req, res) => {
 router.get("/reports", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, user_id, material_id, reason, created_at
+      `SELECT id, reporter_id, material_id, reason, status, created_at, reviewed_at, reviewed_by
        FROM reports ORDER BY created_at DESC`
     );
     return res.json({ items: result.rows });
   } catch (err) {
     console.error("admin list reports failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+/** 依教材查檢舉（與 GET /materials/:id/reports 相同資料，掛在 /admin 以避免部分環境路由未載入）。 */
+router.get("/materials/:materialId/reports", async (req, res) => {
+  try {
+    const materialId = String(req.params.materialId);
+    const result = await db.query(
+      `SELECT id, reason, status, created_at, reviewed_at
+       FROM reports
+       WHERE material_id = $1
+       ORDER BY created_at DESC`,
+      [materialId]
+    );
+    return res.json(result.rows);
+  } catch (err) {
+    console.error("admin list material reports failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+/**
+ * 將檢舉標為已讀：pending → reviewed（不代表下架教材）。
+ * Body: { "status": "reviewed" }
+ */
+router.patch("/reports/:id", async (req, res) => {
+  try {
+    const reportId = String(req.params.id);
+    const { status } = req.body || {};
+    if (status !== "reviewed") {
+      return res.status(400).json({ message: "only status \"reviewed\" is allowed" });
+    }
+
+    const updated = await db.query(
+      `UPDATE reports
+       SET status = 'reviewed',
+           reviewed_at = NOW(),
+           reviewed_by = $2
+       WHERE id = $1 AND status = 'pending'
+       RETURNING id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by`,
+      [reportId, req.user.userId]
+    );
+
+    if (updated.rows.length === 0) {
+      const existing = await db.query(`SELECT id, status FROM reports WHERE id = $1 LIMIT 1`, [reportId]);
+      if (existing.rows.length === 0) return res.status(404).json({ message: "report not found" });
+      return res.status(409).json({ message: "report already reviewed" });
+    }
+
+    const row = updated.rows[0];
+    await writeActivityLog({
+      actorId: req.user.userId,
+      actorRole: req.user.role,
+      targetType: "report",
+      targetId: row.id,
+      action: "report_reviewed",
+      meta: { material_id: row.material_id },
+    });
+
+    return res.json(row);
+  } catch (err) {
+    console.error("patch report failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });

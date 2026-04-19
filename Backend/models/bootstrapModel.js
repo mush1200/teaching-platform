@@ -262,6 +262,21 @@ async function runIdempotentMigrations() {
     );
   `);
 
+  // 舊表若早於 parent_id 欄位：CREATE TABLE IF NOT EXISTS 不會補欄位；必須先補齊再建索引。
+  await db.query(`ALTER TABLE review ADD COLUMN IF NOT EXISTS parent_id TEXT;`);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'review' AND column_name = 'reviewer_id'
+      ) THEN
+        EXECUTE 'UPDATE review SET parent_id = CAST(reviewer_id AS TEXT) WHERE parent_id IS NULL';
+      END IF;
+    END $$;
+  `);
+
   // 舊庫仍為 Day18 結構時，須先遷移出 parent_id，才能建立 idx_review_parent_id。
   await db.query(`
     DO $$
@@ -305,9 +320,160 @@ async function runIdempotentMigrations() {
     END $$;
   `);
 
+  await db.query(`ALTER TABLE review DROP COLUMN IF EXISTS reviewer_id;`);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      DELETE FROM review
+      WHERE parent_id IS NULL OR (parent_id IS NOT NULL AND btrim(parent_id::text) = '');
+    END $$;
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      BEGIN
+        ALTER TABLE review ALTER COLUMN parent_id SET NOT NULL;
+      EXCEPTION
+        WHEN OTHERS THEN NULL;
+      END;
+      BEGIN
+        ALTER TABLE review
+          ADD CONSTRAINT review_parent_id_fkey
+          FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE;
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END;
+      BEGIN
+        ALTER TABLE review
+          ADD CONSTRAINT uq_review_material_parent UNIQUE (material_id, parent_id);
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+        WHEN duplicate_table THEN NULL;
+      END;
+    END $$;
+  `);
+
   await db.query(`CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);`);
   await db.query(`DROP INDEX IF EXISTS idx_review_reviewer_id;`);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'user_id'
+      ) THEN
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS reporter_id TEXT;
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS status TEXT;
+        UPDATE reports SET reporter_id = user_id WHERE reporter_id IS NULL;
+        UPDATE reports SET status = COALESCE(NULLIF(TRIM(status), ''), 'pending');
+        DELETE FROM reports
+        WHERE id IN (
+          SELECT id FROM (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                     PARTITION BY material_id, reporter_id
+                     ORDER BY created_at ASC NULLS LAST, id ASC
+                   ) AS rn
+            FROM reports
+            WHERE reporter_id IS NOT NULL
+          ) t
+          WHERE rn > 1
+        );
+        ALTER TABLE reports DROP COLUMN user_id;
+      END IF;
+    END $$;
+  `);
+
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS status TEXT;`);
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS reporter_id TEXT;`);
+  await db.query(`
+    UPDATE reports SET status = COALESCE(NULLIF(TRIM(status), ''), 'pending') WHERE status IS NULL OR TRIM(status) = '';
+  `).catch(() => {});
+  await db.query(`ALTER TABLE reports ALTER COLUMN status SET DEFAULT 'pending';`).catch(() => {});
+  await db.query(`ALTER TABLE reports ALTER COLUMN status SET NOT NULL;`).catch(() => {});
+  await db.query(`ALTER TABLE reports ALTER COLUMN reporter_id SET NOT NULL;`).catch(() => {});
+
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE reports
+        ADD CONSTRAINT reports_status_check
+        CHECK (status IN ('pending', 'reviewed'));
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE reports
+        ADD CONSTRAINT reports_reporter_id_fkey
+        FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE reports
+        ADD CONSTRAINT reports_material_id_fkey
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+
+  // UNIQUE name collision can surface as SQLSTATE 42P07 (duplicate_table), not duplicate_object.
+  await db.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'uq_reports_material_reporter'
+          AND conrelid = 'public.reports'::regclass
+      ) THEN
+        RETURN;
+      END IF;
+
+      BEGIN
+        ALTER TABLE public.reports
+          ADD CONSTRAINT uq_reports_material_reporter UNIQUE (material_id, reporter_id);
+      EXCEPTION
+        WHEN duplicate_table THEN
+          DROP INDEX IF EXISTS public.uq_reports_material_reporter;
+          BEGIN
+            ALTER TABLE public.reports
+              ADD CONSTRAINT uq_reports_material_reporter UNIQUE (material_id, reporter_id);
+          EXCEPTION
+            WHEN duplicate_table THEN NULL;
+            WHEN duplicate_object THEN NULL;
+          END;
+        WHEN duplicate_object THEN NULL;
+      END;
+    END $$;
+  `);
+
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);`);
+
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;`);
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS reviewed_by TEXT;`);
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE reports
+        ADD CONSTRAINT reports_reviewed_by_fkey
+        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
 }
 
 function ensureCoreTables() {
@@ -398,11 +564,15 @@ function ensureCoreTables() {
       `);
       await db.query(`
         CREATE TABLE IF NOT EXISTS reports (
-          id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL,
-          material_id TEXT NOT NULL,
+          id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+          material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+          reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           reason TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          reviewed_at TIMESTAMPTZ,
+          reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+          CONSTRAINT reports_status_check CHECK (status IN ('pending', 'reviewed'))
         );
       `);
       await db.query(`
