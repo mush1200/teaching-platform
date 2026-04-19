@@ -407,7 +407,7 @@ async function main() {
     expect("GET /admin/logs", logs.status === 200 && Array.isArray(logs.data?.items), JSON.stringify(logs.data));
 
     const reps = await http("GET", "/admin/reports", { token: adminToken });
-    expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data?.items), JSON.stringify(reps.data));
+    expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data), JSON.stringify(reps.data));
 
     console.log("OK  GET /admin/materials, /admin/orders, /admin/logs, /admin/reports");
   }

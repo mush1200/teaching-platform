@@ -225,11 +225,26 @@ router.get("/logs", async (req, res) => {
 
 router.get("/reports", async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT id, reporter_id, material_id, reason, status, created_at, reviewed_at, reviewed_by
-       FROM reports ORDER BY created_at DESC`
-    );
-    return res.json({ items: result.rows });
+    const raw = req.query.status;
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+      const s = String(raw).trim();
+      if (s !== "pending" && s !== "reviewed") {
+        return res.status(400).json({ message: "status query must be pending or reviewed" });
+      }
+    }
+
+    const statusFilter =
+      raw !== undefined && raw !== null && String(raw).trim() !== ""
+        ? String(raw).trim()
+        : null;
+
+    const sql = statusFilter
+      ? `SELECT id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by
+         FROM reports WHERE status = $1 ORDER BY created_at DESC`
+      : `SELECT id, material_id, reporter_id, reason, status, created_at, reviewed_at, reviewed_by
+         FROM reports ORDER BY created_at DESC`;
+    const result = statusFilter ? await db.query(sql, [statusFilter]) : await db.query(sql);
+    return res.json(result.rows);
   } catch (err) {
     console.error("admin list reports failed:", err);
     return res.status(500).json({ message: "server error" });
@@ -261,7 +276,11 @@ router.get("/materials/:materialId/reports", async (req, res) => {
 router.patch("/reports/:id", async (req, res) => {
   try {
     const reportId = String(req.params.id);
-    const { status } = req.body || {};
+    const body = req.body || {};
+    if (!Object.prototype.hasOwnProperty.call(body, "status")) {
+      return res.status(400).json({ message: "status is required" });
+    }
+    const { status } = body;
     if (status !== "reviewed") {
       return res.status(400).json({ message: "only status \"reviewed\" is allowed" });
     }
@@ -289,7 +308,7 @@ router.patch("/reports/:id", async (req, res) => {
       targetType: "report",
       targetId: row.id,
       action: "report_reviewed",
-      meta: { material_id: row.material_id },
+      meta: { status: "reviewed" },
     });
 
     return res.json(row);

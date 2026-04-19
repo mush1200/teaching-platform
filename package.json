@@ -5,6 +5,7 @@
     "start": "node Backend/index.js",
     "dev": "npm run dev --prefix Backend",
     "postman": "npm run postman:newman --prefix Backend",
-    "smoke": "npm run smoke --prefix Backend"
+    "smoke": "npm run smoke --prefix Backend",
+    "git-hooks": "git config core.hooksPath .githooks"
   }
 }

@@ -910,7 +910,13 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('201', function () { pm.response.to.have.status(201); });"
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('reportId', j.id);",
+                  "pm.test('pending report shape', function () {",
+                  "  pm.expect(j.status).to.eql('pending');",
+                  "  pm.expect(j.material_id || j.materialId).to.exist;",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -1025,7 +1031,11 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                  "pm.test('200 array', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -1037,6 +1047,93 @@
               { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "url": "{{baseUrl}}/admin/reports"
+          }
+        },
+        {
+          "name": "GET admin/reports?status=pending",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 pending list', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const a = pm.response.json();",
+                  "  pm.expect(Array.isArray(a)).to.be.true;",
+                  "  a.forEach(function (r) { pm.expect(r.status).to.eql('pending'); });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/reports?status=pending"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id → reviewed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 reviewed', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.status).to.eql('reviewed');",
+                  "  pm.expect(r.reviewed_at).to.exist;",
+                  "  pm.expect(r.reviewed_by).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id (already reviewed → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 conflict', function () { pm.response.to.have.status(409); });",
+                  "pm.test('message', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('already reviewed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
           }
         }
       ]

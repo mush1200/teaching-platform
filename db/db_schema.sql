@@ -131,3 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_manual_payment_proofs_status ON manual_payment_pr
 CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);
 CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
+
+-- Deployed databases may also apply incremental migrations touching `reports` / activity paths; reference copies under `Backend/migrations/`, for example:
+-- `20260420_day20_reports_reporter_status.sql`
+-- `20260420_day20b_report_reviewed_metadata.sql`

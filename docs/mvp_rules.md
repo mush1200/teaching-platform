@@ -44,6 +44,8 @@ download unapproved materials
 review unpurchased materials
 approve orders
 
+access admin-only report moderation endpoints (**GET** `/admin/reports`, **PATCH** `/admin/reports/:id`)
+
 ---
 
 Admin:

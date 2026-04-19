@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Runs canonical-doc check before push. Repo root = parent of .githooks.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec node "$ROOT/scripts/git-pre-push-docs-check.mjs" "$@"

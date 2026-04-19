@@ -104,6 +104,15 @@ Rating is integer **1–5**; optional `comment`.
 - At most one report per `(material_id, reporter_id)`.
 - Admin may mark a report **reviewed** (`PATCH`), setting `reviewed_at` / `reviewed_by`. This marks admin acknowledgment only, not automatic material removal.
 
+**Parent HTTP (implemented):**
+
+- **POST** `/reports` — JWT + `parent` only; JSON body requires `reason` and material id as **`material_id`** or **`materialId`** (alias). Insert row with `status = pending`; duplicate `(material_id, reporter_id)` → **409** (`Already reported`); missing material → **404**; emits `activity_logs` with `action = report_created`, `target_type = material`, `meta.reason`.
+
+**Admin HTTP (implemented):**
+
+- **GET** `/admin/reports` — JWT + `admin` only; response body is a JSON **array** of report rows. Optional query: `status=pending` or `status=reviewed` (invalid values → 400).
+- **PATCH** `/admin/reports/:id` — body must be `{"status":"reviewed"}`; only transition `pending` → `reviewed`; already reviewed → **409**; writes `activity_logs` with `action = report_reviewed` and `meta` containing `{"status":"reviewed"}`.
+
 ---
 
 # 10. Audit (`activity_logs`)
