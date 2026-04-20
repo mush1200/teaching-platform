@@ -94,7 +94,7 @@ Allowed only if:
 
 At most **one** review row per `(material_id, parent_id)` (`UNIQUE` constraint). The MVP backend exposes **POST** `/reviews` to **create** only; a second create for the same pair returns **409** (`already reviewed`). There is **no** separate update-review endpoint in this MVP.
 
-Authorization (enforced in service/repository): there exists an **approved** order for that parent with an `order_item` whose `material_id` matches.
+Authorization (enforced in service/repository): **`EXISTS` at least one `approved` order for that parent** whose `order_items` include the requested `material_id` (this is **not** tied to “the” active cart/checkout order—another concurrent order may remain `pending_payment`).
 
 Rating is integer **1–5**; optional `comment`.
 

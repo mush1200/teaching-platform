@@ -122,13 +122,11 @@ material not found
 
 ALLOW if:
 
-approved order exists for parent
-AND material appears in order_items for that order
+at least one **approved** order exists for the parent **and** that order’s `order_items` include the target `material_id` (entitlement is an **existence** check—any qualifying order counts; a **separate** `pending_payment` order for the same material does **not** remove this entitlement).
 
 DENY if:
 
-not purchased / no matching approved order_item
-order not approved
+no such approved purchase (no approved order whose `order_items` include this `material_id`)
 duplicate review for same material (unique constraint; a second **POST** returns **409**; MVP has no separate “update review” endpoint)
 
 ---
