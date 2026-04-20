@@ -16,7 +16,7 @@ JWT required for protected routes.
 
 Teacher:
 
-create material
+create material (**POST** body must **not** include `status`; server responds **400** if present; new materials always start as `pending_review`)
 edit own material (metadata; **cannot** set `status` — only admin)
 view own materials
 
@@ -129,7 +129,7 @@ DENY if:
 
 not purchased / no matching approved order_item
 order not approved
-duplicate review for same material (unique constraint)
+duplicate review for same material (unique constraint; a second **POST** returns **409**; MVP has no separate “update review” endpoint)
 
 ---
 
@@ -153,6 +153,10 @@ duplicate review for same material (unique constraint)
 - `download.attempted`、`download.denied`、`download.allowed`
 - `review_created`
 - `report_created`、`report_reviewed`：`report_created` 之稽核列為 `target_type = material`、`target_id` = 教材 id；`report_reviewed` 之稽核列為 `target_type = report`、`target_id` = 該筆檢舉 id。
+
+**教材狀態稽核（`material.published` / `material.unpublished`）：** 僅在**更新後**的 `materials.status` 分別為 `published` 或 `unpublished`（且與更新前不同）時寫入對應 action。僅轉成 `pending_review` 等情況**不**借 `material.unpublished` 之名寫入。
+
+**購物車稽核（`cart.added`）：** 新增列與「同一 user+material 已存在而更新數量（upsert）」兩種路徑都會寫入；後者之 `meta` 可含 `upserted: true`。
 
 （歷史資料若略有別名，仍以資料庫實際 `action` 為準；新開發請沿用上列。）
 

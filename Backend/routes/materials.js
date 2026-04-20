@@ -111,6 +111,12 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
       return res.status(400).json({ message: "ipDeclarationAccepted must be true" });
     }
 
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, "status")) {
+      return res.status(400).json({
+        message: "status cannot be set on create; new materials start as pending_review",
+      });
+    }
+
     const id = newId();
     const created = await db.query(
       `INSERT INTO materials(
@@ -182,15 +188,25 @@ router.put("/:id", requireAuth, async (req, res) => {
     const row = updated.rows[0];
 
     if (before.status !== row.status) {
-      const action = row.status === "published" ? "material.published" : "material.unpublished";
-      await writeActivityLog({
-        actorId: req.user.userId,
-        actorRole: req.user.role,
-        targetType: "material",
-        targetId: row.id,
-        action,
-        meta: { oldStatus: before.status, newStatus: row.status },
-      });
+      if (row.status === "published") {
+        await writeActivityLog({
+          actorId: req.user.userId,
+          actorRole: req.user.role,
+          targetType: "material",
+          targetId: row.id,
+          action: "material.published",
+          meta: { oldStatus: before.status, newStatus: row.status },
+        });
+      } else if (row.status === "unpublished") {
+        await writeActivityLog({
+          actorId: req.user.userId,
+          actorRole: req.user.role,
+          targetType: "material",
+          targetId: row.id,
+          action: "material.unpublished",
+          meta: { oldStatus: before.status, newStatus: row.status },
+        });
+      }
     }
 
     return res.json(row);

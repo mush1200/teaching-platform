@@ -2,6 +2,9 @@
 -- (ensureCoreTables + runIdempotentMigrations).
 -- Deployed DBs may include extra indexes/constraints from Backend/migrations/*.sql.
 -- Spec: docs/teaching-platform-mvp-spec-v1.3.md
+-- Product rules & HTTP semantics (e.g. material lifecycle, audit action names, POST /materials body):
+--   docs/teaching-platform-mvp-spec-v1.3.md, docs/mvp_rules.md
+-- This file describes DDL only; no schema migration is required for those rules.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

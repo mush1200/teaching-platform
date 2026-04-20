@@ -16,7 +16,7 @@ material = sellable teaching content (includes `file_key`, optional `category` /
 order = transaction container (`status`, `payment_mode`, `total_amount`, timestamps)  
 order_item = line item with snapshots (`title_snapshot`, `price_snapshot`, `quantity`, `seller_id`, `subtotal`)  
 manual_payment_proof = uploaded payment evidence per order (`proof_url`, `review_status`: pending | approved | rejected)  
-review = parent rating/comment per material (at most one row per `(material_id, parent_id)`)  
+review = parent rating/comment per material (at most one row per `(material_id, parent_id)`; MVP exposes **POST** create only — duplicate **409**; no separate update endpoint)  
 report = parent-submitted flag on material (`status`: pending | reviewed; admin marking does not imply takedown)  
 activity_log = audit row (`target_type`, `target_id`, `action`, `meta` JSONB)
 
@@ -41,6 +41,8 @@ Rules:
 - **unpublished**: hidden from parents.
 
 Only **admin** may set `status` on update; teacher edits other fields on own materials.
+
+**POST /materials (create):** request body must **not** include `status` (**400** if present). New rows always start as `pending_review` (same as DB default).
 
 ---
 
@@ -90,7 +92,7 @@ Allowed only if:
 
 # 8. Material reviews (`review`)
 
-A parent may create/update at most **one** review per material (`UNIQUE (material_id, parent_id)`).
+At most **one** review row per `(material_id, parent_id)` (`UNIQUE` constraint). The MVP backend exposes **POST** `/reviews` to **create** only; a second create for the same pair returns **409** (`already reviewed`). There is **no** separate update-review endpoint in this MVP.
 
 Authorization (enforced in service/repository): there exists an **approved** order for that parent with an `order_item` whose `material_id` matches.
 
@@ -127,6 +129,10 @@ Critical paths emit logs. Implemented action strings include (non-exhaustive):
 - `payment_proof.approved`, `payment_proof.rejected`
 - `download.attempted`, `download.denied`, `download.allowed`
 - `review_created`, `report_created`, `report_reviewed`
+
+**Material status actions:** `material.published` is emitted only when an update sets `status` to **`published`** (changed from prior value). `material.unpublished` only when the new `status` is **`unpublished`**. (For example, moving to `pending_review` does **not** emit `material.unpublished`.)
+
+**Cart:** `cart.added` is emitted both when inserting a new cart line and when upserting quantity on an existing `(user_id, material_id)` row; upsert responses may include `meta.upserted: true` in activity logs.
 
 Schema: `target_type`, `target_id`, `action`, `meta` JSONB, timestamps; `id` is BIGSERIAL.
 
@@ -171,7 +177,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
 | GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. |
-| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Body requires `title`, `price`, `fileKey`, `ipDeclarationAccepted: true`, etc. |
+| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Body requires `title`, `price`, `fileKey`, `ipDeclarationAccepted: true`, etc. **Must not** send `status` (**400**). |
 | PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Update fields; **only admin** may send `status`. |
 
 ### Cart (`/cart`)
@@ -179,7 +185,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | GET | `/cart` | JWT | List current user’s cart rows (joins material title/price/status). |
-| POST | `/cart/items` | JWT | Body: `materialId`, optional `quantity`. Material must be **published**. Upserts quantity. |
+| POST | `/cart/items` | JWT | Body: `materialId`, optional `quantity`. Material must be **published**. Upserts quantity; emits `cart.added` on insert and on quantity upsert (see §10). |
 | DELETE | `/cart/items/:id` | JWT | Deletes row if it belongs to the user. **404** if not found. |
 
 ### Orders (`/orders`)
@@ -194,7 +200,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| POST | `/reviews` | JWT (**parent**) | Body: `material_id` or `materialId`, `rating` (1–5), optional `comment`. Purchase entitlement enforced in service. |
+| POST | `/reviews` | JWT (**parent**) | Body: `material_id` or `materialId`, `rating` (1–5), optional `comment`. Purchase entitlement enforced in service. Duplicate per material → **409** (see §8). |
 
 ### Me (`/me`)
 

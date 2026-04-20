@@ -51,6 +51,14 @@ router.post("/items", requireAuth, async (req, res) => {
          RETURNING *`,
         [req.user.userId, String(materialId), qty]
       );
+      await writeActivityLog({
+        actorId: req.user.userId,
+        actorRole: req.user.role,
+        targetType: "material",
+        targetId: String(materialId),
+        action: "cart.added",
+        meta: { quantity: qty, upserted: true },
+      });
       return res.json(updated.rows[0]);
     }
 
