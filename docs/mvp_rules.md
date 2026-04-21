@@ -163,3 +163,16 @@ duplicate review for same material (unique constraint; a second **POST** returns
 # 9. HTTP API 一覽
 
 完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.3.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**
+
+---
+
+# 10. Swagger / OpenAPI 文件規則
+
+- 後端啟動後需提供 Swagger UI：`GET /api-doc`。
+- 需同步提供 OpenAPI JSON：`GET /api-doc.json`。
+- Swagger 文件必須覆蓋目前已開發之所有 HTTP API（參考第 9 節與 spec 第 11 節）。
+- 每個 API 至少需包含：
+  - `summary` 與 `description` 的中英文敘述
+  - request 參數/Body 定義
+  - success/error response 與狀態碼
+  - response schema 欄位型別與範例（供前端直接對接）

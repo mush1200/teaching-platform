@@ -249,3 +249,20 @@ All routes below: **JWT + admin**.
 ---
 
 **Routing note:** `materials` router registers static segments (`/:id/reviews`, `/:id/rating`, `/:id/reports`) before `/:id` so paths resolve correctly.
+
+---
+
+# 12. Swagger / OpenAPI（對接文件）
+
+Backend server 啟動後，文件入口如下：
+
+- Swagger UI: `GET /api-doc`
+- OpenAPI JSON: `GET /api-doc.json`
+
+文件內容規範（給前端對接）：
+
+- 覆蓋本規格第 11 節所有已實作 API 路由。
+- 每支 API 提供中英文 `summary`、`description`。
+- 明確定義 request path/query/body。
+- 明確定義 responses（含 success/error 狀態碼）。
+- response schema 需標示欄位型別與可用範例值（example）。
