@@ -1,0 +1,8 @@
+{
+  "name": "@teaching-platform/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo \"TODO: scaffold Expo app in apps/mobile\""
+  }
+}
