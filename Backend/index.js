@@ -18,7 +18,9 @@ const reportsRouter = require("./routes/reports");
 const adminRouter = require("./routes/admin");
 const adminActivityLogsRouter = require("./routes/adminActivityLogs");
 const { ensureCoreTables } = require("./models/bootstrapModel");
+const { setupSwagger } = require("./swagger");
 app.use(express.json());
+setupSwagger(app);
 
 app.use("/auth", authRouter);
 app.use("/download", downloadRouter);
