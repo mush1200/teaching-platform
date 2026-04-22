@@ -79,29 +79,81 @@
 5. 檢查是否「沒有爆版、按鈕看得到、輸入框可輸入」。
 
 ### 5) 驗證 loading / empty / error 三態
-1. loading：在頁面資料載入前先顯示「讀取中」文字或骨架。
-2. empty：把資料清單設成空陣列 `[]`，應顯示「目前沒有資料」。
-3. error：把 API 暫時改成錯誤路徑（例如 `/api/not-exist`），應顯示錯誤提示與重試按鈕。
+請先開兩個 PowerShell 視窗：
+- 視窗 A（前端）：`cd c:\teaching-platform\frontend` 後執行 `npm run dev:web -- --port 3010`
+- 視窗 B（指令驗證）：`cd c:\teaching-platform\frontend`
+
+步驟 A（驗證 loading）：
+1. 開 `http://localhost:3010/login`
+2. 在 Email 輸入 `parent@example.com`，密碼輸入 `123456`
+3. 按「登入」
+4. 預期結果：按下當下按鈕文字會變成 `登入中...`
+5. 若沒看到：按 `Ctrl+F5` 強制重新整理再測一次
+
+步驟 B（驗證 empty）：
+1. 在視窗 B 執行：
+   - `node -e "fetch('http://localhost:3010/cart',{headers:{cookie:'tp_token=fake; tp_role=parent'}}).then(async r=>{const t=await r.text(); console.log(t.includes('目前沒有資料（empty state）。')?'PASS':'FAIL');})"`
+2. 預期結果：終端顯示 `PASS`
+3. 若顯示 `FAIL`：確認前端 dev server 是否正在執行，以及網址埠口是否 `3010`
+
+步驟 C（驗證 error）：
+1. 在視窗 B 執行：
+   - `node -e "fetch('http://localhost:3010/api/test-error/500').then(async r=>{const j=await r.json(); console.log(r.status, j.message);})"`
+2. 預期結果：顯示 `500 server error`
+3. 在畫面層（login）故意輸入錯帳密送出，也應顯示失敗提示
 
 ### 6) 驗證表單
 以 `/login` 為例：
-1. 必填：Email/密碼都空，按登入 -> 應顯示必填訊息。
-2. 格式錯誤：輸入 `abc` 當 Email -> 應顯示格式錯誤。
-3. 送出失敗：把 API 指到錯誤帳密 -> 應顯示登入失敗訊息。
-4. 送出成功：輸入正確帳密 -> 應導頁或顯示成功訊息。
+1. 必填驗證：
+   - 清空 Email/密碼，按登入
+   - 預期結果：顯示 `Email 格式不正確` 或必填訊息
+2. 格式錯誤驗證：
+   - Email 輸入 `abc`，密碼任意，按登入
+   - 預期結果：顯示 `Email 格式不正確`
+3. 送出失敗驗證：
+   - Email 輸入 `nobody@example.com`，密碼 `bad`，按登入
+   - 預期結果：顯示 `帳號或密碼錯誤，請重新登入。`
+4. 送出成功驗證（需要後端有此帳號）：
+   - 輸入有效帳密，按登入
+   - 預期結果：顯示 `登入成功，正在導向...` 並跳轉頁面
+5. API 角度確認（可選）：
+   - `node -e "fetch('http://localhost:3010/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'',password:''})}).then(async r=>console.log(r.status,(await r.json()).message))"`
+   - 預期結果：`400 email and password are required`
 
 ### 7) 驗證角色權限
-1. 未登入（public）：只能看公開頁，進後台頁應被擋下。
-2. parent：可看購買流程，不可進 teacher/admin 頁。
-3. teacher：可進 teacher 頁，不可進 admin 頁。
-4. admin：可進所有管理頁。
+在視窗 B 依序執行下列指令（每條都要看結果）：
+
+1. 未登入（public）被擋下：
+   - `node -e "fetch('http://localhost:3010/teacher/materials',{redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
+   - 預期結果：`307 /login?redirect=%2Fteacher%2Fmaterials`
+
+2. parent 不可進 teacher：
+   - `node -e "fetch('http://localhost:3010/teacher/materials',{headers:{cookie:'tp_token=fake; tp_role=parent'},redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
+   - 預期結果：`307 /403`
+
+3. teacher 不可進 admin：
+   - `node -e "fetch('http://localhost:3010/admin/materials',{headers:{cookie:'tp_token=fake; tp_role=teacher'},redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
+   - 預期結果：`307 /403`
+
+4. admin 可進 admin：
+   - `node -e "fetch('http://localhost:3010/admin/materials',{headers:{cookie:'tp_token=fake; tp_role=admin'},redirect:'manual'}).then(async r=>{const t=await r.text(); console.log(r.status,t.includes('Admin Materials'))})" `
+   - 預期結果：`200 true`
 
 ### 8) 驗證 API 錯誤碼與提示
-手動觸發並確認畫面訊息：
-- `401`：未登入或 token 過期 -> 顯示「請先登入」。
-- `403`：權限不足 -> 顯示「你沒有此操作權限」。
-- `404`：資料不存在 -> 顯示「找不到資料」。
-- `500`：伺服器錯誤 -> 顯示「系統忙碌，請稍後再試」。
+在視窗 B 執行一次全檢查：
+- `node -e "Promise.all([401,403,404,500].map(async c=>{const r=await fetch('http://localhost:3010/api/test-error/'+c);const j=await r.json();console.log(c,'=>',r.status,j.message)}));"`
+
+預期輸出（順序可不同）：
+- `401 => 401 unauthorized`
+- `403 => 403 forbidden`
+- `404 => 404 not found`
+- `500 => 500 server error`
+
+畫面提示對照（login 頁）：
+- `401`：帳號或密碼錯誤，請重新登入。
+- `403`：你沒有此操作權限。
+- `404`：找不到服務或資料。
+- `500`：系統忙碌中，請稍後再試。
 
 ---
 
