@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:web": "npm run dev -w @teaching-platform/web",
+    "dev:web:3010": "npm run dev -w @teaching-platform/web -- --port 3010",
     "build:web": "npm run build -w @teaching-platform/web",
     "lint:web": "npm run lint -w @teaching-platform/web",
     "typecheck:web": "npm run typecheck -w @teaching-platform/web",

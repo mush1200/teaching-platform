@@ -2,5 +2,9 @@
   "name": "@teaching-platform/ui",
   "private": true,
   "version": "0.1.0",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "tamagui": "^2.0.0-rc.41"
+  }
 }

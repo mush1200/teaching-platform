@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     "@tamagui/core",
     "@tamagui/config",
     "@tamagui/shorthands",
+    "@teaching-platform/ui",
     "solito",
     "react-native-web",
   ],

@@ -12,9 +12,29 @@
 - [x] 在 `apps/web` 接入 Tamagui / Solito 基礎配置
 
 ## 1) 設計系統與底層（Day 2-4）
-- [ ] 建立 design tokens（色彩、字級、間距、圓角、陰影）
+- [x] 建立 design tokens（色彩、字級、間距、圓角、陰影）
+  - [x] 在 `packages/ui` 建立 `tokens` 模組（colors/fontSizes/space/radius/shadows）
+  - [x] 定義語意化色票（primary/success/warning/danger/info/bg/text/border）
+  - [x] 定義字級與行高（xs/sm/md/lg/xl）並提供 heading/body 對應
+  - [x] 定義間距與圓角階層（xs/sm/md/lg/xl）
+  - [x] 匯出 web 可用 theme 設定，確保元件僅透過 token 取值
+  - [x] 建立 token 文件（命名規則 + 使用範例）
 - [ ] 建立共用元件：Button/Input/Select/TextArea/Card/Badge/Dialog/Uploader/Pagination
-- [ ] 建立共用狀態元件：LoadingState/EmptyState/ErrorState
+  - [x] `Button`：variant（primary/secondary/ghost/danger）+ size（sm/md/lg）+ loading/disabled
+  - [x] `Input/TextArea`：label/helper/error/success 狀態 + 可及性屬性
+  - [x] `Select`：選單開關、鍵盤操作、placeholder、disabled 狀態
+  - [x] `Card/Badge`：樣式變體與語意化狀態（success/warning/error/info）
+  - [x] `Dialog`：開關控制、焦點陷阱、ESC 關閉、確認/取消動作
+  - [x] `Uploader`：拖曳/點擊上傳、檔案大小與副檔名驗證、失敗提示
+  - [x] `Pagination`：頁碼、上一頁/下一頁、禁用狀態、總筆數顯示
+  - [x] 每個元件提供最小範例（props + 事件）供頁面直接重用
+- [x] 建立共用狀態元件：LoadingState/EmptyState/ErrorState
+  - [x] `LoadingState`：skeleton 與 spinner 兩種模式
+  - [x] `EmptyState`：標題/說明/主要操作按鈕（回到上一層或新增）
+  - [x] `ErrorState`：錯誤訊息 + retry callback + 可選支援錯誤碼顯示
+  - [x] 三者都支援 size（sm/md/lg）與可自訂文案
+  - [x] 在 `/materials` 或 `/teacher/materials` 先接一頁驗證可重用性
+  - [x] 已在 `/cart` 接入三態元件完成首輪重用驗證
 
 ## 2) 公開頁與購買流程（Day 5-10）
 - [ ] `/materials` 教材列表
@@ -68,92 +88,121 @@
 
 ## 4~8 新手操作版（照做即可）
 
-### 4) 驗證三種版面（RWD）
-1. 在 `frontend` 執行 `npm run dev:web`
-2. 開 `http://localhost:3000/login`
-3. 按 `F12` 開發者工具 -> 切換裝置模式（手機圖示）
-4. 依序看寬度：
-   - mobile：`375`
-   - tablet：`768`
-   - desktop：`1280`
-5. 檢查是否「沒有爆版、按鈕看得到、輸入框可輸入」。
+## 本次開發驗證流程（一步一步照做）
 
-### 5) 驗證 loading / empty / error 三態
-請先開兩個 PowerShell 視窗：
-- 視窗 A（前端）：`cd c:\teaching-platform\frontend` 後執行 `npm run dev:web -- --port 3010`
-- 視窗 B（指令驗證）：`cd c:\teaching-platform\frontend`
+### 0) 先準備環境（只做一次）
+1. 開一個 PowerShell（視窗 A）。
+2. 執行：
+   - `cd c:\teaching-platform\frontend`
+   - `npm install`
+3. 預期結果：安裝完成，沒有 `npm ERR!`。
 
-步驟 A（驗證 loading）：
-1. 開 `http://localhost:3010/login`
-2. 在 Email 輸入 `parent@example.com`，密碼輸入 `123456`
-3. 按「登入」
-4. 預期結果：按下當下按鈕文字會變成 `登入中...`
-5. 若沒看到：按 `Ctrl+F5` 強制重新整理再測一次
+### 1) 靜態檢查（必做）
+步驟 1-1：Lint
+1. 在視窗 A 執行 `npm run lint:web`。
+2. 預期結果：顯示 `No ESLint warnings or errors`。
 
-步驟 B（驗證 empty）：
-1. 在視窗 B 執行：
-   - `node -e "fetch('http://localhost:3010/cart',{headers:{cookie:'tp_token=fake; tp_role=parent'}}).then(async r=>{const t=await r.text(); console.log(t.includes('目前沒有資料（empty state）。')?'PASS':'FAIL');})"`
-2. 預期結果：終端顯示 `PASS`
-3. 若顯示 `FAIL`：確認前端 dev server 是否正在執行，以及網址埠口是否 `3010`
+步驟 1-2：Type Check
+1. 在視窗 A 執行 `npm run typecheck:web`。
+2. 預期結果：
+   - 顯示 `Route types generated successfully`
+   - 無 TypeScript error
 
-步驟 C（驗證 error）：
-1. 在視窗 B 執行：
-   - `node -e "fetch('http://localhost:3010/api/test-error/500').then(async r=>{const j=await r.json(); console.log(r.status, j.message);})"`
-2. 預期結果：顯示 `500 server error`
-3. 在畫面層（login）故意輸入錯帳密送出，也應顯示失敗提示
+步驟 1-3：Build
+1. 在視窗 A 執行 `npm run build:web`。
+2. 預期結果：
+   - 顯示 `Compiled successfully`
+   - 最後有路由清單（含 `/login`、`/cart`、`/teacher/materials`）
 
-### 6) 驗證表單
-以 `/login` 為例：
-1. 必填驗證：
-   - 清空 Email/密碼，按登入
-   - 預期結果：顯示 `Email 格式不正確` 或必填訊息
-2. 格式錯誤驗證：
-   - Email 輸入 `abc`，密碼任意，按登入
-   - 預期結果：顯示 `Email 格式不正確`
-3. 送出失敗驗證：
-   - Email 輸入 `nobody@example.com`，密碼 `bad`，按登入
-   - 預期結果：顯示 `帳號或密碼錯誤，請重新登入。`
-4. 送出成功驗證（需要後端有此帳號）：
-   - 輸入有效帳密，按登入
-   - 預期結果：顯示 `登入成功，正在導向...` 並跳轉頁面
-5. API 角度確認（可選）：
-   - `node -e "fetch('http://localhost:3010/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'',password:''})}).then(async r=>console.log(r.status,(await r.json()).message))"`
-   - 預期結果：`400 email and password are required`
+### 2) 啟動本機網站（手動驗證用）
+1. 在視窗 A 執行 `npm run dev:web:3010`。
+2. 瀏覽器打開 `http://localhost:3010`。
 
-### 7) 驗證角色權限
-在視窗 B 依序執行下列指令（每條都要看結果）：
+### 3) 驗證共用元件（第二批元件）
+步驟 3-1：`/teacher/materials` 頁面整合驗證
+1. 打開 `http://localhost:3010/teacher/materials`。
+2. 預期可看到：
+   - `Select` 狀態篩選
+   - `StatusBadge` 四種標籤
+   - `Uploader` 上傳區
+   - 開啟確認視窗按鈕（Dialog）
+   - `Pagination`
 
-1. 未登入（public）被擋下：
-   - `node -e "fetch('http://localhost:3010/teacher/materials',{redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
-   - 預期結果：`307 /login?redirect=%2Fteacher%2Fmaterials`
+### 4) 驗證 Select
+1. 在 `/teacher/materials` 找到「狀態篩選」。
+2. 點開下拉，切換不同選項（例如 `all` -> `draft`）。
+3. 用鍵盤操作（上下鍵、Enter）選值。
+4. 預期結果：
+   - 選項可切換
+   - 畫面摘要文案跟著變化（目前篩選狀態）
 
-2. parent 不可進 teacher：
-   - `node -e "fetch('http://localhost:3010/teacher/materials',{headers:{cookie:'tp_token=fake; tp_role=parent'},redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
-   - 預期結果：`307 /403`
+### 5) 驗證 Card/Badge
+1. 在 `/teacher/materials` 看兩個卡片區塊（`SurfaceCard`）。
+2. 檢查四個 badge（info/success/warning/error）。
+3. 預期結果：
+   - Card 有邊框與間距，內容清楚
+   - Badge 顏色與文字狀態對應正確
 
-3. teacher 不可進 admin：
-   - `node -e "fetch('http://localhost:3010/admin/materials',{headers:{cookie:'tp_token=fake; tp_role=teacher'},redirect:'manual'}).then(r=>console.log(r.status,r.headers.get('location')))" `
-   - 預期結果：`307 /403`
+### 6) 驗證 Dialog
+1. 點「開啟確認視窗」。
+2. 在 Dialog 內測試：
+   - 點 `取消` 會關閉
+   - 點 `確認送出` 會關閉
+   - 按 `Esc` 可關閉
+3. 預期結果：
+   - 開關正常
+   - 按鈕行為正確
+   - 鍵盤可操作
 
-4. admin 可進 admin：
-   - `node -e "fetch('http://localhost:3010/admin/materials',{headers:{cookie:'tp_token=fake; tp_role=admin'},redirect:'manual'}).then(async r=>{const t=await r.text(); console.log(r.status,t.includes('Admin Materials'))})" `
-   - 預期結果：`200 true`
+### 7) 驗證 Uploader
+1. 在 `/teacher/materials` 的 uploader 點「選擇檔案」。
+2. 測試一個合法檔（如 `test.pdf`）。
+3. 再測不合法情境：
+   - 副檔名不在允許清單
+   - 或檔案超過 10MB
+4. 預期結果：
+   - 合法檔會顯示「已選擇：檔名」
+   - 不合法檔不應被接受（維持未選擇或清空）
 
-### 8) 驗證 API 錯誤碼與提示
-在視窗 B 執行一次全檢查：
-- `node -e "Promise.all([401,403,404,500].map(async c=>{const r=await fetch('http://localhost:3010/api/test-error/'+c);const j=await r.json();console.log(c,'=>',r.status,j.message)}));"`
+### 8) 驗證 Pagination
+1. 在 `/teacher/materials` 下方分頁區測試。
+2. 點「下一頁」「上一頁」。
+3. 到第 1 頁時上一頁應禁用；到最後頁下一頁應禁用。
+4. 預期結果：
+   - 頁碼顯示正確（第 X / Y 頁）
+   - 禁用狀態正確
+   - 可看到總筆數
 
-預期輸出（順序可不同）：
-- `401 => 401 unauthorized`
-- `403 => 403 forbidden`
-- `404 => 404 not found`
-- `500 => 500 server error`
+### 9) 驗證共用狀態元件（指定頁面）
+1. 仍在 `/teacher/materials`。
+2. 在「共用狀態元件驗證」區塊依序點：
+   - `Loading`
+   - `Empty`
+   - `Error`
+3. 預期結果：
+   - Loading 顯示載入中元件
+   - Empty 顯示空狀態文案
+   - Error 顯示錯誤狀態與錯誤碼，按 `retry` 會回到 loading
 
-畫面提示對照（login 頁）：
-- `401`：帳號或密碼錯誤，請重新登入。
-- `403`：你沒有此操作權限。
-- `404`：找不到服務或資料。
-- `500`：系統忙碌中，請稍後再試。
+### 10) 回歸驗證（既有頁面）
+步驟 10-1：`/login`
+1. 打開 `http://localhost:3010/login`。
+2. 驗證：
+   - 按登入後按鈕變 `登入中...`
+   - Input 可輸入、disabled 狀態合理
+3. 預期結果：流程正常，無 UI 壞掉。
+
+步驟 10-2：`/cart`
+1. 打開 `http://localhost:3010/cart`。
+2. 目前預設資料應進入 empty state。
+3. 預期結果：顯示共用 `EmptyState` 內容。
+
+### 11) RWD 快速檢查（建議）
+1. 開 DevTools 裝置模式。
+2. 測寬度：`375`、`768`、`1280`。
+3. 預期結果：
+   - 不爆版
+   - 按鈕、輸入、Dialog 可操作
 
 ---
 

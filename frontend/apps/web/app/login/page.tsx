@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, H2, Input, Label, Paragraph, Text, YStack } from "tamagui";
+import { Card, H2, Paragraph, YStack } from "tamagui";
 import { z } from "zod";
+import { Button, InputField } from "@teaching-platform/ui";
 import { LoginResponse, mapStatusMessage } from "../../lib/auth";
 
 const loginSchema = z.object({
@@ -71,30 +72,32 @@ export default function LoginPage() {
           </YStack>
 
           <YStack gap="$2">
-            <Label htmlFor="email">Email</Label>
-            <Input
+            <InputField
               id="email"
+              label="Email"
               autoComplete="email"
               value={email}
               onChangeText={setEmail}
               placeholder="parent@example.com"
+              disabled={isLoading}
             />
           </YStack>
 
           <YStack gap="$2">
-            <Label htmlFor="password">密碼</Label>
-            <Input
+            <InputField
               id="password"
+              label="密碼"
               autoComplete="current-password"
               secureTextEntry
               value={password}
               onChangeText={setPassword}
               placeholder="請輸入密碼"
+              disabled={isLoading}
             />
           </YStack>
 
-          <Button onPress={handleLogin} theme="active" disabled={isLoading}>
-            <Text>{isLoading ? "登入中..." : "登入"}</Text>
+          <Button onPress={handleLogin} disabled={isLoading} loading={isLoading}>
+            {isLoading ? "登入中..." : "登入"}
           </Button>
 
           {message ? <Paragraph color="$orange10">{message}</Paragraph> : <Paragraph>請輸入帳密登入。</Paragraph>}

@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@teaching-platform/ui": "0.1.0",
     "@tamagui/config": "^2.0.0-rc.41",
     "@tamagui/core": "^2.0.0-rc.41",
     "@tamagui/next-theme": "^2.0.0-rc.41",
