@@ -176,3 +176,27 @@ duplicate review for same material (unique constraint; a second **POST** returns
   - request 參數/Body 定義
   - success/error response 與狀態碼
   - response schema 欄位型別與範例（供前端直接對接）
+
+---
+
+# 11. Admin payment proof listing（新增）
+
+新增管理員付款憑證清單 API（admin JWT 必要）：
+
+- `GET /admin/payment-proofs`
+- Query:
+  - `status`（optional）：`pending` | `approved` | `rejected`
+  - `page`（optional，預設 1，最小 1）
+  - `limit`（optional，預設 20，最小 1，最大 100）
+
+回傳：
+
+- `items`: 付款憑證列（`id`、`order_id`、`user_id`、`order_status`、`proof_url`、`review_status`、`uploaded_at`、`created_at`、`reviewed_at`、`reviewed_by`、`note`）
+- `pagination`: `{ page, limit, total, totalPages }`
+
+錯誤：
+
+- `400`: `status` 非法（僅允許 pending|approved|rejected）
+- `401`: 未登入
+- `403`: 非 admin
+- `500`: server error
