@@ -10,7 +10,7 @@
  *   API_SMOKE_BASE  預設 http://127.0.0.1:3000
  *
  * 涵蓋：health、auth、materials、cart、orders、upload-proof、admin approve/reject、
- *       download、reviews、reports、admin 列表、DELETE cart（預期 404）。
+ *       download、reviews、reports、admin 列表（含 payment-proofs）、DELETE cart（預期 404）。
  */
 
 const BASE = process.env.API_SMOKE_BASE || "http://127.0.0.1:3000";
@@ -403,6 +403,40 @@ async function main() {
     const o = await http("GET", "/admin/orders", { token: adminToken });
     expect("GET /admin/orders", o.status === 200 && Array.isArray(o.data?.items), JSON.stringify(o.data));
 
+    const proofsPending = await http("GET", "/admin/payment-proofs?status=pending&page=1&limit=20", {
+      token: adminToken,
+    });
+    expect(
+      "GET /admin/payment-proofs?status=pending",
+      proofsPending.status === 200 &&
+        Array.isArray(proofsPending.data?.items) &&
+        proofsPending.data?.pagination?.page === 1 &&
+        proofsPending.data?.pagination?.limit === 20,
+      JSON.stringify(proofsPending.data)
+    );
+
+    const proofsApproved = await http("GET", "/admin/payment-proofs?status=approved&page=1&limit=20", {
+      token: adminToken,
+    });
+    expect(
+      "GET /admin/payment-proofs?status=approved",
+      proofsApproved.status === 200 &&
+        Array.isArray(proofsApproved.data?.items) &&
+        proofsApproved.data?.items.some((p) => String(p.id) === String(proofId)),
+      JSON.stringify(proofsApproved.data)
+    );
+
+    const proofsRejected = await http("GET", "/admin/payment-proofs?status=rejected&page=1&limit=20", {
+      token: adminToken,
+    });
+    expect(
+      "GET /admin/payment-proofs?status=rejected",
+      proofsRejected.status === 200 &&
+        Array.isArray(proofsRejected.data?.items) &&
+        proofsRejected.data?.items.length >= 1,
+      JSON.stringify(proofsRejected.data)
+    );
+
     const logs = await http("GET", "/admin/activity-logs?page=1&limit=20", { token: adminToken });
     expect(
       "GET /admin/activity-logs",
@@ -417,7 +451,7 @@ async function main() {
     const reps = await http("GET", "/admin/reports", { token: adminToken });
     expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data), JSON.stringify(reps.data));
 
-    console.log("OK  GET /admin/materials, /admin/orders, /admin/activity-logs, /admin/reports");
+    console.log("OK  GET /admin/materials, /admin/orders, /admin/payment-proofs, /admin/activity-logs, /admin/reports");
   }
 
   // Cart delete (optional — cart empty after order; expect 404 or empty)

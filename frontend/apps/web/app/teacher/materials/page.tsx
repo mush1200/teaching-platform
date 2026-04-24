@@ -1,79 +1,77 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  AppDialog,
-  Button,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  Pagination,
-  SelectField,
-  StatusBadge,
-  SurfaceCard,
-  Uploader,
-} from "@teaching-platform/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, StatusBadge, SurfaceCard } from "@teaching-platform/ui";
 import { H1, Paragraph, Separator, XStack, YStack } from "tamagui";
+import { Link } from "solito/link";
+import type { Material, MaterialsListResponse } from "../../../lib/api-types";
+import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
 const statusOptions = [
   { label: "全部", value: "all" },
-  { label: "草稿", value: "draft" },
-  { label: "上架中", value: "published" },
-  { label: "審核中", value: "reviewing" },
+  { label: "審核中", value: "pending_review" },
+  { label: "已上架", value: "published" },
+  { label: "已下架", value: "unpublished" },
 ];
 
-type MaterialStatus = "draft" | "published" | "reviewing";
+const PAGE_SIZE = 8;
 
-const PAGE_SIZE = 9;
+function getStatusLabel(status?: string): string {
+  if (status === "pending_review") return "審核中";
+  if (status === "published") return "已上架";
+  if (status === "unpublished") return "已下架";
+  return "未設定";
+}
 
-/** 示範用假資料（之後接上 API 時整段替換） */
-const MOCK_MATERIALS: { id: string; title: string; status: MaterialStatus }[] = Array.from(
-  { length: 42 },
-  (_, i) => ({
-    id: String(i + 1),
-    title: `示範教材 ${i + 1}`,
-    status: (["draft", "published", "reviewing"] as const)[i % 3],
-  }),
-);
-
-const STATUS_LABEL: Record<MaterialStatus, string> = {
-  draft: "草稿",
-  published: "上架中",
-  reviewing: "審核中",
-};
-
-function statusToBadgeTone(status: MaterialStatus): "success" | "warning" | "info" {
+function getStatusTone(status?: string): "info" | "success" | "warning" | "error" {
   if (status === "published") return "success";
-  if (status === "draft") return "warning";
-  return "info";
+  if (status === "pending_review") return "info";
+  if (status === "unpublished") return "warning";
+  return "error";
 }
 
 export default function TeacherMaterialsPage() {
-  const [status, setStatus] = useState("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [items, setItems] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  /** 僅「共用狀態元件」示範區塊使用，與上方教材列表載入無關；預設 empty 避免誤以為整頁尚在 loading */
-  const [stateMode, setStateMode] = useState<"loading" | "empty" | "error">("empty");
 
-  const filteredMaterials = useMemo(() => {
-    if (status === "all") {
-      return MOCK_MATERIALS;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch("materials");
+      if (!res.ok) {
+        setItems([]);
+        setError(await parseApiErrorMessage(res));
+        return;
+      }
+      const data = (await res.json()) as MaterialsListResponse;
+      setItems(data.items ?? []);
+    } catch {
+      setItems([]);
+      setError("無法連線至伺服器，請稍後再試。");
+    } finally {
+      setLoading(false);
     }
-    return MOCK_MATERIALS.filter((m) => m.status === status);
-  }, [status]);
+  }, []);
 
-  const totalItems = filteredMaterials.length;
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filteredItems = useMemo(() => {
+    if (statusFilter === "all") return items;
+    return items.filter((item) => item.status === statusFilter);
+  }, [items, statusFilter]);
+
+  const totalItems = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
-
-  const pageMaterials = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredMaterials.slice(start, start + PAGE_SIZE);
-  }, [filteredMaterials, currentPage]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [status]);
+  }, [statusFilter]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -81,130 +79,68 @@ export default function TeacherMaterialsPage() {
     }
   }, [currentPage, totalPages]);
 
-  const filteredSummary = useMemo(() => {
-    if (status === "all") {
-      return "目前顯示全部教材。";
-    }
-    return `目前篩選狀態：${status}`;
-  }, [status]);
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [filteredItems, currentPage]);
 
   return (
-    <YStack minHeight="100vh" padding="$5" gap="$4">
-      <H1>Teacher Materials</H1>
-      <Paragraph>教師教材管理頁（已受 middleware 保護）。</Paragraph>
+    <YStack flex={1} padding="$4" gap="$4" maxWidth={1100} width="100%" alignSelf="center">
+      <YStack gap="$2">
+        <H1 size="$9">教師教材管理</H1>
+        <Paragraph color="$color11">管理你的教材內容，並追蹤目前上架與審核狀態。</Paragraph>
+      </YStack>
 
-      <SurfaceCard title="教材篩選與操作" description={filteredSummary}>
-        <YStack gap="$3">
-          <SelectField
-            id="status-filter"
-            label="狀態篩選"
-            value={status}
-            options={statusOptions}
-            onValueChange={setStatus}
-            helperText="可用鍵盤選取狀態。"
-          />
-          <XStack gap="$2" flexWrap="wrap">
-            <StatusBadge tone="info" label="info" />
-            <StatusBadge tone="success" label="success" />
-            <StatusBadge tone="warning" label="warning" />
-            <StatusBadge tone="error" label="error" />
-          </XStack>
-          <Uploader
-            onFileSelect={setSelectedFile}
-            selectedFileName={selectedFile?.name}
-            maxSizeMb={10}
-            accept={["pdf", "png", "jpg", "jpeg"]}
-          />
-          <XStack gap="$2">
-            <Button variant="secondary" onPress={() => setDialogOpen(true)}>
-              開啟確認視窗
-            </Button>
-          </XStack>
-        </YStack>
+      <SurfaceCard title="篩選與操作" description="可先依狀態篩選，再進行編輯。">
+        <XStack gap="$3" flexWrap="wrap" alignItems="flex-end" justifyContent="space-between">
+          <YStack minWidth={220} flex={1}>
+            <SelectField id="teacher-material-status" label="狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
+          </YStack>
+          <Link href="/teacher/materials/new">
+            <Button>新增教材</Button>
+          </Link>
+        </XStack>
       </SurfaceCard>
 
-      <SurfaceCard
-        title="教材列表分頁"
-        description="示範：假資料 + 分頁與狀態篩選（日後接 API 再替換）"
-      >
-        <YStack gap="$3" width="100%">
-          <Pagination
-            page={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            onPageChange={setCurrentPage}
-            disabled={totalItems === 0}
-          />
-          {totalItems === 0 ? (
-            <EmptyState
-              title="此條件下沒有教材"
-              description="請改選「全部」或更換狀態篩選。"
-            />
-          ) : (
-            <YStack
-              borderWidth={1}
-              borderColor="$borderColor"
-              borderRadius="$3"
-              overflow="hidden"
-            >
-              {pageMaterials.map((m, index) => (
+      {loading ? <LoadingState title="教材載入中…" /> : null}
+      {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
+      {!loading && !error && filteredItems.length === 0 ? (
+        <EmptyState title="目前沒有教材" description="可先新增一筆教材，或調整狀態篩選條件。" />
+      ) : null}
+
+      {!loading && !error && filteredItems.length > 0 ? (
+        <SurfaceCard title="教材列表" description={`共 ${totalItems} 筆`}>
+          <YStack gap="$3" width="100%">
+            <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} onPageChange={setCurrentPage} />
+            <YStack borderWidth={1} borderColor="$borderColor" borderRadius="$3" overflow="hidden">
+              {pagedItems.map((m, idx) => (
                 <YStack key={m.id}>
-                  {index > 0 ? <Separator /> : null}
-                  <XStack
-                    padding="$3"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    flexWrap="wrap"
-                    gap="$2"
-                  >
-                    <YStack flex={1} minWidth={200}>
-                      <Paragraph fontWeight="600">{m.title}</Paragraph>
+                  {idx > 0 ? <Separator /> : null}
+                  <XStack padding="$3" gap="$3" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                    <YStack gap="$1" minWidth={220} flex={1}>
+                      <Paragraph fontWeight="700">{m.title}</Paragraph>
                       <Paragraph size="$2" color="$color10">
-                        編號 #{m.id}
+                        編號：{m.id}
+                      </Paragraph>
+                      <Paragraph size="$2" color="$color10">
+                        價格：NT$ {Math.floor(Number(m.price) || 0)}
                       </Paragraph>
                     </YStack>
-                    <StatusBadge tone={statusToBadgeTone(m.status)} label={STATUS_LABEL[m.status]} />
+                    <XStack gap="$2" alignItems="center" flexWrap="wrap">
+                      <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
+                      <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/edit`}>
+                        <Button size="sm" variant="secondary">
+                          編輯
+                        </Button>
+                      </Link>
+                    </XStack>
                   </XStack>
                 </YStack>
               ))}
             </YStack>
-          )}
-        </YStack>
-      </SurfaceCard>
-
-      <SurfaceCard
-        title="共用狀態元件驗證"
-        description="此區只預覽 LoadingState / EmptyState / ErrorState 長相，與上方教材列表無關；請按 Loading / Empty / Error 切換。"
-      >
-        <YStack gap="$3">
-          <XStack gap="$2">
-            <Button variant="secondary" size="sm" onPress={() => setStateMode("loading")}>
-              Loading
-            </Button>
-            <Button variant="secondary" size="sm" onPress={() => setStateMode("empty")}>
-              Empty
-            </Button>
-            <Button variant="secondary" size="sm" onPress={() => setStateMode("error")}>
-              Error
-            </Button>
-          </XStack>
-          {stateMode === "loading" ? <LoadingState title="教材資料載入中..." /> : null}
-          {stateMode === "empty" ? <EmptyState title="目前沒有教材" description="請先新增教材後再查看列表。" /> : null}
-          {stateMode === "error" ? (
-            <ErrorState title="教材讀取失敗" description="請稍後再試或重新整理。" errorCode={500} onRetry={() => setStateMode("loading")} />
-          ) : null}
-        </YStack>
-      </SurfaceCard>
-
-      <AppDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title="確認送出"
-        description="你即將送出教材變更，是否繼續？"
-        onConfirm={() => setDialogOpen(false)}
-        confirmLabel="確認送出"
-        cancelLabel="取消"
-      />
+          </YStack>
+        </SurfaceCard>
+      ) : null}
     </YStack>
   );
 }

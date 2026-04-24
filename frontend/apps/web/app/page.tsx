@@ -16,8 +16,11 @@ export default function Home() {
       <Paragraph size="$6" textAlign="center">
         Next.js + TypeScript + App Router with Tamagui and Solito is ready.
       </Paragraph>
-      <XStack gap="$3">
+      <XStack gap="$3" flexWrap="wrap" justifyContent="center">
+        <Link href="/materials">教材列表</Link>
+        <Link href="/cart">購物車</Link>
         <Link href="/login">前往登入頁</Link>
+        <Link href="/register">註冊</Link>
       </XStack>
     </YStack>
   );

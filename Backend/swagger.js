@@ -774,6 +774,65 @@ const openApiSpec = {
         },
       },
     },
+    "/admin/payment-proofs": {
+      get: {
+        tags: ["Admin"],
+        summary: "管理員付款憑證列表 / Admin payment proof list",
+        description: "可用 review_status 篩選，並支援分頁。List payment proofs with optional status filter and pagination.",
+        security: bearerSecurity,
+        parameters: [
+          { in: "query", name: "status", required: false, schema: { type: "string", enum: ["pending", "approved", "rejected"] } },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", example: "10" },
+                          order_id: { type: "string", example: "ord_lg8b93v1az1" },
+                          user_id: { type: "string", example: "usr_parent_001" },
+                          order_status: { type: "string", example: "pending_payment" },
+                          proof_url: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" },
+                          review_status: { type: "string", enum: ["pending", "approved", "rejected"], example: "pending" },
+                          uploaded_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
+                          created_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
+                          reviewed_at: { type: "string", format: "date-time", nullable: true, example: null },
+                          reviewed_by: { type: "string", nullable: true, example: null },
+                          note: { type: "string", nullable: true, example: null },
+                        },
+                      },
+                    },
+                    pagination: {
+                      type: "object",
+                      properties: {
+                        page: { type: "integer", example: 1 },
+                        limit: { type: "integer", example: 20 },
+                        total: { type: "integer", example: 37 },
+                        totalPages: { type: "integer", example: 2 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
     "/admin/payment-proofs/{id}/approve": {
       post: {
         tags: ["Admin"],

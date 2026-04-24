@@ -39,6 +39,96 @@ router.get("/orders", async (req, res) => {
   }
 });
 
+function parsePaymentProofStatus(raw) {
+  if (raw == null) return null;
+  const status = String(raw).trim();
+  if (!status) return null;
+  const allowed = new Set(["pending", "approved", "rejected"]);
+  return allowed.has(status) ? status : "__INVALID__";
+}
+
+function parsePagination(query) {
+  let page = Number.parseInt(String(query.page ?? "1"), 10);
+  let limit = Number.parseInt(String(query.limit ?? "20"), 10);
+  if (!Number.isFinite(page) || page < 1) page = 1;
+  if (!Number.isFinite(limit) || limit < 1) limit = 20;
+  if (limit > 100) limit = 100;
+  return { page, limit, offset: (page - 1) * limit };
+}
+
+/** GET /admin/payment-proofs?status=pending|approved|rejected&page=1&limit=20 */
+router.get("/payment-proofs", async (req, res) => {
+  try {
+    const status = parsePaymentProofStatus(req.query?.status);
+    if (status === "__INVALID__") {
+      return res.status(400).json({ message: "status must be one of pending|approved|rejected" });
+    }
+
+    const { page, limit, offset } = parsePagination(req.query || {});
+    const where = [];
+    const params = [];
+    let idx = 1;
+    if (status) {
+      where.push(`mpp.review_status = $${idx}`);
+      params.push(status);
+      idx += 1;
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const countResult = await db.query(
+      `SELECT COUNT(*)::bigint AS c
+       FROM manual_payment_proofs mpp
+       ${whereSql}`,
+      params
+    );
+    const total = Number(countResult.rows[0].c);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    const listResult = await db.query(
+      `SELECT
+         mpp.id,
+         mpp.order_id,
+         mpp.proof_url,
+         mpp.review_status,
+         mpp.uploaded_at,
+         mpp.created_at,
+         mpp.reviewed_at,
+         mpp.reviewed_by,
+         mpp.note,
+         o.user_id,
+         o.status AS order_status
+       FROM manual_payment_proofs mpp
+       JOIN orders o ON o.id = mpp.order_id
+       ${whereSql}
+       ORDER BY COALESCE(mpp.uploaded_at, mpp.created_at) DESC, mpp.id DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, limit, offset]
+    );
+
+    const items = listResult.rows.map((row) => ({
+      id: String(row.id),
+      order_id: row.order_id,
+      user_id: row.user_id,
+      order_status: row.order_status,
+      proof_url: row.proof_url,
+      review_status: row.review_status,
+      uploaded_at: row.uploaded_at instanceof Date ? row.uploaded_at.toISOString() : row.uploaded_at,
+      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      reviewed_at: row.reviewed_at instanceof Date ? row.reviewed_at.toISOString() : row.reviewed_at,
+      reviewed_by: row.reviewed_by,
+      note: row.note,
+    }));
+
+    return res.json({
+      items,
+      pagination: { page, limit, total, totalPages },
+    });
+  } catch (err) {
+    console.error("admin list payment proofs failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 /** POST /admin/payment-proofs/:id/approve */
 router.post("/payment-proofs/:id/approve", async (req, res) => {
   const proofId = String(req.params.id);

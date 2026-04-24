@@ -20,10 +20,12 @@ export function mapStatusMessage(status: number): string {
       return "你沒有此操作權限。";
     case 404:
       return "找不到服務或資料。";
+    case 409:
+      return "資料與伺服器狀態衝突（可能重複註冊或狀態已變更）。";
     case 500:
       return "系統忙碌中，請稍後再試。";
     default:
-      return "登入失敗，請稍後再試。";
+      return "操作失敗，請稍後再試。";
   }
 }
 

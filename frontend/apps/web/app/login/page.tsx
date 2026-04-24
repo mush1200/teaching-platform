@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, H2, Paragraph, YStack } from "tamagui";
+import { Card, H2, Paragraph, XStack, YStack } from "tamagui";
+import { Link } from "solito/link";
 import { z } from "zod";
 import { Button, InputField } from "@teaching-platform/ui";
 import { LoginResponse, mapStatusMessage } from "../../lib/auth";
@@ -99,6 +100,15 @@ export default function LoginPage() {
           <Button onPress={handleLogin} disabled={isLoading} loading={isLoading}>
             {isLoading ? "登入中..." : "登入"}
           </Button>
+
+          <XStack gap="$2" alignItems="center" flexWrap="wrap">
+            <Paragraph color="$color11">還沒有帳號？</Paragraph>
+            <Link href="/register">
+              <Paragraph color="$blue10" textDecorationLine="underline">
+                前往註冊
+              </Paragraph>
+            </Link>
+          </XStack>
 
           {message ? <Paragraph color="$orange10">{message}</Paragraph> : <Paragraph>請輸入帳密登入。</Paragraph>}
         </YStack>

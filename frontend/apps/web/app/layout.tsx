@@ -14,8 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Teaching Platform Frontend",
-  description: "Web frontend with Next.js, Tamagui, and Solito.",
+  title: "Teaching Platform",
+  description: "教學平台前端：教材瀏覽、購買、下載與後台管理。",
+  openGraph: {
+    title: "Teaching Platform",
+    description: "教學平台前端：教材瀏覽、購買、下載與後台管理。",
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="zh-Hant"
       className={`${geistSans.variable} ${geistMono.variable} t_light`}
       suppressHydrationWarning
     >
