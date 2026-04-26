@@ -194,7 +194,18 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **â€
 |--------|------|------|---------|
 | POST | `/orders` | JWT (**parent**) | Creates order from cart (empties cart path in service). Empty cart **400**; unavailable material **409**. |
 | GET | `/orders/my` | JWT | Lists orders for `req.user`. |
+| GET | `/orders/:id` | JWT | Returns `{ order, items }` for a single order. Access allowed to owner parent or admin; otherwise **403**. |
 | POST | `/orders/:id/upload-proof` | JWT | Body: `proofUrl`. Order must exist, `user_id` must match caller, status `pending_payment`. Inserts `manual_payment_proofs` pending row. |
+
+### Teacher sales (`/teacher/sales`, `routes/teacherSales.js`)
+
+All routes below: **JWT + teacher**. Non-teacher **403**.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/teacher/sales/summary` | Teacher KPI + daily trend. Query: `status`, `from`, `to` (optional). |
+| GET | `/teacher/sales/materials` | Aggregated sales by material. Query: `status`, `from`, `to`, `search`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
+| GET | `/teacher/sales/records` | Transaction-level sales records. Query: `status`, `materialId`, `from`, `to`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
 
 ### Reviews (`/reviews`)
 

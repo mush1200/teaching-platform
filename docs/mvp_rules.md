@@ -200,3 +200,33 @@ duplicate review for same material (unique constraint; a second **POST** returns
 - `401`: 未登入
 - `403`: 非 admin
 - `500`: server error
+
+---
+
+# 12. Teacher sales analytics + parent order detail（新增）
+
+新增 teacher 銷售統計 API（皆需 JWT，且角色為 teacher）：
+
+- `GET /teacher/sales/summary`
+  - query（optional）：`status`、`from`、`to`
+  - 回傳：`totalSoldUnits`、`totalRevenue`、`totalOrders`、`materialsCount`、`trend[]`
+- `GET /teacher/sales/materials`
+  - query（optional）：`status`、`from`、`to`、`search`、`page`、`limit`
+  - 回傳：`{ items, pagination }`，`items` 以教材維度聚合（`materialId`、`title`、`soldUnits`、`revenue`、`lastSoldAt`）
+- `GET /teacher/sales/records`
+  - query（optional）：`status`、`materialId`、`from`、`to`、`page`、`limit`
+  - 回傳：`{ items, pagination }`，`items` 為成交明細（`orderId`、`orderItemId`、`materialId`、`materialTitle`、`quantity`、`unitPrice`、`subtotal`、`buyerId`、`orderStatus`、`createdAt`、`paidAt`）
+
+資料範圍規則：
+
+- 僅統計 `order_items.seller_id = 當前 teacher userId` 之資料。
+- `summary` 與 `materials` 若未指定 `status`，預設採成交口徑（`approved`、`completed`）。
+- `records` 若未指定 `status` 或 `status=all`，預設採成交口徑（`approved`、`completed`）。
+
+新增 parent / admin 訂單詳情 API：
+
+- `GET /orders/:id`（需 JWT）
+- 權限：order owner（parent）或 admin 可查看；其他角色/非本人回 `403`
+- 回傳：`{ order, items }`
+  - `order`：單筆訂單主檔（同 `/orders/my` 欄位族群）
+  - `items`：`order_items` 明細（`id`、`order_id`、`material_id`、`material_title`、`quantity`、`unit_price`、`subtotal`）
