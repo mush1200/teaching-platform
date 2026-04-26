@@ -59,6 +59,7 @@ export type OrderItemRow = {
   material_id: string;
   material_title?: string;
   quantity?: number;
+  unit_price?: number;
   subtotal?: number;
 };
 
@@ -68,6 +69,11 @@ export type CreateOrderResponse = {
     order: Order;
     items: OrderItemRow[];
   };
+};
+
+export type OrderDetailResponse = {
+  order: Order;
+  items: OrderItemRow[];
 };
 
 export type DownloadLinkResponse = {
@@ -125,5 +131,58 @@ export type AdminPaymentProof = {
 
 export type AdminPaymentProofsResponse = {
   items: AdminPaymentProof[];
+  pagination?: PaginationMeta;
+};
+
+export type Review = {
+  id: string;
+  parent_id?: string;
+  material_id: string;
+  rating: number;
+  comment?: string | null;
+  created_at?: string;
+};
+
+export type MaterialRatingStats = {
+  average: number | null;
+  count: number;
+};
+
+export type TeacherSalesSummary = {
+  totalSoldUnits: number;
+  totalRevenue: number;
+  totalOrders: number;
+  materialsCount: number;
+  trend: Array<{
+    day: string;
+    soldUnits: number;
+    revenue: number;
+  }>;
+};
+
+export type TeacherSalesByMaterial = {
+  materialId: string;
+  title: string;
+  soldUnits: number;
+  revenue: number;
+  lastSoldAt?: string | null;
+};
+
+export type TeacherSalesRecord = {
+  orderId: string;
+  orderItemId: string;
+  materialId: string;
+  materialTitle: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  buyerId?: string;
+  orderStatus: string;
+  createdAt?: string;
+  paidAt?: string | null;
+};
+
+export type TeacherSalesListResponse<T> = {
+  items: T[];
   pagination?: PaginationMeta;
 };

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, InputField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
 import type { AdminPaymentProof, AdminPaymentProofsResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -82,16 +81,14 @@ export default function AdminPaymentProofsPage() {
   }
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={920} width="100%" alignSelf="center">
-      <H1 size="$9">付款憑證審核</H1>
-      <Paragraph color="$color11">
-        使用付款憑證清單 API，支援待審/全部篩選，並可直接核准或拒絕。
-      </Paragraph>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">付款憑證審核</h1>
+      <p className="text-sm text-slate-600">使用付款憑證清單 API，支援待審/全部篩選，並可直接核准或拒絕。</p>
 
-      <Card padding="$4" borderWidth={1} borderColor="$borderColor" gap="$3">
-        <XStack justifyContent="space-between" alignItems="center" flexWrap="wrap" gap="$2">
-          <Paragraph fontWeight="700">付款憑證列表</Paragraph>
-          <XStack gap="$2" flexWrap="wrap">
+      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-900">付款憑證列表</p>
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant={filter === "pending" ? "primary" : "secondary"} onPress={() => setFilter("pending")} disabled={busy}>
               待審
             </Button>
@@ -101,26 +98,26 @@ export default function AdminPaymentProofsPage() {
             <Button size="sm" variant="secondary" onPress={() => void loadProofs()} disabled={busy} loading={loading}>
               重新整理
             </Button>
-          </XStack>
-        </XStack>
+          </div>
+        </div>
 
         {filteredProofs.length === 0 ? (
-          <Paragraph color="$color10">目前查無符合條件的憑證；也可用下方手動輸入憑證 ID。</Paragraph>
+          <p className="text-sm text-slate-500">目前查無符合條件的憑證；也可用下方手動輸入憑證 ID。</p>
         ) : (
-          <YStack gap="$2">
+          <div className="space-y-2">
             {filteredProofs.map((row) => (
-              <Card key={row.id} padding="$3" borderWidth={1} borderColor="$borderColor" gap="$2">
-                <Paragraph fontWeight="700">憑證 ID：{row.id}</Paragraph>
-                <Paragraph size="$2">審核狀態：{row.review_status}</Paragraph>
-                {row.order_id ? <Paragraph size="$2">訂單 ID：{row.order_id}</Paragraph> : null}
-                {row.user_id ? <Paragraph size="$2">家長 ID：{row.user_id}</Paragraph> : null}
-                {row.uploaded_at ? <Paragraph size="$2">上傳時間：{row.uploaded_at}</Paragraph> : null}
+              <article key={row.id} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-900">憑證 ID：{row.id}</p>
+                <p className="text-xs text-slate-600">審核狀態：{row.review_status}</p>
+                {row.order_id ? <p className="text-xs text-slate-600">訂單 ID：{row.order_id}</p> : null}
+                {row.user_id ? <p className="text-xs text-slate-600">家長 ID：{row.user_id}</p> : null}
+                {row.uploaded_at ? <p className="text-xs text-slate-600">上傳時間：{row.uploaded_at}</p> : null}
                 {handledProofIds[row.id] ? (
-                  <Paragraph size="$2" color="$green10">
+                  <p className="text-xs text-emerald-600">
                     已於本次操作標記：{handledProofIds[row.id] === "approved" ? "核准" : "拒絕"}
-                  </Paragraph>
+                  </p>
                 ) : null}
-                <XStack gap="$2" flexWrap="wrap">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     onPress={() => void submit("approve", row.id)}
@@ -139,19 +136,19 @@ export default function AdminPaymentProofsPage() {
                   >
                     帶入拒絕
                   </Button>
-                </XStack>
-              </Card>
+                </div>
+              </article>
             ))}
-          </YStack>
+          </div>
         )}
-      </Card>
+      </article>
 
-      <Card padding="$5" borderWidth={1} borderColor="$borderColor" gap="$3">
-        <Paragraph fontWeight="700">手動審核（若已知憑證 ID）</Paragraph>
+      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-semibold text-slate-900">手動審核（若已知憑證 ID）</p>
         <InputField id="proof-id" label="付款憑證 ID *" value={proofId} onChangeText={setProofId} placeholder="例如：10" disabled={submitting !== null} />
         <InputField id="proof-note" label="備註 / 拒絕原因" value={note} onChangeText={setNote} placeholder="例如：影像模糊無法辨識" disabled={submitting !== null} />
 
-        <XStack gap="$2" flexWrap="wrap">
+        <div className="flex flex-wrap gap-2">
           <Button
             onPress={() => void submit("approve")}
             disabled={busy}
@@ -167,10 +164,10 @@ export default function AdminPaymentProofsPage() {
           >
             拒絕憑證
           </Button>
-        </XStack>
+        </div>
 
-        {message ? <Paragraph color="$orange10">{message}</Paragraph> : null}
-      </Card>
-    </YStack>
+        {message ? <p className="text-sm text-amber-600">{message}</p> : null}
+      </article>
+    </section>
   );
 }

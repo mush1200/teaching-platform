@@ -1,32 +1,26 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import { Button, InputField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
+import { use, useState } from "react";
 import { z } from "zod";
+import { AppShell } from "../../../../components/layout/AppShell";
+import { MobileHeader } from "../../../../components/layout/MobileHeader";
+import { Button } from "../../../../components/ui/Button";
+import { Card } from "../../../../components/ui/Card";
+import { Input } from "../../../../components/ui/Input";
 import { apiFetch, getStoredToken, parseApiErrorMessage } from "../../../../lib/api-client";
 
 const proofSchema = z.object({
   proofUrl: z.string().url({ message: "請輸入有效的憑證網址（http/https）" }),
 });
 
-export default function UploadProofPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function UploadProofPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: orderId } = use(params);
-  const [hydrated, setHydrated] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
   const [proofUrl, setProofUrl] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setHydrated(true);
-    setToken(getStoredToken());
-  }, []);
+  const token = getStoredToken();
 
   async function submit() {
     setMsg(null);
@@ -49,7 +43,8 @@ export default function UploadProofPage({
         setMsg(await parseApiErrorMessage(res));
         return;
       }
-      setMsg("已送出憑證，請等待審核。");
+      setMsg("已送出憑證，請等待管理員審核。");
+      setProofUrl("");
     } catch {
       setMsg("上傳失敗，請稍後再試。");
     } finally {
@@ -57,56 +52,54 @@ export default function UploadProofPage({
     }
   }
 
-  if (!hydrated) {
-    return (
-      <YStack padding="$4" maxWidth={560} alignSelf="center">
-        <Paragraph>載入中…</Paragraph>
-      </YStack>
-    );
-  }
-
-  if (!token) {
-    return (
-      <YStack padding="$4" maxWidth={560} alignSelf="center">
-        <Paragraph>請先登入。</Paragraph>
-        <Link href={`/login?redirect=${encodeURIComponent(`/orders/${orderId}/upload-proof`)}`}>
-          <Paragraph color="$blue10">前往登入</Paragraph>
-        </Link>
-      </YStack>
-    );
-  }
-
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={560} alignSelf="center" width="100%">
-      <Link href="/orders">
-        <Paragraph textDecorationLine="underline" color="$blue10">
-          ← 返回訂單列表
-        </Paragraph>
-      </Link>
-      <H1>上傳付款憑證</H1>
-      <YStack gap="$1">
-        <Paragraph color="$color11">訂單編號</Paragraph>
-        <Paragraph fontWeight="700">{orderId}</Paragraph>
-      </YStack>
-      <Paragraph size="$3" color="$color10">
-        請將轉帳截圖或憑證先上傳至你可分享的雲端或圖床，再貼上公開連結（須為 http/https）。
-      </Paragraph>
+    <AppShell withBottomNav>
+      <MobileHeader title="上傳憑證" backHref="/orders" right="none" />
+      <main className="mx-auto w-full max-w-lg space-y-4 px-4 pb-28 pt-4 sm:px-6">
+        {!token ? (
+          <Card className="text-center">
+            <p className="font-semibold text-[#1F2937]">請先登入</p>
+            <p className="mt-1 text-sm text-[#6B7280]">需要登入才能提交憑證。</p>
+            <Link href={`/login?redirect=${encodeURIComponent(`/orders/${orderId}/upload-proof`)}`} className="mt-4 inline-block">
+              <Button>前往登入</Button>
+            </Link>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <h1 className="text-xl font-bold text-[#1F2937]">付款憑證</h1>
+              <p className="mt-1 text-sm text-[#6B7280]">訂單編號：{orderId}</p>
+              <p className="mt-2 text-sm text-[#6B7280]">請貼上可公開存取的憑證連結（例如雲端硬碟公開網址）。</p>
+            </Card>
 
-      <Card padding="$4" borderWidth={1} borderColor="$borderColor" gap="$3">
-        <InputField
-          id="proof-url"
-          label="憑證網址"
-          value={proofUrl}
-          onChangeText={setProofUrl}
-          placeholder="https://..."
-          autoComplete="off"
-          disabled={loading}
-        />
-        <Button onPress={() => void submit()} loading={loading} disabled={loading}>
-          {loading ? "送出中…" : "送出憑證"}
-        </Button>
-        {msg ? <Paragraph color="$orange10">{msg}</Paragraph> : null}
-      </Card>
-    </YStack>
+            <Card>
+              <Input
+                id="proof-url"
+                label="憑證網址"
+                value={proofUrl}
+                onChange={(e) => setProofUrl(e.target.value)}
+                placeholder="https://..."
+                disabled={loading}
+              />
+              <div className="mt-4 flex gap-2">
+                <Button className="flex-1" disabled={loading} onClick={() => void submit()}>
+                  {loading ? "送出中…" : "送出憑證"}
+                </Button>
+                <Link href="/orders" className="flex-1">
+                  <Button variant="outline" fullWidth>
+                    返回訂單
+                  </Button>
+                </Link>
+              </div>
+              {msg ? (
+                <p className={`mt-3 text-sm ${msg.includes("失敗") || msg.includes("請") ? "text-[#F59E0B]" : "text-[#22C55E]"}`}>
+                  {msg}
+                </p>
+              ) : null}
+            </Card>
+          </>
+        )}
+      </main>
+    </AppShell>
   );
 }

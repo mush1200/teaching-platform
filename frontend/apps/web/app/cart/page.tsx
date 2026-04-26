@@ -1,207 +1,82 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, EmptyState, ErrorState, InputField, LoadingState } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, Separator, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
-import type { CartItem, CartResponse } from "../../lib/api-types";
-import { apiFetch, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { AppShell } from "../../components/layout/AppShell";
+import { MobileHeader } from "../../components/layout/MobileHeader";
+import { CartItem } from "../../components/cart/CartItem";
+import { Button } from "../../components/ui/Button";
+import { getCartItems } from "../../lib/edu-api-mock";
+import type { MockCartItem } from "../../lib/mock-data";
 
 export default function CartPage() {
-  const [hydrated, setHydrated] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setHydrated(true);
-    setToken(getStoredToken());
-  }, []);
+  const [items, setItems] = useState<MockCartItem[]>([]);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!token) {
-      setItems([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
     setLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch("cart");
-      if (res.status === 401) {
-        setError("請先登入後再查看購物車。");
-        setItems([]);
-        return;
-      }
-      if (!res.ok) {
-        setError(await parseApiErrorMessage(res));
-        setItems([]);
-        return;
-      }
-      const data = (await res.json()) as CartResponse;
-      setItems(data.items ?? []);
-    } catch {
-      setError("無法連線至伺服器，請稍後再試。");
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+    const data = await getCartItems();
+    setItems(data);
+    setSelected(Object.fromEntries(data.map((d) => [d.id, true])));
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
     void load();
-  }, [hydrated, load]);
+  }, [load]);
 
-  if (!hydrated) {
-    return (
-      <YStack flex={1} padding="$4" gap="$4" maxWidth={800} alignSelf="center" width="100%">
-        <H1>購物車</H1>
-        <LoadingState title="載入中…" />
-      </YStack>
-    );
+  function toggle(id: string) {
+    setSelected((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  async function updateQty(materialId: string, quantity: number) {
-    const res = await apiFetch("cart/items", {
-      method: "POST",
-      body: JSON.stringify({ materialId, quantity }),
-    });
-    if (!res.ok) {
-      setError(await parseApiErrorMessage(res));
-      return;
-    }
-    await load();
+  function qty(id: string, q: number) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, quantity: q } : it)));
   }
 
-  async function removeItem(cartItemId: string) {
-    const res = await apiFetch(`cart/items/${encodeURIComponent(cartItemId)}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      setError(await parseApiErrorMessage(res));
-      return;
-    }
-    await load();
-  }
-
-  if (!token) {
-    return (
-      <YStack flex={1} padding="$4" gap="$4" maxWidth={800} alignSelf="center" width="100%">
-        <H1>購物車</H1>
-        <EmptyState
-          title="請先登入"
-          description="購物車需要登入後家長身分方可使用。"
-          actionLabel="前往登入"
-          onAction={() => {
-            window.location.href = `/login?redirect=${encodeURIComponent("/cart")}`;
-          }}
-        />
-      </YStack>
-    );
-  }
+  const selectedItems = items.filter((i) => selected[i.id]);
+  const total = selectedItems.reduce((s, i) => s + i.price * i.quantity, 0);
+  const count = selectedItems.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={800} alignSelf="center" width="100%">
-      <H1>購物車</H1>
-
-      {loading ? <LoadingState title="載入購物車…" /> : null}
-      {!loading && error ? (
-        <ErrorState title="無法載入購物車" description={error} onRetry={() => void load()} />
-      ) : null}
-
-      {!loading && !error && items.length === 0 ? (
-        <EmptyState
-          title="購物車是空的"
-          description="先到教材列表加入想購買的項目。"
-          actionLabel="瀏覽教材"
-          onAction={() => {
-            window.location.href = "/materials";
-          }}
-        />
-      ) : null}
-
-      {!loading && !error && items.length > 0 ? (
-        <YStack gap="$4">
-          {items.map((row) => (
-            <CartLine
-              key={row.id}
-              item={row}
-              onChangeQty={(q) => void updateQty(row.material_id, q)}
-              onRemove={() => void removeItem(row.id)}
-            />
-          ))}
-          <Separator />
-          <XStack justifyContent="flex-end">
-            <Link href="/checkout">
-              <Paragraph color="$blue10" fontWeight="700" textDecorationLine="underline">
-                前往結帳 →
-              </Paragraph>
+    <AppShell>
+      <MobileHeader title="購物車" backHref="/materials" right="edit" />
+      <main className="mx-auto max-w-lg px-4 pb-40 pt-2 sm:px-6">
+        {loading ? <p className="py-10 text-center text-sm text-[#6B7280]">載入中…</p> : null}
+        {!loading && items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB] bg-white/60 py-16 text-center">
+            <p className="text-4xl">🛒</p>
+            <p className="mt-4 font-semibold text-[#1F2937]">購物車是空的</p>
+            <p className="mt-1 text-sm text-[#6B7280]">去教材列表挑選喜歡的課程吧！</p>
+            <Link href="/materials" className="mt-6">
+              <Button type="button">前往逛逛</Button>
             </Link>
-          </XStack>
-        </YStack>
+          </div>
+        ) : null}
+        {!loading && items.length > 0 ? (
+          <div className="space-y-3">
+            {items.map((it) => (
+              <CartItem key={it.id} item={it} selected={Boolean(selected[it.id])} onToggle={toggle} onQtyChange={qty} />
+            ))}
+          </div>
+        ) : null}
+      </main>
+
+      {!loading && items.length > 0 ? (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E5E7EB]/90 bg-white/95 px-4 py-4 shadow-[0_-8px_30px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-lg flex-col gap-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[#6B7280]">總計（{count} 項商品）</span>
+              <span className="text-xl font-bold text-[#1F2937]">NT${total.toLocaleString()}</span>
+            </div>
+            <Link href="/checkout" className="w-full">
+              <Button type="button" fullWidth>
+                前往結帳
+              </Button>
+            </Link>
+          </div>
+        </div>
       ) : null}
-    </YStack>
-  );
-}
-
-function CartLine({
-  item,
-  onChangeQty,
-  onRemove,
-}: {
-  item: CartItem;
-  onChangeQty: (quantity: number) => void;
-  onRemove: () => void;
-}) {
-  const [qty, setQty] = useState(String(item.quantity));
-  const [lineHint, setLineHint] = useState<string | null>(null);
-
-  useEffect(() => {
-    setQty(String(item.quantity));
-  }, [item.id, item.quantity]);
-
-  const qtyInputId = useMemo(() => `qty-${item.id}`, [item.id]);
-
-  return (
-    <Card padding="$4" borderWidth={1} borderColor="$borderColor">
-      <YStack gap="$3">
-        <Paragraph fontWeight="700">{item.title ?? item.material_id}</Paragraph>
-        <Paragraph>單價 NT$ {Math.floor(Number(item.price) || 0)}</Paragraph>
-        <XStack gap="$3" alignItems="flex-end" flexWrap="wrap">
-          <YStack flex={1} minWidth={200}>
-            <InputField
-              id={qtyInputId}
-              label="數量"
-              value={qty}
-              onChangeText={(next) => {
-                setQty(next);
-                setLineHint(null);
-              }}
-              errorText={lineHint ?? undefined}
-            />
-          </YStack>
-          <Button
-            variant="secondary"
-            onPress={() => {
-              const q = Number.parseInt(qty, 10);
-              if (Number.isNaN(q) || !Number.isInteger(q) || q < 1) {
-                setLineHint("數量須為至少 1。若不要此品項請按「移除」。");
-                return;
-              }
-              setLineHint(null);
-              onChangeQty(q);
-            }}
-          >
-            更新數量
-          </Button>
-          <Button variant="danger" onPress={onRemove}>
-            移除
-          </Button>
-        </XStack>
-      </YStack>
-    </Card>
+    </AppShell>
   );
 }

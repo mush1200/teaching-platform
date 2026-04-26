@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, StatusBadge, SurfaceCard } from "@teaching-platform/ui";
-import { H1, Paragraph, Separator, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -34,6 +33,8 @@ export default function TeacherMaterialsPage() {
   const [items, setItems] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+  const [role, setRole] = useState<"parent" | "teacher" | "admin" | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -41,6 +42,16 @@ export default function TeacherMaterialsPage() {
     setLoading(true);
     setError(null);
     try {
+      let currentRole: "parent" | "teacher" | "admin" | null = role;
+      let currentMeId: string | null = meId;
+      const meRes = await apiFetch("auth/me");
+      if (meRes.ok) {
+        const mePayload = (await meRes.json()) as { user?: { id?: string; role?: "parent" | "teacher" | "admin" } };
+        currentMeId = mePayload.user?.id ?? null;
+        currentRole = mePayload.user?.role ?? null;
+        setMeId(currentMeId);
+        setRole(currentRole);
+      }
       const res = await apiFetch("materials");
       if (!res.ok) {
         setItems([]);
@@ -48,14 +59,16 @@ export default function TeacherMaterialsPage() {
         return;
       }
       const data = (await res.json()) as MaterialsListResponse;
-      setItems(data.items ?? []);
+      const all = data.items ?? [];
+      const next = currentRole === "teacher" && currentMeId ? all.filter((m) => m.teacher_id === currentMeId) : all;
+      setItems(next);
     } catch {
       setItems([]);
       setError("無法連線至伺服器，請稍後再試。");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [meId, role]);
 
   useEffect(() => {
     void load();
@@ -85,21 +98,26 @@ export default function TeacherMaterialsPage() {
   }, [filteredItems, currentPage]);
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={1100} width="100%" alignSelf="center">
-      <YStack gap="$2">
-        <H1 size="$9">教師教材管理</H1>
-        <Paragraph color="$color11">管理你的教材內容，並追蹤目前上架與審核狀態。</Paragraph>
-      </YStack>
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-slate-900">教師教材管理</h1>
+        <p className="text-sm text-slate-600">管理你的教材內容，並追蹤目前上架與審核狀態。（教師僅顯示自己的教材）</p>
+      </div>
 
       <SurfaceCard title="篩選與操作" description="可先依狀態篩選，再進行編輯。">
-        <XStack gap="$3" flexWrap="wrap" alignItems="flex-end" justifyContent="space-between">
-          <YStack minWidth={220} flex={1}>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-[220px] flex-1">
             <SelectField id="teacher-material-status" label="狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
-          </YStack>
-          <Link href="/teacher/materials/new">
-            <Button>新增教材</Button>
-          </Link>
-        </XStack>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/teacher/sales">
+              <Button variant="secondary">銷售紀錄</Button>
+            </Link>
+            <Link href="/teacher/materials/new">
+              <Button>新增教材</Button>
+            </Link>
+          </div>
+        </div>
       </SurfaceCard>
 
       {loading ? <LoadingState title="教材載入中…" /> : null}
@@ -110,38 +128,38 @@ export default function TeacherMaterialsPage() {
 
       {!loading && !error && filteredItems.length > 0 ? (
         <SurfaceCard title="教材列表" description={`共 ${totalItems} 筆`}>
-          <YStack gap="$3" width="100%">
+          <div className="space-y-3">
             <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} onPageChange={setCurrentPage} />
-            <YStack borderWidth={1} borderColor="$borderColor" borderRadius="$3" overflow="hidden">
+            <div className="overflow-hidden rounded-2xl border border-slate-200">
               {pagedItems.map((m, idx) => (
-                <YStack key={m.id}>
-                  {idx > 0 ? <Separator /> : null}
-                  <XStack padding="$3" gap="$3" justifyContent="space-between" alignItems="center" flexWrap="wrap">
-                    <YStack gap="$1" minWidth={220} flex={1}>
-                      <Paragraph fontWeight="700">{m.title}</Paragraph>
-                      <Paragraph size="$2" color="$color10">
-                        編號：{m.id}
-                      </Paragraph>
-                      <Paragraph size="$2" color="$color10">
-                        價格：NT$ {Math.floor(Number(m.price) || 0)}
-                      </Paragraph>
-                    </YStack>
-                    <XStack gap="$2" alignItems="center" flexWrap="wrap">
+                <div key={m.id} className={idx > 0 ? "border-t border-slate-200" : ""}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+                    <div className="min-w-[220px] flex-1 space-y-1">
+                      <p className="text-sm font-semibold text-slate-900">{m.title}</p>
+                      <p className="text-xs text-slate-500">編號：{m.id}</p>
+                      <p className="text-xs text-slate-500">價格：NT$ {Math.floor(Number(m.price) || 0)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
+                      <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/reviews`}>
+                        <Button size="sm" variant="secondary">
+                          教材評論
+                        </Button>
+                      </Link>
                       <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/edit`}>
                         <Button size="sm" variant="secondary">
                           編輯
                         </Button>
                       </Link>
-                    </XStack>
-                  </XStack>
-                </YStack>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </YStack>
-          </YStack>
+            </div>
+          </div>
         </SurfaceCard>
       ) : null}
-    </YStack>
+    </section>
   );
 }
 

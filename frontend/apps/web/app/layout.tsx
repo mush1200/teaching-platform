@@ -1,24 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./providers";
+import { RoleShell } from "../components/layout/RoleShell";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const notoSansTc = Noto_Sans_TC({
+  variable: "--font-noto",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Teaching Platform",
-  description: "教學平台前端：教材瀏覽、購買、下載與後台管理。",
+  title: "EduMarket | 教具平台",
+  description: "柔和教育風格之教材商城 MVP。",
   openGraph: {
-    title: "Teaching Platform",
-    description: "教學平台前端：教材瀏覽、購買、下載與後台管理。",
+    title: "EduMarket | 教具平台",
+    description: "教材瀏覽、購買與管理。",
   },
 };
 
@@ -28,13 +32,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="zh-Hant"
-      className={`${geistSans.variable} ${geistMono.variable} t_light`}
-      suppressHydrationWarning
-    >
-      <body>
-        <AppProviders>{children}</AppProviders>
+    <html lang="zh-Hant" className={`${inter.variable} ${notoSansTc.variable} t_light`} suppressHydrationWarning>
+      <body
+        className={`${notoSansTc.className} antialiased`}
+        style={{ fontFamily: "var(--font-noto), var(--font-inter), ui-sans-serif, system-ui, sans-serif" }}
+      >
+        <AppProviders>
+          <RoleShell>{children}</RoleShell>
+        </AppProviders>
       </body>
     </html>
   );

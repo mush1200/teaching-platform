@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, ErrorState, InputField, LoadingState, Pagination } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
+import Link from "next/link";
 import type { ActivityLog, ActivityLogsResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -67,15 +67,16 @@ export default function AdminActivityLogsPage() {
   }
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={1100} width="100%" alignSelf="center">
-      <H1 size="$9">活動紀錄</H1>
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">活動紀錄</h1>
+      <p className="text-sm text-slate-600">點選標題可查看單筆詳情；操作者與目標可進一步篩選相關紀錄。</p>
 
-      <Card padding="$4" borderWidth={1} borderColor="$borderColor" gap="$3">
+      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <InputField id="log-actor-id" label="Actor ID" value={actorId} onChangeText={setActorId} placeholder="usr_..." />
         <InputField id="log-action" label="Action" value={action} onChangeText={setAction} placeholder="order.approve" />
         <InputField id="log-target-type" label="Target Type" value={targetType} onChangeText={setTargetType} placeholder="order/material/report" />
         <InputField id="log-target-id" label="Target ID" value={targetId} onChangeText={setTargetId} placeholder="ord_..." />
-        <XStack gap="$2" flexWrap="wrap">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onPress={submitFilter}>
             套用篩選
           </Button>
@@ -91,31 +92,52 @@ export default function AdminActivityLogsPage() {
           >
             清除篩選
           </Button>
-        </XStack>
-      </Card>
+        </div>
+      </article>
 
       {loading ? <LoadingState title="載入活動紀錄中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && items.length === 0 ? <EmptyState title="沒有活動紀錄" description="目前查無符合條件的資料。" /> : null}
 
       {!loading && !error && items.length > 0 ? (
-        <YStack gap="$3">
+        <div className="space-y-3">
           <Pagination page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           {items.map((log) => (
-            <Card key={log.id} padding="$4" borderWidth={1} borderColor="$borderColor" gap="$2">
-              <Paragraph fontWeight="700">{log.action ?? "unknown action"}</Paragraph>
-              <Paragraph size="$2">紀錄 ID：{log.id}</Paragraph>
-              {log.actor_id ? <Paragraph size="$2">操作者：{log.actor_id}</Paragraph> : null}
-              {log.actor_role ? <Paragraph size="$2">角色：{log.actor_role}</Paragraph> : null}
-              {log.target_type || log.target_id ? (
-                <Paragraph size="$2">
-                  目標：{log.target_type ?? "-"} / {log.target_id ?? "-"}
-                </Paragraph>
+            <article key={log.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Link href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}>
+                <span className="text-sm font-semibold text-indigo-600 underline">{log.action ?? "unknown action"}</span>
+              </Link>
+              <p className="text-xs text-slate-500">紀錄 ID：{log.id}</p>
+              {log.actor_id ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-slate-500">操作者：</span>
+                  <Link href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}>
+                    <span className="font-medium text-indigo-600 underline">{log.actor_id}</span>
+                  </Link>
+                </div>
               ) : null}
-            </Card>
+              {log.actor_role ? <p className="text-xs text-slate-500">角色：{log.actor_role}</p> : null}
+              {log.target_type || log.target_id ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-slate-500">
+                    目標：{log.target_type ?? "-"} / {log.target_id ?? "-"}
+                  </span>
+                  {log.target_type === "material" && log.target_id ? (
+                    <Link href={`/admin/materials/${encodeURIComponent(log.target_id)}/activity-logs`}>
+                      <span className="font-medium text-indigo-600 underline">此教材紀錄</span>
+                    </Link>
+                  ) : null}
+                  {log.target_type === "order" && log.target_id ? (
+                    <Link href={`/admin/orders/${encodeURIComponent(log.target_id)}/activity-logs`}>
+                      <span className="font-medium text-indigo-600 underline">此訂單紀錄</span>
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
           ))}
-        </YStack>
+        </div>
       ) : null}
-    </YStack>
+    </section>
   );
 }

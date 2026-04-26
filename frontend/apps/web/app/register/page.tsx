@@ -2,61 +2,76 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, H2, Paragraph, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import { z } from "zod";
-import { Button, InputField, SelectField } from "@teaching-platform/ui";
+import { AuthSplitLayout } from "../../components/layout/AuthSplitLayout";
+import { Button } from "../../components/ui/Button";
+import { Checkbox } from "../../components/ui/Checkbox";
+import { Input } from "../../components/ui/Input";
+import { IconFacebook, IconGoogle } from "../../components/ui/icons";
 import type { UserRole } from "../../lib/api-types";
 import type { LoginResponse } from "../../lib/auth";
 import { mapStatusMessage } from "../../lib/auth";
 
-const registerSchema = z.object({
-  email: z.string().email("Email 格式不正確"),
-  password: z.string().min(6, "密碼至少 6 個字元"),
-  role: z.enum(["parent", "teacher"]),
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(1, "請輸入姓名"),
+    email: z.string().email("Email 格式不正確"),
+    password: z.string().min(6, "密碼至少 6 個字元"),
+    confirm: z.string().min(1, "請再次輸入密碼"),
+    role: z.enum(["parent", "teacher"]),
+    terms: z.boolean(),
+  })
+  .refine((d) => d.terms, { message: "請同意服務條款", path: ["terms"] })
+  .refine((d) => d.password === d.confirm, { message: "兩次密碼不一致", path: ["confirm"] });
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [role, setRole] = useState<UserRole>("parent");
+  const [terms, setTerms] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const roleOptions = [
-    { label: "家長（購買教材）", value: "parent" },
-    { label: "老師（上架教材）", value: "teacher" },
-  ];
-
   async function submit() {
-    const parsed = registerSchema.safeParse({ email, password, role });
+    const parsed = registerSchema.safeParse({
+      name,
+      email,
+      password,
+      confirm,
+      role,
+      terms,
+    });
     if (!parsed.success) {
       setMessage(parsed.error.issues[0]?.message ?? "資料有誤");
       return;
     }
-
     setLoading(true);
     setMessage("");
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({
+          email: parsed.data.email,
+          password: parsed.data.password,
+          role: parsed.data.role,
+        }),
       });
-
       if (!response.ok) {
         setMessage(await parseRegisterError(response));
         return;
       }
-
       const payload = (await response.json()) as LoginResponse;
       localStorage.setItem("tp_token", payload.token);
       localStorage.setItem("tp_role", payload.user.role);
       localStorage.setItem("tp_user_email", payload.user.email);
       document.cookie = `tp_token=${encodeURIComponent(payload.token)}; path=/; max-age=86400; samesite=lax`;
       document.cookie = `tp_role=${payload.user.role}; path=/; max-age=86400; samesite=lax`;
-
+      if (name) localStorage.setItem("tp_display_name", name);
       setMessage("註冊成功，正在導向首頁…");
       router.push("/");
     } catch {
@@ -67,54 +82,79 @@ export default function RegisterPage() {
   }
 
   return (
-    <YStack minHeight="calc(100vh - 56px)" justifyContent="center" alignItems="center" padding="$4">
-      <Card width="100%" maxWidth={420} padding="$5" borderWidth={1} borderColor="$borderColor">
-        <YStack gap="$4">
-          <YStack gap="$2">
-            <H2>註冊</H2>
-            <Paragraph>建立家長或老師帳號。（若需管理員請由後台建立）</Paragraph>
-          </YStack>
+    <AuthSplitLayout illustrationSide="register">
+      <div className="mx-auto w-full max-w-md space-y-8">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
+          <h1 className="mt-2 text-3xl font-bold text-[#1F2937]">Create Account</h1>
+          <p className="mt-2 text-sm text-[#6B7280]">加入我們，開啟學習新旅程</p>
+        </div>
 
-          <SelectField id="role" label="身分" options={roleOptions} value={role} onValueChange={(v) => setRole(v as UserRole)} />
-
-          <InputField
+        <div className="space-y-4">
+          <Input id="reg-name" label="姓名" value={name} onChange={(e) => setName(e.target.value)} disabled={loading} />
+          <Input
             id="reg-email"
             label="Email"
+            type="email"
             autoComplete="email"
             value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
+            onChange={(e) => setEmail(e.target.value)}
             disabled={loading}
           />
-
-          <InputField
+          <Input
             id="reg-password"
-            label="密碼（至少 6 字元）"
+            label="密碼"
+            type="password"
             autoComplete="new-password"
-            secureTextEntry
             value={password}
-            onChangeText={setPassword}
-            placeholder="請設定密碼"
+            onChange={(e) => setPassword(e.target.value)}
             disabled={loading}
           />
-
-          <Button onPress={() => void submit()} disabled={loading} loading={loading}>
-            {loading ? "送出中…" : "建立帳號"}
+          <Input
+            id="reg-confirm"
+            label="確認密碼"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            disabled={loading}
+          />
+          <fieldset className="space-y-2 rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] p-4">
+            <legend className="px-1 text-sm font-medium text-[#1F2937]">帳號身分</legend>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="radio" name="role" checked={role === "parent"} onChange={() => setRole("parent")} />
+              家長（購買教材）
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="radio" name="role" checked={role === "teacher"} onChange={() => setRole("teacher")} />
+              老師（上架教材）
+            </label>
+          </fieldset>
+          <Checkbox id="terms" checked={terms} onChange={(e) => setTerms(e.target.checked)} label="我同意服務條款與隱私權政策" />
+          <Button type="button" fullWidth disabled={loading} onClick={() => void submit()}>
+            {loading ? "送出中…" : "註冊"}
           </Button>
+        </div>
 
-          <XStack gap="$2" alignItems="center" flexWrap="wrap">
-            <Paragraph color="$color11">已有帳號？</Paragraph>
-            <Link href="/login">
-              <Paragraph color="$blue10" textDecorationLine="underline">
-                前往登入
-              </Paragraph>
-            </Link>
-          </XStack>
+        <div className="flex flex-col gap-3">
+          <Button type="button" variant="social" fullWidth disabled className="opacity-70">
+            <IconGoogle />
+            以 Google 註冊（即將開放）
+          </Button>
+          <Button type="button" variant="social" fullWidth disabled className="opacity-70">
+            <IconFacebook />
+            以 Facebook 註冊（即將開放）
+          </Button>
+        </div>
 
-          {message ? <Paragraph color="$orange10">{message}</Paragraph> : null}
-        </YStack>
-      </Card>
-    </YStack>
+        <p className="text-center text-sm text-[#6B7280]">
+          已有帳號？{" "}
+          <Link href="/login" className="font-semibold text-[#6C63FF] hover:underline">
+            立即登入
+          </Link>
+        </p>
+        {message ? <p className="text-center text-sm text-[#F59E0B]">{message}</p> : null}
+      </div>
+    </AuthSplitLayout>
   );
 }
 

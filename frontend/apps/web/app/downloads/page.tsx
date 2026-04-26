@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, InputField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import type { DownloadLinkResponse } from "../../lib/api-types";
 import { apiFetch, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
 
@@ -65,17 +64,17 @@ export default function DownloadsPage() {
 
   if (!hydrated) {
     return (
-      <YStack padding="$4" maxWidth={720} alignSelf="center" width="100%">
-        <H1>下載</H1>
-        <Paragraph color="$color11">載入中…</Paragraph>
-      </YStack>
+      <section className="mx-auto w-full max-w-3xl px-4 py-6">
+        <h1 className="text-2xl font-bold text-slate-900">下載</h1>
+        <p className="mt-2 text-sm text-slate-600">載入中...</p>
+      </section>
     );
   }
 
   if (!token) {
     return (
-      <YStack padding="$4" maxWidth={720} alignSelf="center" width="100%">
-        <H1>下載</H1>
+      <section className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6">
+        <h1 className="text-2xl font-bold text-slate-900">下載</h1>
         <EmptyState
           title="請先登入"
           description="下載授權需登入後由伺服器驗證購買紀錄。"
@@ -84,16 +83,16 @@ export default function DownloadsPage() {
             window.location.href = `/login?redirect=${encodeURIComponent("/downloads")}`;
           }}
         />
-      </YStack>
+      </section>
     );
   }
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={720} width="100%" alignSelf="center">
-      <H1>取得下載連結</H1>
-      <Paragraph color="$color11">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">取得下載連結</h1>
+      <p className="text-sm text-slate-600">
         若訂單已付款並通過審核，可在此取得教材檔案的簽名下載網址。剛結帳的項目會暫存在此頁清單（僅本機瀏覽器）。
-      </Paragraph>
+      </p>
 
       {keys.length === 0 ? (
         <EmptyState
@@ -101,55 +100,51 @@ export default function DownloadsPage() {
           description="結帳成功後會自動帶入教材，或於下方手動輸入教材 ID。"
         />
       ) : (
-        <YStack gap="$3">
+        <div className="space-y-3">
           {pending.map((row) => (
-            <Card key={row.material_id} padding="$4" borderWidth={1} borderColor="$borderColor" gap="$2">
-              <Paragraph fontWeight="700">{row.material_title ?? row.material_id}</Paragraph>
-              <Paragraph size="$2" color="$color10">
-                ID：{row.material_id}
-              </Paragraph>
+            <article key={row.material_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">{row.material_title ?? row.material_id}</p>
+              <p className="mt-1 text-xs text-slate-500">ID：{row.material_id}</p>
               <Button size="sm" variant="secondary" onPress={() => void fetchLink(row.material_id)}>
                 取得下載連結
               </Button>
               {results[row.material_id]?.url ? (
-                <Paragraph>
+                <p className="mt-2 text-sm text-slate-700">
                   <strong>連結：</strong>{" "}
                   <a href={results[row.material_id]?.url} target="_blank" rel="noreferrer">
                     開啟下載
                   </a>
-                </Paragraph>
+                </p>
               ) : null}
               {results[row.material_id]?.error ? (
-                <Paragraph color="$orange10">{results[row.material_id]?.error}</Paragraph>
+                <p className="mt-1 text-sm text-amber-600">{results[row.material_id]?.error}</p>
               ) : null}
-            </Card>
+            </article>
           ))}
-        </YStack>
+        </div>
       )}
 
-      <Card padding="$4" borderWidth={1} borderColor="$borderColor" gap="$3">
-        <Paragraph fontWeight="600">手動輸入教材 ID</Paragraph>
+      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm font-semibold text-slate-900">手動輸入教材 ID</p>
         <InputField id="manual-mid" label="教材 ID" value={manualId} onChangeText={setManualId} placeholder="mat_..." />
         <Button variant="secondary" onPress={() => void fetchManual()}>
           查詢下載連結
         </Button>
         {manualId.trim() && results[manualId.trim()]?.url ? (
-          <Paragraph>
+          <p className="text-sm text-slate-700">
             <a href={results[manualId.trim()]?.url} target="_blank" rel="noreferrer">
               開啟下載
             </a>
-          </Paragraph>
+          </p>
         ) : null}
         {manualId.trim() && results[manualId.trim()]?.error ? (
-          <Paragraph color="$orange10">{results[manualId.trim()]?.error}</Paragraph>
+          <p className="text-sm text-amber-600">{results[manualId.trim()]?.error}</p>
         ) : null}
-      </Card>
+      </article>
 
       <Link href="/orders">
-        <Paragraph color="$blue10" textDecorationLine="underline">
-          查看訂單狀態
-        </Paragraph>
+        <span className="text-sm font-medium text-indigo-600 underline">查看訂單狀態</span>
       </Link>
-    </YStack>
+    </section>
   );
 }

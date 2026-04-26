@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button, EmptyState, ErrorState, InputField, LoadingState } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import type { Material } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
 
@@ -106,19 +105,18 @@ export default function TeacherMaterialEditPage() {
   }
 
   return (
-    <YStack flex={1} padding="$4" maxWidth={860} width="100%" alignSelf="center" gap="$4">
-      <YStack gap="$2">
-        <H1 size="$9">編輯教材</H1>
-        <Paragraph color="$color11">調整教材內容後可重新送審或維持既有狀態。</Paragraph>
-      </YStack>
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-slate-900">編輯教材</h1>
+        <p className="text-sm text-slate-600">調整教材內容後可重新送審或維持既有狀態。</p>
+      </div>
 
       {loading ? <LoadingState title="載入教材中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && !form ? <EmptyState title="找不到教材" description="請確認教材編號是否正確。" /> : null}
 
       {!loading && form ? (
-        <Card padding="$5" borderWidth={1} borderColor="$borderColor">
-          <YStack gap="$3">
+        <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <InputField id="edit-title" label="標題 *" value={form.title} onChangeText={(v) => update("title", v)} disabled={saving} />
             <InputField id="edit-description" label="描述" value={form.description} onChangeText={(v) => update("description", v)} disabled={saving} />
             <InputField id="edit-price" label="價格 *" value={form.price} onChangeText={(v) => update("price", v)} disabled={saving} />
@@ -126,7 +124,7 @@ export default function TeacherMaterialEditPage() {
             <InputField id="edit-age-range" label="適齡" value={form.ageRange} onChangeText={(v) => update("ageRange", v)} disabled={saving} />
             <InputField id="edit-file-key" label="檔案 Key *" value={form.fileKey} onChangeText={(v) => update("fileKey", v)} disabled={saving} />
 
-            <XStack gap="$2" flexWrap="wrap">
+            <div className="flex flex-wrap gap-2">
               <Button onPress={() => void handleSave()} disabled={saving} loading={saving}>
                 {saving ? "儲存中…" : "儲存變更"}
               </Button>
@@ -135,12 +133,11 @@ export default function TeacherMaterialEditPage() {
                   返回列表
                 </Button>
               </Link>
-            </XStack>
+            </div>
 
-            {message ? <Paragraph color="$orange10">{message}</Paragraph> : null}
-          </YStack>
-        </Card>
+            {message ? <p className="text-sm text-amber-600">{message}</p> : null}
+        </article>
       ) : null}
-    </YStack>
+    </section>
   );
 }

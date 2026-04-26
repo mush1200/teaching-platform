@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, InputField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import type { Material } from "../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../lib/api-client";
 
@@ -88,14 +87,13 @@ export default function TeacherMaterialNewPage() {
   }
 
   return (
-    <YStack flex={1} padding="$4" maxWidth={860} width="100%" alignSelf="center" gap="$4">
-      <YStack gap="$2">
-        <H1 size="$9">新增教材</H1>
-        <Paragraph color="$color11">建立新教材後，預設會進入審核流程。</Paragraph>
-      </YStack>
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-slate-900">新增教材</h1>
+        <p className="text-sm text-slate-600">建立新教材後，預設會進入審核流程。</p>
+      </div>
 
-      <Card padding="$5" borderWidth={1} borderColor="$borderColor">
-        <YStack gap="$3">
+      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <InputField id="new-title" label="標題 *" value={form.title} onChangeText={(v) => update("title", v)} placeholder="例如：國小數學分數練習包" disabled={saving} />
           <InputField
             id="new-description"
@@ -117,16 +115,14 @@ export default function TeacherMaterialNewPage() {
             disabled={saving}
           />
 
-          <XStack gap="$2" alignItems="center" flexWrap="wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant={form.ipDeclarationAccepted ? "primary" : "secondary"} onPress={() => update("ipDeclarationAccepted", !form.ipDeclarationAccepted)} disabled={saving}>
               {form.ipDeclarationAccepted ? "已同意著作權聲明" : "點此同意著作權聲明"}
             </Button>
-            <Paragraph size="$2" color="$color10">
-              你需確認擁有合法授權，且可上架販售。
-            </Paragraph>
-          </XStack>
+            <p className="text-xs text-slate-500">你需確認擁有合法授權，且可上架販售。</p>
+          </div>
 
-          <XStack gap="$2" flexWrap="wrap">
+          <div className="flex flex-wrap gap-2">
             <Button onPress={() => void handleCreate()} disabled={saving} loading={saving}>
               {saving ? "建立中…" : "建立教材"}
             </Button>
@@ -135,11 +131,10 @@ export default function TeacherMaterialNewPage() {
                 返回列表
               </Button>
             </Link>
-          </XStack>
+          </div>
 
-          {message ? <Paragraph color="$orange10">{message}</Paragraph> : null}
-        </YStack>
-      </Card>
-    </YStack>
+          {message ? <p className="text-sm text-amber-600">{message}</p> : null}
+      </article>
+    </section>
   );
 }

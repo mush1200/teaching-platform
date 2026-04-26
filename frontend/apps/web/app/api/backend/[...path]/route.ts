@@ -3,7 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3000";
 
 /** First path segment allowlist — mirrors public backend routes used by the web app */
-const ALLOW_ROOT = new Set(["auth", "materials", "cart", "orders", "download", "reviews", "health", "admin"]);
+const ALLOW_ROOT = new Set([
+  "auth",
+  "materials",
+  "cart",
+  "orders",
+  "download",
+  "reviews",
+  "me",
+  "reports",
+  "health",
+  "admin",
+  "teacher",
+]);
 
 function isAllowed(segments: string[]): boolean {
   if (segments.length === 0) return false;

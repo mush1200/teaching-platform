@@ -13,7 +13,11 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get("tp_role")?.value as Role | undefined;
   const pathname = request.nextUrl.pathname;
 
-  const isProtected = pathname.startsWith("/cart") || pathname.startsWith("/teacher") || pathname.startsWith("/admin");
+  const isProtected =
+    pathname.startsWith("/cart") ||
+    pathname.startsWith("/teacher") ||
+    pathname.startsWith("/admin") ||
+    pathname === "/my-reviews";
   if (!isProtected) return NextResponse.next();
 
   if (!token || !role) {
@@ -26,7 +30,7 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/admin") && role !== "admin") {
     return NextResponse.redirect(new URL("/403", request.url));
   }
-  if (pathname.startsWith("/cart") && role !== "parent" && role !== "admin") {
+  if (pathname.startsWith("/cart") && role !== "parent") {
     return NextResponse.redirect(new URL("/403", request.url));
   }
 
@@ -34,6 +38,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/cart/:path*", "/teacher/:path*", "/admin/:path*"],
+  matcher: ["/cart/:path*", "/teacher/:path*", "/admin/:path*", "/my-reviews"],
 };
 

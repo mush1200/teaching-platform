@@ -60,6 +60,41 @@ router.get("/my", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/:id", requireAuth, async (req, res) => {
+  try {
+    const orderId = String(req.params.id);
+    const result = await db.query(
+      `SELECT id, user_id, status, payment_mode, total_amount, total_price,
+              paid_at, cancelled_at, created_at, updated_at
+       FROM orders
+       WHERE id = $1
+       LIMIT 1`,
+      [orderId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: "order not found" });
+
+    const order = result.rows[0];
+    const isOwner = String(order.user_id) === String(req.user.userId);
+    const isAdmin = req.user.role === "admin";
+    if (!isOwner && !isAdmin) return res.status(403).json({ message: "forbidden" });
+
+    const itemsResult = await db.query(
+      `SELECT id, order_id, material_id, title_snapshot AS material_title,
+              quantity, COALESCE(price_snapshot, 0)::int AS unit_price,
+              COALESCE(subtotal, 0)::int AS subtotal
+       FROM order_items
+       WHERE order_id = $1
+       ORDER BY created_at ASC, id ASC`,
+      [orderId]
+    );
+
+    return res.json({ order, items: itemsResult.rows });
+  } catch (err) {
+    console.error("get order detail failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 /** POST /orders/:id/upload-proof — 僅新增 manual_payment_proofs；訂單維持 pending_payment */
 router.post("/:id/upload-proof", requireAuth, async (req, res) => {
   const orderId = String(req.params.id);

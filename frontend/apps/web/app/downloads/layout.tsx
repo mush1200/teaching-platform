@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "../components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "下載 | Teaching Platform",
@@ -7,10 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function DownloadsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <SiteHeader />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

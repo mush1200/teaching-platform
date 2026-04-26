@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, SelectField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
+import Link from "next/link";
 import type { Report } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -77,8 +77,16 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={1000} width="100%" alignSelf="center">
-      <H1 size="$9">檢舉管理</H1>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">檢舉管理</h1>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link href="/admin/materials">
+          <span className="font-medium text-indigo-600 underline">教材列表（依教材檢視檢舉）</span>
+        </Link>
+        <Link href="/admin/activity-logs">
+          <span className="font-medium text-indigo-600 underline">活動紀錄</span>
+        </Link>
+      </div>
       <SelectField id="admin-report-status" label="狀態篩選" value={status} options={statusOptions} onValueChange={setStatus} />
 
       {loading ? <LoadingState title="載入檢舉中…" /> : null}
@@ -86,24 +94,34 @@ export default function AdminReportsPage() {
       {!loading && !error && items.length === 0 ? <EmptyState title="沒有檢舉資料" description="目前查無符合條件的檢舉。" /> : null}
 
       {!loading && !error && items.length > 0 ? (
-        <YStack gap="$3">
+        <div className="space-y-3">
           {items.map((r) => (
-            <Card key={r.id} padding="$4" borderWidth={1} borderColor="$borderColor" gap="$2">
-              <Paragraph fontWeight="700">檢舉 {r.id}</Paragraph>
-              <Paragraph>狀態：{reportStatusLabel(r.status)}</Paragraph>
-              {r.material_id ? <Paragraph size="$2">教材 ID：{r.material_id}</Paragraph> : null}
-              {r.reason ? <Paragraph size="$2">原因：{r.reason}</Paragraph> : null}
-              <XStack>
+            <article key={r.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">檢舉 {r.id}</p>
+              <p className="text-sm text-slate-700">狀態：{reportStatusLabel(r.status)}</p>
+              {r.material_id ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <p className="text-slate-600">教材 ID：{r.material_id}</p>
+                  <Link href={`/admin/materials/${encodeURIComponent(r.material_id)}/reports`}>
+                    <span className="font-medium text-indigo-600 underline">此教材檢舉列表</span>
+                  </Link>
+                  <Link href={`/admin/materials/${encodeURIComponent(r.material_id)}/activity-logs`}>
+                    <span className="font-medium text-indigo-600 underline">此教材活動紀錄</span>
+                  </Link>
+                </div>
+              ) : null}
+              {r.reason ? <p className="text-xs text-slate-600">原因：{r.reason}</p> : null}
+              <div>
                 <Button size="sm" variant="secondary" disabled={r.status === "reviewed" || reviewingId !== null} loading={reviewingId === r.id} onPress={() => void markReviewed(r.id)}>
                   標記已處理
                 </Button>
-              </XStack>
-            </Card>
+              </div>
+            </article>
           ))}
-        </YStack>
+        </div>
       ) : null}
 
-      {message ? <Paragraph color="$orange10">{message}</Paragraph> : null}
-    </YStack>
+      {message ? <p className="text-sm text-amber-600">{message}</p> : null}
+    </section>
   );
 }

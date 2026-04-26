@@ -307,7 +307,7 @@ npm run dev:web:3010
 - [ ] 關 backend 後，`/materials` 或 `/orders` 顯示可讀 error + retry（非白畫面）
 - [ ] backend 重開後頁面可恢復讀取
 
-- [ ] **表單驗證**
+- [ ] **表單驗證**檢檢
 - [ ] `/login` 空值送出會顯示錯誤提示
 - [ ] `/login` 錯誤帳密顯示失敗提示（401 類）
 - [ ] `/login` 正確帳密可成功登入與導頁

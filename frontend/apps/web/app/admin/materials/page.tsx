@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, XStack, YStack } from "tamagui";
-import { Link } from "solito/link";
+import Link from "next/link";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -51,43 +50,48 @@ export default function AdminMaterialsPage() {
   }, [load]);
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={1100} width="100%" alignSelf="center">
-      <H1 size="$9">管理員教材列表</H1>
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">管理員教材列表</h1>
 
-      <XStack gap="$3" flexWrap="wrap">
+      <div className="flex flex-wrap gap-3 text-sm">
         <Link href="/admin/orders">
-          <Paragraph color="$blue10" textDecorationLine="underline">
-            前往訂單管理
-          </Paragraph>
+          <span className="font-medium text-indigo-600 underline">前往訂單管理</span>
         </Link>
         <Link href="/admin/reports">
-          <Paragraph color="$blue10" textDecorationLine="underline">
-            前往檢舉管理
-          </Paragraph>
+          <span className="font-medium text-indigo-600 underline">前往檢舉管理</span>
         </Link>
-      </XStack>
+        <Link href="/admin/activity-logs">
+          <span className="font-medium text-indigo-600 underline">活動紀錄總覽</span>
+        </Link>
+      </div>
 
       {loading ? <LoadingState title="載入教材中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && items.length === 0 ? <EmptyState title="沒有教材資料" description="目前查無可管理教材。" /> : null}
 
       {!loading && !error && items.length > 0 ? (
-        <YStack gap="$3">
+        <div className="space-y-3">
           {items.map((m) => (
-            <Card key={m.id} padding="$4" borderWidth={1} borderColor="$borderColor" gap="$2">
-              <Paragraph fontWeight="700">{m.title}</Paragraph>
-              <Paragraph size="$2" color="$color10">
-                ID：{m.id}
-              </Paragraph>
-              <XStack justifyContent="space-between" alignItems="center" gap="$2" flexWrap="wrap">
-                <Paragraph>價格：NT$ {Math.floor(Number(m.price) || 0)}</Paragraph>
+            <article key={m.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">{m.title}</p>
+              <p className="text-xs text-slate-500">ID：{m.id}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-slate-700">價格：NT$ {Math.floor(Number(m.price) || 0)}</p>
                 <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
-              </XStack>
-            </Card>
+              </div>
+              <div className="flex flex-wrap gap-3 text-xs">
+                <Link href={`/admin/materials/${encodeURIComponent(m.id)}/reports`}>
+                  <span className="font-medium text-indigo-600 underline">此教材檢舉</span>
+                </Link>
+                <Link href={`/admin/materials/${encodeURIComponent(m.id)}/activity-logs`}>
+                  <span className="font-medium text-indigo-600 underline">此教材活動紀錄</span>
+                </Link>
+              </div>
+            </article>
           ))}
-        </YStack>
+        </div>
       ) : null}
-    </YStack>
+    </section>
   );
 }
 

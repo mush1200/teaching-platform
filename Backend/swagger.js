@@ -20,6 +20,7 @@ const openApiSpec = {
     { name: "Download", description: "Download authorization APIs / 下載授權 API" },
     { name: "Reviews", description: "Review APIs / 評價 API" },
     { name: "Reports", description: "Report APIs / 檢舉 API" },
+    { name: "Teacher", description: "Teacher sales analytics / 教師銷售分析" },
     { name: "Admin", description: "Admin-only endpoints / 管理員專用 API" },
   ],
   components: {
@@ -165,6 +166,52 @@ const openApiSpec = {
           page: { type: "integer", example: 1 },
           limit: { type: "integer", example: 20 },
           total: { type: "integer", example: 152 },
+        },
+      },
+      TeacherSalesSummary: {
+        type: "object",
+        properties: {
+          totalSoldUnits: { type: "integer", example: 120 },
+          totalRevenue: { type: "integer", example: 56000 },
+          totalOrders: { type: "integer", example: 98 },
+          materialsCount: { type: "integer", example: 12 },
+          trend: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day: { type: "string", format: "date", example: "2026-04-25" },
+                soldUnits: { type: "integer", example: 8 },
+                revenue: { type: "integer", example: 3200 },
+              },
+            },
+          },
+        },
+      },
+      TeacherSalesByMaterial: {
+        type: "object",
+        properties: {
+          materialId: { type: "string", example: "mat_lg8a1f6x9z2" },
+          title: { type: "string", example: "Math Worksheet Bundle" },
+          soldUnits: { type: "integer", example: 36 },
+          revenue: { type: "integer", example: 7164 },
+          lastSoldAt: { type: "string", format: "date-time", nullable: true, example: "2026-04-25T09:30:00.000Z" },
+        },
+      },
+      TeacherSalesRecord: {
+        type: "object",
+        properties: {
+          orderId: { type: "string", example: "ord_lg8b93v1az1" },
+          orderItemId: { type: "string", example: "oi_lg8b93x7ha8" },
+          materialId: { type: "string", example: "mat_lg8a1f6x9z2" },
+          materialTitle: { type: "string", example: "Math Worksheet Bundle" },
+          quantity: { type: "integer", example: 2 },
+          unitPrice: { type: "integer", example: 199 },
+          subtotal: { type: "integer", example: 398 },
+          buyerId: { type: "string", example: "usr_parent_001" },
+          orderStatus: { type: "string", example: "approved" },
+          createdAt: { type: "string", format: "date-time", example: "2026-04-21T12:30:00.000Z" },
+          paidAt: { type: "string", format: "date-time", nullable: true, example: "2026-04-21T13:00:00.000Z" },
         },
       },
     },
@@ -741,6 +788,98 @@ const openApiSpec = {
           403: { $ref: "#/components/responses/Forbidden" },
           404: { $ref: "#/components/responses/NotFound" },
           409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/teacher/sales/summary": {
+      get: {
+        tags: ["Teacher"],
+        summary: "教師銷售摘要 / Teacher sales summary",
+        description: "取得教師教材銷售總覽與每日趨勢。Get teacher sales KPI and daily trend.",
+        security: bearerSecurity,
+        parameters: [
+          { in: "query", name: "status", required: false, schema: { type: "string" } },
+          { in: "query", name: "from", required: false, schema: { type: "string", format: "date" } },
+          { in: "query", name: "to", required: false, schema: { type: "string", format: "date" } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/TeacherSalesSummary" } } },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/teacher/sales/materials": {
+      get: {
+        tags: ["Teacher"],
+        summary: "教師教材銷售彙總 / Sales by material",
+        description: "依教材聚合賣出份數與營收，支援分頁與篩選。Aggregated teacher sales per material.",
+        security: bearerSecurity,
+        parameters: [
+          { in: "query", name: "status", required: false, schema: { type: "string" } },
+          { in: "query", name: "from", required: false, schema: { type: "string", format: "date" } },
+          { in: "query", name: "to", required: false, schema: { type: "string", format: "date" } },
+          { in: "query", name: "search", required: false, schema: { type: "string" } },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: { type: "array", items: { $ref: "#/components/schemas/TeacherSalesByMaterial" } },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/teacher/sales/records": {
+      get: {
+        tags: ["Teacher"],
+        summary: "教師成交明細 / Sales records",
+        description: "取得教師教材成交紀錄，支援分頁與條件篩選。List teacher sales transaction records.",
+        security: bearerSecurity,
+        parameters: [
+          { in: "query", name: "status", required: false, schema: { type: "string" } },
+          { in: "query", name: "materialId", required: false, schema: { type: "string" } },
+          { in: "query", name: "from", required: false, schema: { type: "string", format: "date" } },
+          { in: "query", name: "to", required: false, schema: { type: "string", format: "date" } },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: { type: "array", items: { $ref: "#/components/schemas/TeacherSalesRecord" } },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
           500: { $ref: "#/components/responses/ServerError" },
         },
       },

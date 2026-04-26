@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState, SelectField } from "@teaching-platform/ui";
-import { Card, H1, Paragraph, YStack } from "tamagui";
+import Link from "next/link";
 import type { Order, OrdersListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -58,8 +58,16 @@ export default function AdminOrdersPage() {
   }, [load]);
 
   return (
-    <YStack flex={1} padding="$4" gap="$4" maxWidth={1000} width="100%" alignSelf="center">
-      <H1 size="$9">管理員訂單列表</H1>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">管理員訂單列表</h1>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link href="/admin/materials">
+          <span className="font-medium text-indigo-600 underline">教材列表</span>
+        </Link>
+        <Link href="/admin/activity-logs">
+          <span className="font-medium text-indigo-600 underline">活動紀錄</span>
+        </Link>
+      </div>
       <SelectField id="admin-order-status" label="狀態篩選" value={status} options={statusOptions} onValueChange={setStatus} />
 
       {loading ? <LoadingState title="載入訂單中…" /> : null}
@@ -67,16 +75,19 @@ export default function AdminOrdersPage() {
       {!loading && !error && items.length === 0 ? <EmptyState title="沒有訂單資料" description="目前查無符合條件的訂單。" /> : null}
 
       {!loading && !error && items.length > 0 ? (
-        <YStack gap="$3">
+        <div className="space-y-3">
           {items.map((o) => (
-            <Card key={o.id} padding="$4" borderWidth={1} borderColor="$borderColor" gap="$2">
-              <Paragraph fontWeight="700">訂單 {o.id}</Paragraph>
-              <Paragraph>狀態：{statusLabel(o.status)}</Paragraph>
-              <Paragraph>金額：NT$ {Math.floor(Number(o.total_amount ?? o.total_price ?? 0))}</Paragraph>
-            </Card>
+            <article key={o.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">訂單 {o.id}</p>
+              <p className="text-sm text-slate-700">狀態：{statusLabel(o.status)}</p>
+              <p className="text-sm text-slate-700">金額：NT$ {Math.floor(Number(o.total_amount ?? o.total_price ?? 0))}</p>
+              <Link href={`/admin/orders/${encodeURIComponent(o.id)}/activity-logs`}>
+                <span className="text-xs font-medium text-indigo-600 underline">此訂單活動紀錄</span>
+              </Link>
+            </article>
           ))}
-        </YStack>
+        </div>
       ) : null}
-    </YStack>
+    </section>
   );
 }

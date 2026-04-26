@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "../components/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "註冊 | Teaching Platform",
-  description: "建立家長或老師帳號以使用教材與購買流程。",
-  openGraph: { title: "註冊 | Teaching Platform", description: "建立帳號" },
+  title: "註冊 | EduMarket",
+  description: "建立帳號，探索優質教材。",
+  openGraph: { title: "註冊 | EduMarket", description: "建立帳號" },
 };
 
 export default function RegisterLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <SiteHeader />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
