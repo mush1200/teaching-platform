@@ -5,6 +5,7 @@ import { use, useState } from "react";
 import { z } from "zod";
 import { AppShell } from "../../../../components/layout/AppShell";
 import { MobileHeader } from "../../../../components/layout/MobileHeader";
+import { CheckoutStepper } from "../../../../components/checkout/CheckoutStepper";
 import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { Input } from "../../../../components/ui/Input";
@@ -19,6 +20,7 @@ export default function UploadProofPage({ params }: { params: Promise<{ id: stri
   const [proofUrl, setProofUrl] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const token = getStoredToken();
 
@@ -43,7 +45,8 @@ export default function UploadProofPage({ params }: { params: Promise<{ id: stri
         setMsg(await parseApiErrorMessage(res));
         return;
       }
-      setMsg("已送出憑證，請等待管理員審核。");
+      setSubmitted(true);
+      setMsg("已送出憑證。可至「我的訂單」查看審核進度（審核中時流程會顯示在第四階段）。");
       setProofUrl("");
     } catch {
       setMsg("上傳失敗，請稍後再試。");
@@ -52,27 +55,33 @@ export default function UploadProofPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  const activeStep = submitted ? 4 : 3;
+
   return (
     <AppShell withBottomNav>
       <MobileHeader title="上傳憑證" backHref="/orders" right="none" />
       <main className="mx-auto w-full max-w-lg space-y-4 px-4 pb-28 pt-4 sm:px-6">
+        <Card level="flat" padding="md">
+          <CheckoutStepper activeStep={activeStep} />
+        </Card>
+
         {!token ? (
-          <Card className="text-center">
+          <Card level="elevated" className="text-center">
             <p className="font-semibold text-[#1F2937]">請先登入</p>
             <p className="mt-1 text-sm text-[#6B7280]">需要登入才能提交憑證。</p>
             <Link href={`/login?redirect=${encodeURIComponent(`/orders/${orderId}/upload-proof`)}`} className="mt-4 inline-block">
-              <Button>前往登入</Button>
+              <Button intent="flow">前往登入</Button>
             </Link>
           </Card>
         ) : (
           <>
-            <Card>
+            <Card level="default">
               <h1 className="text-xl font-bold text-[#1F2937]">付款憑證</h1>
               <p className="mt-1 text-sm text-[#6B7280]">訂單編號：{orderId}</p>
               <p className="mt-2 text-sm text-[#6B7280]">請貼上可公開存取的憑證連結（例如雲端硬碟公開網址）。</p>
             </Card>
 
-            <Card>
+            <Card level="default">
               <Input
                 id="proof-url"
                 label="憑證網址"
@@ -82,11 +91,11 @@ export default function UploadProofPage({ params }: { params: Promise<{ id: stri
                 disabled={loading}
               />
               <div className="mt-4 flex gap-2">
-                <Button className="flex-1" disabled={loading} onClick={() => void submit()}>
+                <Button intent="flow" className="flex-1" disabled={loading} onClick={() => void submit()}>
                   {loading ? "送出中…" : "送出憑證"}
                 </Button>
                 <Link href="/orders" className="flex-1">
-                  <Button variant="outline" fullWidth>
+                  <Button intent="neutral" variant="outline" fullWidth>
                     返回訂單
                   </Button>
                 </Link>

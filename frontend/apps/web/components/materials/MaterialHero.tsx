@@ -12,7 +12,7 @@ export function MaterialHero({ onExplore }: Props) {
           <h2 className="text-2xl font-bold tracking-tight text-[#1F2937] sm:text-3xl">探索優質教材</h2>
           <p className="text-sm leading-relaxed text-[#6B7280] sm:text-base">豐富您的教學，提升無限可能</p>
           <div className="pt-2">
-            <Button type="button" onClick={onExplore}>
+            <Button type="button" intent="flow" onClick={onExplore}>
               立即探索
             </Button>
           </div>

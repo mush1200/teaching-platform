@@ -10,9 +10,11 @@ const accentMap: Record<MockReview["avatarAccent"], string> = {
 
 type Props = {
   review: MockReview;
+  /** Shown under the author row when listing reviews in mixed contexts */
+  materialTitle?: string;
 };
 
-export function ReviewItem({ review }: Props) {
+export function ReviewItem({ review, materialTitle }: Props) {
   return (
     <article className="rounded-3xl border border-[#E5E7EB]/80 bg-white p-4 shadow-sm">
       <div className="flex gap-3">
@@ -25,6 +27,9 @@ export function ReviewItem({ review }: Props) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-[#1F2937]">{review.userName}</span>
+            {materialTitle ? (
+              <span className="text-xs font-medium text-[#6C63FF]">《{materialTitle}》</span>
+            ) : null}
             <span className="flex text-amber-400">
               {Array.from({ length: 5 }).map((_, i) => (
                 <IconStar key={i} className={`size-3.5 ${i < review.rating ? "opacity-100" : "opacity-20"}`} />

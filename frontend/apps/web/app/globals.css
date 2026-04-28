@@ -5,6 +5,81 @@
 :root {
   --background: #fffaf5;
   --foreground: #4f3a2d;
+
+  /* Brand */
+  --color-brand-primary: #6c63ff;
+  --color-brand-cta: #ff6b73;
+  --color-brand-cta-hover: #ff5964;
+
+  /* Intent */
+  --color-intent-flow: #ff6b73;
+  --color-intent-action: #6c63ff;
+  --color-intent-neutral: #ffffff;
+  --color-intent-danger: #ef4444;
+
+  /* Text */
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+
+  /* Surface */
+  --color-surface-page: #f4f1ff;
+  --color-surface-card: #ffffff;
+  --color-surface-border: #e5e7eb;
+
+  /* Status */
+  --color-status-draft-bg: #f3f4f6;
+  --color-status-draft-text: #4b5563;
+  --color-status-pending-review-bg: #fef3c7;
+  --color-status-pending-review-text: #b45309;
+  --color-status-published-bg: #ecfdf5;
+  --color-status-published-text: #047857;
+  --color-status-unpublished-bg: #f3f4f6;
+  --color-status-unpublished-text: #4b5563;
+  --color-status-pending-payment-bg: #ffe4e6;
+  --color-status-pending-payment-text: #ff6b73;
+  --color-status-approved-bg: #ecfdf5;
+  --color-status-approved-text: #047857;
+  --color-status-rejected-bg: #fee2e2;
+  --color-status-rejected-text: #b91c1c;
+  --color-status-reviewed-bg: #ede9fe;
+  --color-status-reviewed-text: #6c63ff;
+
+  /* Feedback */
+  --color-feedback-loading-text: #6b7280;
+  --color-feedback-loading-spinner-primary: #6c63ff;
+  --color-feedback-loading-spinner-track: #ddebfa;
+  --color-feedback-empty-icon-bg: #ede9fe;
+  --color-feedback-empty-title: #1f2937;
+  --color-feedback-empty-description: #6b7280;
+  --color-feedback-empty-action: #6c63ff;
+  --color-feedback-error-bg: #fef2f2;
+  --color-feedback-error-border: #fecaca;
+  --color-feedback-error-text: #b91c1c;
+
+  /* Layout */
+  --layout-sidebar-width: 240px;
+  --layout-content-max-narrow: 768px;
+  --layout-content-max-normal: 1024px;
+  --layout-content-max-wide: 1280px;
+  --layout-page-padding-mobile: 16px;
+  --layout-page-padding-tablet: 24px;
+  --layout-page-padding-desktop: 32px;
+  --layout-section-gap-sm: 16px;
+  --layout-section-gap-md: 24px;
+  --layout-section-gap-lg: 32px;
+  --layout-section-gap-xl: 48px;
+
+  /* Radius */
+  --radius-card-elevated: 32px;
+  --radius-card-default: 28px;
+  --radius-card-flat: 24px;
+
+  /* Shadows */
+  --shadow-card-elevated: 0 18px 60px rgba(15, 23, 42, 0.1);
+  --shadow-card-default: 0 10px 40px rgba(15, 23, 42, 0.06);
+  --shadow-button-flow: 0 8px 24px rgba(255, 107, 115, 0.28);
+  --shadow-button-action: 0 6px 20px rgba(108, 99, 255, 0.22);
 }
 
 html {

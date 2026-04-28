@@ -193,8 +193,8 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **â€
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
 | POST | `/orders` | JWT (**parent**) | Creates order from cart (empties cart path in service). Empty cart **400**; unavailable material **409**. |
-| GET | `/orders/my` | JWT | Lists orders for `req.user`. |
-| GET | `/orders/:id` | JWT | Returns `{ order, items }` for a single order. Access allowed to owner parent or admin; otherwise **403**. |
+| GET | `/orders/my` | JWT | Lists orders for `req.user`. Each `order` includes `payment_proof_pending_review_count` (count of `manual_payment_proofs` with `review_status = pending` for that order). |
+| GET | `/orders/:id` | JWT | Returns `{ order, items }` for a single order; `order` includes `payment_proof_pending_review_count` (same semantics as list). Access allowed to owner parent or admin; otherwise **403**. |
 | POST | `/orders/:id/upload-proof` | JWT | Body: `proofUrl`. Order must exist, `user_id` must match caller, status `pending_payment`. Inserts `manual_payment_proofs` pending row. |
 
 ### Teacher sales (`/teacher/sales`, `routes/teacherSales.js`)

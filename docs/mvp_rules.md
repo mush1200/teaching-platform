@@ -80,6 +80,8 @@ hidden from parents
 - `pending_payment` — after checkout; remains while proofs are only uploaded.
 - `approved` — after admin approves a **pending** `manual_payment_proofs` row for that order.
 
+**Parent APIs (`GET /orders/my`, `GET /orders/:id`):** Each order JSON includes **`payment_proof_pending_review_count`** (integer) — number of `manual_payment_proofs` rows for that order with `review_status = 'pending'` (awaiting admin). Frontend uses this to distinguish 「待上傳憑證」vs「審核中」while `orders.status` stays `pending_payment`.
+
 **Not used on the order row:** `proof_uploaded` (proofs are tracked on `manual_payment_proofs`).
 
 **Payment proof (`manual_payment_proofs.review_status`)**

@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, StatusBadge, SurfaceCard } from "@teaching-platform/ui";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
 const statusOptions = [
   { label: "全部", value: "all" },
+  { label: "草稿", value: "draft" },
   { label: "審核中", value: "pending_review" },
   { label: "已上架", value: "published" },
   { label: "已下架", value: "unpublished" },
@@ -16,6 +18,7 @@ const statusOptions = [
 const PAGE_SIZE = 8;
 
 function getStatusLabel(status?: string): string {
+  if (status === "draft") return "草稿";
   if (status === "pending_review") return "審核中";
   if (status === "published") return "已上架";
   if (status === "unpublished") return "已下架";
@@ -23,20 +26,29 @@ function getStatusLabel(status?: string): string {
 }
 
 function getStatusTone(status?: string): "info" | "success" | "warning" | "error" {
+  if (status === "draft") return "warning";
   if (status === "published") return "success";
   if (status === "pending_review") return "info";
   if (status === "unpublished") return "warning";
   return "error";
 }
 
-export default function TeacherMaterialsPage() {
+function TeacherMaterialsPageContent() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
   const [role, setRole] = useState<"parent" | "teacher" | "admin" | null>(null);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const view = searchParams.get("view") ?? "workbench";
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("status");
+    const allowed = new Set(["all", "draft", "pending_review", "published", "unpublished"]);
+    setStatusFilter(fromQuery && allowed.has(fromQuery) ? fromQuery : "all");
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,28 +109,81 @@ export default function TeacherMaterialsPage() {
     return filteredItems.slice(start, start + PAGE_SIZE);
   }, [filteredItems, currentPage]);
 
+  const statusCounts = useMemo(() => {
+    const draft = items.filter((item) => item.status === "draft").length;
+    const pending = items.filter((item) => item.status === "pending_review").length;
+    const published = items.filter((item) => item.status === "published").length;
+    const unpublished = items.filter((item) => item.status === "unpublished").length;
+    return { draft, pending, published, unpublished };
+  }, [items]);
+
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">教師教材管理</h1>
-        <p className="text-sm text-slate-600">管理你的教材內容，並追蹤目前上架與審核狀態。（教師僅顯示自己的教材）</p>
+        <h1 className="text-2xl font-bold text-slate-900">{view === "workbench" ? "你的教材工作台" : "我的教材管理"}</h1>
+        <p className="text-sm text-slate-600">
+          {view === "workbench"
+            ? "快速掌握教材狀態，並前往新增教材、審核追蹤與評論處理。"
+            : "管理你的教材內容，並追蹤目前上架與審核狀態。（僅顯示你建立的教材）"}
+        </p>
       </div>
 
-      <SurfaceCard title="篩選與操作" description="可先依狀態篩選，再進行編輯。">
+      <SurfaceCard title="篩選與操作" description="可先依狀態篩選，再進行編輯。" level="flat">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-[220px] flex-1">
             <SelectField id="teacher-material-status" label="狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/teacher/sales">
-              <Button variant="secondary">銷售紀錄</Button>
+            <Link href="/teacher/sales?tab=records">
+              <Button intent="action">銷售紀錄</Button>
             </Link>
             <Link href="/teacher/materials/new">
-              <Button>新增教材</Button>
+              <Button intent="flow">新增教材</Button>
             </Link>
           </div>
         </div>
       </SurfaceCard>
+
+      {view === "workbench" ? (
+        <SurfaceCard title="教材狀態總覽" description="方便快速查看審核流程進度。" level="default">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-xs text-slate-500">草稿</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.draft}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-xs text-slate-500">待審核</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.pending}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-xs text-slate-500">已發布</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.published}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-xs text-slate-500">已下架</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.unpublished}</p>
+            </div>
+          </div>
+        </SurfaceCard>
+      ) : null}
+
+      {view === "reviews" && !loading && !error ? (
+        <SurfaceCard title="教材評論捷徑" description="從這裡快速進入各教材評論頁。" level="default">
+          {items.length === 0 ? (
+            <EmptyState title="目前尚無教材可查看評論" description="新增教材後即可查看使用者評論。" />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {items.map((m) => (
+                <Link key={`review-${m.id}`} href={`/teacher/materials/${encodeURIComponent(m.id)}/reviews`}>
+                  <Button size="sm" intent="action">
+                    {m.title}
+                  </Button>
+                </Link>
+              ))}
+            </div>
+          )}
+        </SurfaceCard>
+      ) : null}
 
       {loading ? <LoadingState title="教材載入中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
@@ -127,7 +192,7 @@ export default function TeacherMaterialsPage() {
       ) : null}
 
       {!loading && !error && filteredItems.length > 0 ? (
-        <SurfaceCard title="教材列表" description={`共 ${totalItems} 筆`}>
+        <SurfaceCard title="教材列表" description={`共 ${totalItems} 筆`} level="default">
           <div className="space-y-3">
             <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} onPageChange={setCurrentPage} />
             <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -142,12 +207,12 @@ export default function TeacherMaterialsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
                       <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/reviews`}>
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" intent="action">
                           教材評論
                         </Button>
                       </Link>
                       <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/edit`}>
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" intent="action">
                           編輯
                         </Button>
                       </Link>
@@ -160,6 +225,23 @@ export default function TeacherMaterialsPage() {
         </SurfaceCard>
       ) : null}
     </section>
+  );
+}
+
+function TeacherMaterialsPageFallback() {
+  return (
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">我的教材管理</h1>
+      <p className="text-sm text-slate-600">載入中...</p>
+    </section>
+  );
+}
+
+export default function TeacherMaterialsPage() {
+  return (
+    <Suspense fallback={<TeacherMaterialsPageFallback />}>
+      <TeacherMaterialsPageContent />
+    </Suspense>
   );
 }
 

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { EmptyState } from "@teaching-platform/ui";
 import { AppShell } from "../../components/layout/AppShell";
 import { MobileHeader } from "../../components/layout/MobileHeader";
 import { MaterialCard } from "../../components/materials/MaterialCard";
 import { MaterialHero } from "../../components/materials/MaterialHero";
 import { CategoryIcon } from "../../components/materials/CategoryIcon";
 import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { Input } from "../../components/ui/Input";
 import { getMaterials } from "../../lib/edu-api-mock";
 import { mockCategoryRow } from "../../lib/mock-data";
 import type { MockMaterial } from "../../lib/mock-data";
@@ -19,6 +22,7 @@ export default function MaterialsPage() {
   const [items, setItems] = useState<MockMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<string>("all");
+  const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -44,9 +48,18 @@ export default function MaterialsPage() {
   }, [hydrated, role, load]);
 
   const filtered = useMemo(() => {
-    if (cat === "all" || cat === "more") return items;
-    return items.filter((m) => m.category === cat);
-  }, [items, cat]);
+    let list = cat === "all" || cat === "more" ? items : items.filter((m) => m.category === cat);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.description.toLowerCase().includes(q) ||
+          m.ageLabel.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [items, cat, search]);
 
   if (!hydrated) {
     return (
@@ -59,10 +72,12 @@ export default function MaterialsPage() {
       <AppShell>
         <MobileHeader title="EduMarket" onMenuClick={() => setMenuOpen(true)} />
         <div className="mx-auto max-w-lg px-4 py-12 text-center">
-          <h1 className="text-xl font-bold text-[#1F2937]">教師角色</h1>
-          <p className="mt-2 text-sm text-[#6B7280]">公開教材列表僅供家長瀏覽，請前往教師後台管理教材。</p>
+          <h1 className="text-xl font-bold text-[#1F2937]">教材工作台入口</h1>
+          <p className="mt-2 text-sm text-[#6B7280]">公開教材列表提供購買者瀏覽，請前往教材工作台管理你的內容。</p>
           <Link href="/teacher/materials" className="mt-6 inline-block">
-            <Button type="button">前往教師教材</Button>
+            <Button type="button" intent="flow">
+              前往教材工作台
+            </Button>
           </Link>
         </div>
       </AppShell>
@@ -118,6 +133,20 @@ export default function MaterialsPage() {
           }}
         />
 
+        <section className="mt-6" aria-label="搜尋教材">
+          <Card level="flat" padding="md" className="max-w-2xl">
+            <Input
+              id="materials-search"
+              label="搜尋"
+              type="search"
+              placeholder="搜尋教材、年齡、主題關鍵字"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+            />
+          </Card>
+        </section>
+
         <section id="edu-categories" className="mt-8">
           <h2 className="sr-only">分類</h2>
           <div className="-mx-1 flex gap-2 overflow-x-auto pb-2 pt-1">
@@ -144,7 +173,30 @@ export default function MaterialsPage() {
             ))}
           </div>
           {!loading && filtered.length === 0 ? (
-            <p className="mt-8 text-center text-sm text-[#6B7280]">此分類暫無教材（mock）。</p>
+            <div className="mt-8">
+              <EmptyState
+                title={items.length === 0 ? "目前沒有教材" : "目前沒有符合條件的教材"}
+                description={
+                  items.length === 0
+                    ? "請稍後再試。"
+                    : "試試其他關鍵字，或清除搜尋／切換分類。"
+                }
+                actionLabel={
+                  search.trim()
+                    ? "清除搜尋"
+                    : cat !== "all" && cat !== "more"
+                      ? "查看全部"
+                      : undefined
+                }
+                onAction={
+                  search.trim()
+                    ? () => setSearch("")
+                    : cat !== "all" && cat !== "more"
+                      ? () => setCat("all")
+                      : undefined
+                }
+              />
+            </div>
           ) : null}
         </section>
       </main>

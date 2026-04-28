@@ -96,7 +96,7 @@ export default function AdminReportsPage() {
       {!loading && !error && items.length > 0 ? (
         <div className="space-y-3">
           {items.map((r) => (
-            <article key={r.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={r.id} className="space-y-2 rounded-[var(--radius-card-default)] border border-slate-200 bg-white p-4 shadow-[var(--shadow-card-default)]">
               <p className="text-sm font-semibold text-slate-900">檢舉 {r.id}</p>
               <p className="text-sm text-slate-700">狀態：{reportStatusLabel(r.status)}</p>
               {r.material_id ? (
@@ -112,7 +112,7 @@ export default function AdminReportsPage() {
               ) : null}
               {r.reason ? <p className="text-xs text-slate-600">原因：{r.reason}</p> : null}
               <div>
-                <Button size="sm" variant="secondary" disabled={r.status === "reviewed" || reviewingId !== null} loading={reviewingId === r.id} onPress={() => void markReviewed(r.id)}>
+                <Button size="sm" intent="action" disabled={r.status === "reviewed" || reviewingId !== null} loading={reviewingId === r.id} onPress={() => void markReviewed(r.id)}>
                   標記已處理
                 </Button>
               </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, SurfaceCard } from "@teaching-platform/ui";
 import type {
   TeacherSalesByMaterial,
@@ -74,7 +75,10 @@ function buildSalesQuery(params: {
   return q.toString();
 }
 
-export default function TeacherSalesPage() {
+function TeacherSalesPageContent() {
+  const searchParams = useSearchParams();
+  const recordsSectionRef = useRef<HTMLDivElement | null>(null);
+  const tab = searchParams.get("tab");
   const [summary, setSummary] = useState<TeacherSalesSummary | null>(null);
   const [materials, setMaterials] = useState<TeacherSalesByMaterial[]>([]);
   const [records, setRecords] = useState<TeacherSalesRecord[]>([]);
@@ -143,6 +147,12 @@ export default function TeacherSalesPage() {
       minRevenue: min.revenue,
     };
   }, [chartRows]);
+
+  useEffect(() => {
+    if (tab === "records") {
+      recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [tab, loading]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -306,20 +316,22 @@ export default function TeacherSalesPage() {
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900">教材銷售中心</h1>
-          <p className="text-sm text-slate-600">查看你名下教材的銷量、營收、成交明細與趨勢。</p>
+          <h1 className="text-2xl font-bold text-slate-900">{tab === "records" ? "銷售紀錄" : "教材銷售中心"}</h1>
+          <p className="text-sm text-slate-600">
+            {tab === "records" ? "聚焦查看每筆成交明細，可直接匯出 CSV。" : "查看你名下教材的銷量、營收、成交明細與趨勢。"}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onPress={exportCsv} disabled={records.length === 0}>
+          <Button intent="action" onPress={exportCsv} disabled={records.length === 0}>
             匯出 CSV
           </Button>
           <Link href="/teacher/materials">
-            <Button variant="secondary">返回教材管理</Button>
+            <Button intent="neutral">返回教材管理</Button>
           </Link>
         </div>
       </div>
 
-      <SurfaceCard title="篩選條件" description="可依狀態、日期與教材篩選銷售資料。">
+      <SurfaceCard title="篩選條件" description="可依狀態、日期與教材篩選銷售資料。" level="flat">
         <div className="grid gap-3 md:grid-cols-4">
           <SelectField id="teacher-sales-status" label="訂單狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
           <SelectField id="teacher-sales-material" label="教材" value={materialFilter} options={materialOptions} onValueChange={setMaterialFilter} />
@@ -350,13 +362,13 @@ export default function TeacherSalesPage() {
       {!loading && !error && summary ? (
         <>
           <div className="grid gap-3 md:grid-cols-4">
-            <SurfaceCard title="總賣出份數" description={`${summary.totalSoldUnits.toLocaleString("zh-TW")} 份`} />
-            <SurfaceCard title="總營收" description={formatMoney(summary.totalRevenue)} />
-            <SurfaceCard title="成交訂單數" description={`${summary.totalOrders.toLocaleString("zh-TW")} 筆`} />
-            <SurfaceCard title="有成交教材數" description={`${summary.materialsCount.toLocaleString("zh-TW")} 項`} />
+            <SurfaceCard title="總賣出份數" description={`${summary.totalSoldUnits.toLocaleString("zh-TW")} 份`} level="elevated" />
+            <SurfaceCard title="總營收" description={formatMoney(summary.totalRevenue)} level="elevated" />
+            <SurfaceCard title="成交訂單數" description={`${summary.totalOrders.toLocaleString("zh-TW")} 筆`} level="elevated" />
+            <SurfaceCard title="有成交教材數" description={`${summary.materialsCount.toLocaleString("zh-TW")} 項`} level="elevated" />
           </div>
 
-          <SurfaceCard title="銷售趨勢（日）" description="依日期聚合的每日銷量與營收（Phase 3）。">
+          <SurfaceCard title="銷售趨勢（日）" description="依日期聚合的每日銷量與營收（Phase 3）。" level="default">
             {summary.trend.length === 0 ? (
               <EmptyState title="目前沒有趨勢資料" description="當有成交訂單後，這裡會顯示每日銷售走勢。" />
             ) : (
@@ -457,9 +469,9 @@ export default function TeacherSalesPage() {
             )}
           </SurfaceCard>
 
-          <SurfaceCard title="熱銷教材 Top 5" description="依目前篩選條件下的營收排序。">
+          <SurfaceCard title="熱銷教材 Top 5" description="依目前篩選條件下的營收排序。" level="default">
             <div className="mb-3 flex justify-end">
-              <Button size="sm" variant="secondary" onPress={exportTopMaterialsCsv} disabled={topMaterials.length === 0}>
+              <Button size="sm" intent="action" onPress={exportTopMaterialsCsv} disabled={topMaterials.length === 0}>
                 匯出 Top 5 CSV
               </Button>
             </div>
@@ -479,12 +491,12 @@ export default function TeacherSalesPage() {
                     <p className="text-sm font-semibold text-slate-900">{formatMoney(item.revenue)}</p>
                     <div className="flex gap-2">
                       <Link href={`/teacher/materials/${encodeURIComponent(item.materialId)}/reviews`}>
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" intent="action">
                           評論
                         </Button>
                       </Link>
                       <Link href={`/teacher/materials/${encodeURIComponent(item.materialId)}/edit`}>
-                        <Button size="sm" variant="secondary">
+                        <Button size="sm" intent="action">
                           編輯
                         </Button>
                       </Link>
@@ -495,7 +507,7 @@ export default function TeacherSalesPage() {
             )}
           </SurfaceCard>
 
-          <SurfaceCard title="教材銷售彙總（Phase 1）" description={`共 ${materials.length} 項`}>
+          <SurfaceCard title="教材銷售彙總（Phase 1）" description={`共 ${materials.length} 項`} level="default">
             {materials.length === 0 ? (
               <EmptyState title="目前沒有銷售資料" description="當教材開始成交後，這裡會列出每份教材賣出份數與營收。" />
             ) : (
@@ -529,7 +541,8 @@ export default function TeacherSalesPage() {
             )}
           </SurfaceCard>
 
-          <SurfaceCard title="成交明細（Phase 2）" description={`共 ${recordsTotalItems} 筆`}>
+          <div ref={recordsSectionRef}>
+            <SurfaceCard title="成交明細（Phase 2）" description={`共 ${recordsTotalItems} 筆`} level="default">
             {records.length === 0 ? (
               <EmptyState title="查無成交明細" description="請調整篩選條件，或等待新訂單成交後再查看。" />
             ) : (
@@ -572,9 +585,27 @@ export default function TeacherSalesPage() {
                 </div>
               </div>
             )}
-          </SurfaceCard>
+            </SurfaceCard>
+          </div>
         </>
       ) : null}
     </section>
+  );
+}
+
+function TeacherSalesPageFallback() {
+  return (
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">教材銷售中心</h1>
+      <p className="text-sm text-slate-600">載入中...</p>
+    </section>
+  );
+}
+
+export default function TeacherSalesPage() {
+  return (
+    <Suspense fallback={<TeacherSalesPageFallback />}>
+      <TeacherSalesPageContent />
+    </Suspense>
   );
 }

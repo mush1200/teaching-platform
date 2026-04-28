@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, InputField } from "@teaching-platform/ui";
 import type { AdminPaymentProof, AdminPaymentProofsResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
-export default function AdminPaymentProofsPage() {
+function reviewStatusLabel(status: string) {
+  if (status === "pending") return "待審核";
+  if (status === "approved") return "已核准";
+  if (status === "rejected") return "已拒絕";
+  return status;
+}
+
+function AdminPaymentProofsContent() {
   const [proofs, setProofs] = useState<AdminPaymentProof[]>([]);
   const [handledProofIds, setHandledProofIds] = useState<Record<string, "approved" | "rejected">>({});
   const [filter, setFilter] = useState<"pending" | "all">("pending");
@@ -89,13 +96,13 @@ export default function AdminPaymentProofsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-slate-900">付款憑證列表</p>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant={filter === "pending" ? "primary" : "secondary"} onPress={() => setFilter("pending")} disabled={busy}>
+            <Button size="sm" intent={filter === "pending" ? "flow" : "action"} onPress={() => setFilter("pending")} disabled={busy}>
               待審
             </Button>
-            <Button size="sm" variant={filter === "all" ? "primary" : "secondary"} onPress={() => setFilter("all")} disabled={busy}>
+            <Button size="sm" intent={filter === "all" ? "flow" : "action"} onPress={() => setFilter("all")} disabled={busy}>
               全部
             </Button>
-            <Button size="sm" variant="secondary" onPress={() => void loadProofs()} disabled={busy} loading={loading}>
+            <Button size="sm" intent="action" onPress={() => void loadProofs()} disabled={busy} loading={loading}>
               重新整理
             </Button>
           </div>
@@ -108,9 +115,9 @@ export default function AdminPaymentProofsPage() {
             {filteredProofs.map((row) => (
               <article key={row.id} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-sm font-semibold text-slate-900">憑證 ID：{row.id}</p>
-                <p className="text-xs text-slate-600">審核狀態：{row.review_status}</p>
+                <p className="text-xs text-slate-600">審核狀態：{reviewStatusLabel(row.review_status)}</p>
                 {row.order_id ? <p className="text-xs text-slate-600">訂單 ID：{row.order_id}</p> : null}
-                {row.user_id ? <p className="text-xs text-slate-600">家長 ID：{row.user_id}</p> : null}
+                {row.user_id ? <p className="text-xs text-slate-600">使用者 ID：{row.user_id}</p> : null}
                 {row.uploaded_at ? <p className="text-xs text-slate-600">上傳時間：{row.uploaded_at}</p> : null}
                 {handledProofIds[row.id] ? (
                   <p className="text-xs text-emerald-600">
@@ -120,6 +127,7 @@ export default function AdminPaymentProofsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
+                    intent="action"
                     onPress={() => void submit("approve", row.id)}
                     disabled={busy || row.review_status !== "pending"}
                     loading={submitting?.mode === "approve" && submitting?.proofId === row.id}
@@ -128,7 +136,7 @@ export default function AdminPaymentProofsPage() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="danger"
+                    intent="danger"
                     onPress={() => {
                       setProofId(row.id);
                     }}
@@ -150,6 +158,7 @@ export default function AdminPaymentProofsPage() {
 
         <div className="flex flex-wrap gap-2">
           <Button
+            intent="action"
             onPress={() => void submit("approve")}
             disabled={busy}
             loading={submitting?.mode === "approve" && submitting?.proofId === proofId.trim()}
@@ -157,7 +166,7 @@ export default function AdminPaymentProofsPage() {
             核准憑證
           </Button>
           <Button
-            variant="danger"
+            intent="danger"
             onPress={() => void submit("reject")}
             disabled={busy}
             loading={submitting?.mode === "reject" && submitting?.proofId === proofId.trim()}
@@ -169,5 +178,22 @@ export default function AdminPaymentProofsPage() {
         {message ? <p className="text-sm text-amber-600">{message}</p> : null}
       </article>
     </section>
+  );
+}
+
+function AdminPaymentProofsFallback() {
+  return (
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+      <h1 className="text-2xl font-bold text-slate-900">付款憑證審核</h1>
+      <p className="text-sm text-slate-600">載入中...</p>
+    </section>
+  );
+}
+
+export default function AdminPaymentProofsPage() {
+  return (
+    <Suspense fallback={<AdminPaymentProofsFallback />}>
+      <AdminPaymentProofsContent />
+    </Suspense>
   );
 }

@@ -93,6 +93,12 @@ const openApiSpec = {
           cancelled_at: { type: "string", format: "date-time", nullable: true, example: null },
           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:30:00.000Z" },
           updated_at: { type: "string", format: "date-time", example: "2026-04-21T12:30:00.000Z" },
+          payment_proof_pending_review_count: {
+            type: "integer",
+            description:
+              "Count of uploaded proofs still pending admin review (review_status=pending). Used by parent UI for order flow.",
+            example: 1,
+          },
         },
       },
       PaymentProof: {

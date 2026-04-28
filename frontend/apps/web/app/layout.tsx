@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./providers";
@@ -38,7 +39,9 @@ export default function RootLayout({
         style={{ fontFamily: "var(--font-noto), var(--font-inter), ui-sans-serif, system-ui, sans-serif" }}
       >
         <AppProviders>
-          <RoleShell>{children}</RoleShell>
+          <Suspense fallback={children}>
+            <RoleShell>{children}</RoleShell>
+          </Suspense>
         </AppProviders>
       </body>
     </html>

@@ -33,7 +33,7 @@ class FlowFailureReporter implements Reporter {
 
   onEnd(result: FullResult) {
     const failures = new Map<string, FlowFailure[]>();
-    const allTests = walkTests(this.rootSuite ?? result.suite);
+    const allTests = this.rootSuite ? walkTests(this.rootSuite) : [];
 
     for (const t of allTests) {
       for (const r of t.results) {
@@ -79,13 +79,17 @@ class FlowFailureReporter implements Reporter {
   }
 
   private toFailure(test: TestCase, result: TestResult): FlowFailure {
-    const screenshots = result.attachments
+    const screenshots = (result.attachments ?? [])
       .filter((a) => a.contentType === "image/png" && !!a.path)
       .map((a) => path.normalize(a.path ?? ""));
     const err = result.error?.message?.split("\n")[0] ?? "Unknown failure";
+    const project =
+      typeof (result as TestResult & { projectName?: string }).projectName === "string"
+        ? (result as TestResult & { projectName: string }).projectName
+        : "unknown";
     return {
       title: test.title,
-      project: result.projectName,
+      project,
       error: err,
       screenshots,
     };

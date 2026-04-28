@@ -47,6 +47,8 @@ export type Order = {
   cancelled_at?: string | null;
   created_at?: string;
   updated_at?: string;
+  /** Uploaded proofs awaiting admin review (manual_payment_proofs.review_status = pending) */
+  payment_proof_pending_review_count?: number;
 };
 
 export type OrdersListResponse = {

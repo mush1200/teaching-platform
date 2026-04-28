@@ -3,10 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AuthSplitLayout } from "../../components/layout/AuthSplitLayout";
-import { Button } from "../../components/ui/Button";
-import { Checkbox } from "../../components/ui/Checkbox";
-import { Input } from "../../components/ui/Input";
 import { IconEye, IconEyeOff, IconFacebook, IconGoogle } from "../../components/ui/icons";
 import type { LoginResponse } from "../../lib/auth";
 import { mapStatusMessage } from "../../lib/auth";
@@ -16,6 +12,33 @@ const loginSchema = z.object({
   email: z.string().email("Email 格式不正確"),
   password: z.string().min(1, "請輸入密碼"),
 });
+
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4 text-[#94A3B8]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+      <path d="M5 7l7 6 7-6" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4 text-[#94A3B8]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="4" y="10" width="16" height="10" rx="2.5" />
+      <path d="M8 10V7a4 4 0 118 0v3" />
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M5 12h14" />
+      <path d="M13 6l6 6-6 6" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,7 +78,12 @@ export default function LoginPage() {
       }
       setMessage("登入成功，正在導向…");
       const redirect = new URLSearchParams(window.location.search).get("redirect");
-      router.push(redirect || "/");
+      if (payload.user.role === "parent") {
+        router.push("/dashboard");
+        return;
+      }
+      const defaultByRole = payload.user.role === "teacher" ? "/teacher/materials" : "/admin";
+      router.push(redirect || defaultByRole);
     } catch {
       setMessage(mapStatusMessage(500));
     } finally {
@@ -64,81 +92,198 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthSplitLayout illustrationSide="login">
-      <div className="mx-auto w-full max-w-md space-y-8">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
-          <h1 className="mt-2 text-3xl font-bold text-[#1F2937]">Welcome Back!</h1>
-          <p className="mt-2 text-sm text-[#6B7280]">登入以繼續您的學習之旅</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#F8F7FF] to-[#EEF2FF]">
+      <div className="mx-auto grid min-h-screen w-full max-w-[1440px] grid-cols-1 gap-6 px-5 py-6 lg:grid-cols-[40%_60%] lg:gap-6 lg:px-6 lg:py-8">
+        <section className="flex items-center justify-center">
+          <div className="w-full max-w-[620px] rounded-[32px] border border-[#E5E7EB]/80 bg-white p-8 shadow-[0_20px_55px_rgba(15,23,42,0.08)] md:p-16">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-[#6D5CFF]">
+                <span className="text-sm">🎓</span>
+                EDUMARKET
+              </p>
+              <h1 className="mt-4 text-5xl font-extrabold leading-[1.05] text-[#0F172A]">
+                繼續你的
+                <br />
+                <span className="bg-gradient-to-r from-[#7C3AED] to-[#6366F1] bg-clip-text text-transparent">教學之旅</span>
+              </h1>
+              <p className="mt-3 text-lg text-[#64748B]">登入以繼續探索優質教材</p>
+            </div>
 
-        <div className="space-y-4">
-          <Input
-            id="login-email"
-            label="Email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            disabled={loading}
-          />
-          <Input
-            id="login-password"
-            label="密碼"
-            type={showPw ? "text" : "password"}
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            disabled={loading}
-            rightSlot={
+            <div className="mt-8 space-y-4">
+              <label htmlFor="login-email" className="block text-base font-medium text-[#0F172A]">
+                Email
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                  <MailIcon />
+                </span>
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  disabled={loading}
+                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
+                />
+              </div>
+
+              <label htmlFor="login-password" className="block text-base font-medium text-[#0F172A]">
+                密碼
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
+                  <LockIcon />
+                </span>
+                <input
+                  id="login-password"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  disabled={loading}
+                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 pr-12 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2 text-[#64748B] transition hover:bg-[#F4F1FF] hover:text-[#6D5CFF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/40"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? "隱藏密碼" : "顯示密碼"}
+                >
+                  {showPw ? <IconEyeOff /> : <IconEye />}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="remember" className="inline-flex items-center gap-2 text-sm text-[#64748B]">
+                  <input
+                    id="remember"
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="size-4 rounded border-[#CBD5E1] text-[#6D5CFF] focus:ring-[#6D5CFF]/40"
+                  />
+                  記住我
+                </label>
+                <Link href="/login" className="text-sm font-medium text-[#6D5CFF] hover:underline" onClick={(e) => e.preventDefault()}>
+                  忘記密碼？
+                </Link>
+              </div>
+
               <button
                 type="button"
-                className="rounded-xl p-2 text-[#6B7280] hover:bg-[#F4F1FF] hover:text-[#6C63FF]"
-                onClick={() => setShowPw((v) => !v)}
-                aria-label={showPw ? "隱藏密碼" : "顯示密碼"}
+                disabled={loading}
+                onClick={() => void handleLogin()}
+                className="flex h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-white font-bold shadow-[0_14px_28px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(99,102,241,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/45 disabled:opacity-60"
               >
-                {showPw ? <IconEyeOff /> : <IconEye />}
+                {loading ? "登入中…" : "登入"}
+                {!loading ? <ArrowRightIcon /> : null}
               </button>
-            }
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Checkbox id="remember" checked={remember} onChange={(e) => setRemember(e.target.checked)} label="記住我" />
-            <Link href="/login" className="text-sm font-medium text-[#6C63FF] hover:underline" onClick={(e) => e.preventDefault()}>
-              忘記密碼？
-            </Link>
+            </div>
+
+            <div className="my-7 flex items-center gap-3 text-sm text-[#94A3B8]">
+              <span className="h-px flex-1 bg-[#E5E7EB]" />
+              或
+              <span className="h-px flex-1 bg-[#E5E7EB]" />
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white text-[#64748B] transition hover:bg-[#F9FAFB] disabled:opacity-80"
+              >
+                <IconGoogle />
+                以 Google 登入（即將開放）
+              </button>
+              <button
+                type="button"
+                disabled
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border border-[#E5E7EB] bg-white text-[#64748B] transition hover:bg-[#F9FAFB] disabled:opacity-80"
+              >
+                <IconFacebook />
+                以 Facebook 登入（即將開放）
+              </button>
+            </div>
+
+            <p className="mt-7 text-center text-sm text-[#64748B]">
+              還沒有帳號？{" "}
+              <Link href="/register" className="font-medium text-[#6D5CFF] hover:underline">
+                立即註冊
+              </Link>
+            </p>
+            {message ? <p className="mt-3 text-center text-sm text-[#F59E0B]">{message}</p> : null}
           </div>
-          <Button type="button" fullWidth disabled={loading} onClick={() => void handleLogin()}>
-            {loading ? "登入中…" : "登入"}
-          </Button>
-        </div>
+        </section>
 
-        <div className="flex items-center gap-3 text-xs text-[#9CA3AF]">
-          <span className="h-px flex-1 bg-[#E5E7EB]" />
-          或
-          <span className="h-px flex-1 bg-[#E5E7EB]" />
-        </div>
+        <aside className="relative hidden overflow-hidden rounded-[32px] p-12 shadow-[0_24px_60px_rgba(109,92,255,0.18)] lg:block">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at top left, #EEF2FF, #DDD6FE 45%, #C4B5FD)",
+            }}
+          />
+          <span className="absolute -left-16 bottom-12 h-56 w-56 rounded-full bg-white/20 blur-3xl" aria-hidden />
+          <span className="absolute right-12 top-10 text-5xl text-white/70" aria-hidden>
+            ✈
+          </span>
+          <span className="absolute left-24 top-40 grid grid-cols-4 gap-2 opacity-30" aria-hidden>
+            {Array.from({ length: 12 }).map((_, idx) => (
+              <span key={idx} className="size-1 rounded-full bg-white" />
+            ))}
+          </span>
 
-        <div className="flex flex-col gap-3">
-          <Button type="button" variant="social" fullWidth disabled className="opacity-70">
-            <IconGoogle />
-            以 Google 登入（即將開放）
-          </Button>
-          <Button type="button" variant="social" fullWidth disabled className="opacity-70">
-            <IconFacebook />
-            以 Facebook 登入（即將開放）
-          </Button>
-        </div>
+          <div className="relative z-10">
+            <h2 className="text-5xl font-extrabold text-[#0F172A]">探索優質教材</h2>
+            <p className="mt-3 max-w-xl text-lg text-[#475569]">陪伴每位使用者，快速找到最適合孩子的學習教材。</p>
 
-        <p className="text-center text-sm text-[#6B7280]">
-          還沒有帳號？{" "}
-          <Link href="/register" className="font-semibold text-[#6C63FF] hover:underline">
-            立即註冊
-          </Link>
-        </p>
-        {message ? <p className="text-center text-sm text-[#F59E0B]">{message}</p> : null}
+            <div className="mt-7 grid grid-cols-4 gap-3">
+              {[
+                { icon: "📘", label: "豐富教材" },
+                { icon: "⭐", label: "優質評價" },
+                { icon: "🙂", label: "適齡分類" },
+                { icon: "🛡️", label: "安心選擇" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[18px] border border-white/50 bg-white/40 px-3 py-3 text-center backdrop-blur-[12px] shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
+                >
+                  <p className="text-2xl" aria-hidden>
+                    {item.icon}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-[#334155]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="relative mt-12 flex items-end justify-between">
+              <article className="-rotate-3 rounded-[28px] border border-white/70 bg-white p-5 shadow-[0_24px_50px_rgba(79,70,229,0.25)]">
+                <div className="h-44 w-[300px] rounded-2xl bg-gradient-to-br from-[#67E8F9] via-[#A5B4FC] to-[#C4B5FD]" />
+                <span className="mt-3 inline-block rounded-full bg-[#EDE9FE] px-3 py-1 text-xs font-semibold text-[#6D5CFF]">3-6 歲</span>
+                <h3 className="mt-2 text-2xl font-bold text-[#0F172A]">動物王國大冒險</h3>
+                <p className="mt-1 text-sm text-[#64748B]">學習認識不同動物的生活習性</p>
+                <p className="mt-3 text-sm font-semibold text-[#0F172A]">⭐ 4.8 <span className="font-normal text-[#64748B]">(128)</span></p>
+              </article>
+
+              <div className="ml-6 flex w-[260px] flex-col gap-4">
+                <article className="rounded-3xl border border-white/65 bg-white/90 p-4 shadow-[0_18px_40px_rgba(79,70,229,0.18)]">
+                  <p className="text-sm font-semibold text-[#334155]">使用者評價</p>
+                  <p className="mt-2 text-5xl font-bold text-[#0F172A]">4.8</p>
+                  <p className="mt-1 text-base text-amber-500">★★★★★</p>
+                  <p className="mt-1 text-xs text-[#64748B]">128 則評價</p>
+                </article>
+                <article className="rounded-3xl border border-white/65 bg-white/90 p-4 shadow-[0_18px_40px_rgba(79,70,229,0.18)]">
+                  <p className="text-sm font-semibold text-[#334155]">適合年齡</p>
+                  <p className="mt-2 text-4xl font-bold text-[#0F172A]">3-6 歲</p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
-    </AuthSplitLayout>
+    </div>
   );
 }

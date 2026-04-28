@@ -160,7 +160,7 @@ export const mockReviews: MockReview[] = [
   {
     id: "rev_1",
     materialId: "mat_demo_1",
-    userName: "家長・林",
+    userName: "使用者・林",
     avatarAccent: "violet",
     rating: 5,
     date: "2026-04-10",

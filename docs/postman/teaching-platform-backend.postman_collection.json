@@ -516,9 +516,9 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('403 order not approved', function () { pm.response.to.have.status(403); });",
+                  "pm.test('403 not allowed', function () { pm.response.to.have.status(403); });",
                   "pm.test('message', function () {",
-                  "  pm.expect(pm.response.json().message).to.eql('order is not approved');",
+                  "  pm.expect(pm.response.json().message).to.eql('not allowed');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -533,7 +533,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 5,\n  \"comment\": \"should fail\"\n}"
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"rating\": 5,\n  \"comment\": \"should fail\"\n}"
             },
             "url": "{{baseUrl}}/reviews"
           }
@@ -772,7 +772,7 @@
                   "const j = pm.response.json();",
                   "pm.test('shape', function () {",
                   "  pm.expect(j).to.have.property('id');",
-                  "  pm.expect(j.materialId).to.eql(pm.collectionVariables.get('materialId'));",
+                  "  pm.expect(j.material_id).to.eql(pm.collectionVariables.get('materialId'));",
                   "  pm.expect(j.rating).to.eql(5);",
                   "});",
                   "pm.collectionVariables.set('reviewId', j.id);"
@@ -789,7 +789,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 5,\n  \"comment\": \"postman\"\n}"
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"rating\": 5,\n  \"comment\": \"postman\"\n}"
             },
             "url": "{{baseUrl}}/reviews"
           }
@@ -803,7 +803,7 @@
                 "exec": [
                   "pm.test('409 conflict', function () { pm.response.to.have.status(409); });",
                   "pm.test('message', function () {",
-                  "  pm.expect(pm.response.json().message).to.include('review already exists');",
+                  "  pm.expect(pm.response.json().message).to.include('already reviewed');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -818,7 +818,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 4,\n  \"comment\": \"duplicate\"\n}"
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"rating\": 4,\n  \"comment\": \"duplicate\"\n}"
             },
             "url": "{{baseUrl}}/reviews"
           }
@@ -834,7 +834,7 @@
                   "  pm.response.to.have.status(200);",
                   "  const a = pm.response.json();",
                   "  pm.expect(Array.isArray(a)).to.be.true;",
-                  "  pm.expect(a.some(function (r) { return r.orderItemId === pm.collectionVariables.get('orderItemId'); })).to.be.true;",
+                  "  pm.expect(a.some(function (r) { return r.material_id === pm.collectionVariables.get('materialId'); })).to.be.true;",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -861,7 +861,7 @@
                   "  const a = pm.response.json();",
                   "  pm.expect(Array.isArray(a)).to.be.true;",
                   "  pm.expect(a.length).to.be.at.least(1);",
-                  "  pm.expect(a[0]).to.have.keys('id', 'rating', 'comment', 'createdAt');",
+                  "  pm.expect(a[0]).to.have.keys('id', 'rating', 'comment', 'created_at', 'parent_id');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -881,9 +881,9 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('403 forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('403 not allowed', function () { pm.response.to.have.status(403); });",
                   "pm.test('message', function () {",
-                  "  pm.expect(pm.response.json().message).to.eql('forbidden');",
+                  "  pm.expect(pm.response.json().message).to.eql('not allowed');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -898,7 +898,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"rating\": 3,\n  \"comment\": \"wrong owner\"\n}"
+              "raw": "{\n  \"materialId\": \"{{materialId}}\",\n  \"rating\": 3,\n  \"comment\": \"wrong owner\"\n}"
             },
             "url": "{{baseUrl}}/reviews"
           }

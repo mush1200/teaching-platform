@@ -63,7 +63,7 @@ export default function MyReviewsPage() {
       {!loading && !error && items.length > 0 ? (
         <div className="space-y-3">
           {items.map((r) => (
-            <article key={r.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={r.id} className="space-y-2 rounded-[var(--radius-card-default)] border border-slate-200 bg-white p-4 shadow-[var(--shadow-card-default)]">
               {r.material_id ? (
                 <Link href={`/materials/${encodeURIComponent(r.material_id)}`} className="block">
                   <div className="mb-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2">

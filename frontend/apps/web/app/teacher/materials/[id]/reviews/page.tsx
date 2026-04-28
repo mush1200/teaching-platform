@@ -95,7 +95,7 @@ export default function TeacherMaterialReviewsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900">教材評論</h1>
-          <p className="text-sm text-slate-600">查看這份教材的家長評價內容與分數概況。</p>
+          <p className="text-sm text-slate-600">查看這份教材的使用者評價內容與分數概況。</p>
         </div>
         <Link href="/teacher/materials">
           <Button variant="secondary">返回教材列表</Button>
@@ -116,7 +116,7 @@ export default function TeacherMaterialReviewsPage() {
         >
           <div className="space-y-3">
             {reviews.length === 0 ? (
-              <EmptyState title="尚無評論" description="當家長提交評價後，這裡會顯示最新評論內容。" />
+              <EmptyState title="尚無評論" description="當使用者提交評價後，這裡會顯示最新評論內容。" />
             ) : (
               reviews.map((review) => (
                 <article key={review.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -1,5 +1,18 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## UI Role Naming (10-line version)
+
+1. UI must not show system role names (`parent`, `teacher`, `admin`).
+2. UI must not use `家長` or `老師` as primary identity labels.
+3. Use purpose-oriented wording (what user wants to do), not identity labels.
+4. Buyer-side wording should stay generic: `歡迎回來`, `探索教材`, `我的訂單`, `我的內容`.
+5. Creator-side wording should stay generic: `教材工作台`, `我的教材`, `銷售與收益`.
+6. Admin can use `管理員` or `平台管理`.
+7. Register page is the only exception for options: `我要購買教材` / `我要上架教材`.
+8. Register helper text may mention groups (家長/學生/老師), but not as main labels.
+9. This rule applies to all UI copy (title/button/sidebar/CTA/empty state) in web/mobile.
+10. This rule does not change DB schema, API, JWT role, or permission control.
+
 ## Getting Started
 
 First, run the development server:

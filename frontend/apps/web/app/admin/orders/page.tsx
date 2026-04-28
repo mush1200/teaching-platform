@@ -9,16 +9,24 @@ import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 const statusOptions = [
   { label: "全部", value: "all" },
   { label: "待付款", value: "pending_payment" },
-  { label: "已付款", value: "paid" },
-  { label: "已核准", value: "approved" },
+  { label: "待審核", value: "pending_review" },
+  { label: "已完成", value: "completed" },
   { label: "已取消", value: "cancelled" },
 ];
 
+function mapUiStatusToApiStatus(status: string): string {
+  if (status === "completed") return "approved";
+  if (status === "pending_review") return "paid";
+  return status;
+}
+
 function statusLabel(status: string): string {
   if (status === "pending_payment") return "待付款";
-  if (status === "paid") return "已付款";
-  if (status === "approved") return "已核准";
+  if (status === "pending_review") return "待審核";
+  if (status === "approved") return "已完成";
+  if (status === "completed") return "已完成";
   if (status === "cancelled") return "已取消";
+  if (status === "paid") return "待審核";
   return status;
 }
 
@@ -30,7 +38,7 @@ export default function AdminOrdersPage() {
 
   const query = useMemo(() => {
     if (status === "all") return "admin/orders";
-    return `admin/orders?status=${encodeURIComponent(status)}`;
+    return `admin/orders?status=${encodeURIComponent(mapUiStatusToApiStatus(status))}`;
   }, [status]);
 
   const load = useCallback(async () => {
@@ -77,7 +85,7 @@ export default function AdminOrdersPage() {
       {!loading && !error && items.length > 0 ? (
         <div className="space-y-3">
           {items.map((o) => (
-            <article key={o.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={o.id} className="space-y-2 rounded-[var(--radius-card-default)] border border-slate-200 bg-white p-4 shadow-[var(--shadow-card-default)]">
               <p className="text-sm font-semibold text-slate-900">訂單 {o.id}</p>
               <p className="text-sm text-slate-700">狀態：{statusLabel(o.status)}</p>
               <p className="text-sm text-slate-700">金額：NT$ {Math.floor(Number(o.total_amount ?? o.total_price ?? 0))}</p>

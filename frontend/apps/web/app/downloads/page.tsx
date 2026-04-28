@@ -102,10 +102,10 @@ export default function DownloadsPage() {
       ) : (
         <div className="space-y-3">
           {pending.map((row) => (
-            <article key={row.material_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={row.material_id} className="rounded-[var(--radius-card-default)] border border-slate-200 bg-white p-4 shadow-[var(--shadow-card-default)]">
               <p className="text-sm font-semibold text-slate-900">{row.material_title ?? row.material_id}</p>
               <p className="mt-1 text-xs text-slate-500">ID：{row.material_id}</p>
-              <Button size="sm" variant="secondary" onPress={() => void fetchLink(row.material_id)}>
+              <Button size="sm" intent="action" onPress={() => void fetchLink(row.material_id)}>
                 取得下載連結
               </Button>
               {results[row.material_id]?.url ? (
@@ -124,10 +124,10 @@ export default function DownloadsPage() {
         </div>
       )}
 
-      <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <article className="space-y-3 rounded-[var(--radius-card-flat)] border border-slate-200 bg-[#FAF8FF] p-4 shadow-none">
         <p className="text-sm font-semibold text-slate-900">手動輸入教材 ID</p>
         <InputField id="manual-mid" label="教材 ID" value={manualId} onChangeText={setManualId} placeholder="mat_..." />
-        <Button variant="secondary" onPress={() => void fetchManual()}>
+        <Button intent="action" onPress={() => void fetchManual()}>
           查詢下載連結
         </Button>
         {manualId.trim() && results[manualId.trim()]?.url ? (

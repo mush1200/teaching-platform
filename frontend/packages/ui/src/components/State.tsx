@@ -1,4 +1,5 @@
-import { Button, H3, Paragraph, Spinner, YStack } from "tamagui";
+import { H3, Paragraph, Spinner, YStack } from "tamagui";
+import { Button } from "./Button";
 import { designTokens } from "../tokens";
 
 type StateSize = "sm" | "md" | "lg";
@@ -19,11 +20,11 @@ export function LoadingState({ title = "資料載入中...", size = "md" }: { ti
       padding={config.padding}
       borderWidth={1}
       borderColor={designTokens.colors.border.default}
-      borderRadius={designTokens.radius.md}
+      borderRadius={designTokens.radius.cardFlat}
       backgroundColor={designTokens.colors.bg.surface}
     >
-      <Spinner size={config.spinnerSize} color={designTokens.colors.info} />
-      <Paragraph color={designTokens.colors.text.secondary}>{title}</Paragraph>
+      <Spinner size={config.spinnerSize} color={designTokens.colors.feedback.spinnerPrimary} />
+      <Paragraph color={designTokens.colors.feedback.loadingText}>{title}</Paragraph>
     </YStack>
   );
 }
@@ -49,16 +50,25 @@ export function EmptyState({
       gap="$3"
       padding={config.padding}
       borderWidth={1}
-      borderStyle="dashed"
       borderColor={designTokens.colors.border.default}
-      borderRadius={designTokens.radius.md}
+      borderRadius={designTokens.radius.cardFlat}
       backgroundColor={designTokens.colors.bg.muted}
     >
-      <H3>{title}</H3>
-      <Paragraph textAlign="center" color={designTokens.colors.text.secondary}>
+      <YStack
+        width={44}
+        height={44}
+        borderRadius={999}
+        alignItems="center"
+        justifyContent="center"
+        backgroundColor={designTokens.colors.feedback.emptyIconBg}
+      >
+        <Paragraph color={designTokens.colors.feedback.emptyAction}>○</Paragraph>
+      </YStack>
+      <H3 color={designTokens.colors.feedback.emptyTitle}>{title}</H3>
+      <Paragraph textAlign="center" color={designTokens.colors.feedback.emptyDescription}>
         {description}
       </Paragraph>
-      {actionLabel ? <Button onPress={onAction}>{actionLabel}</Button> : null}
+      {actionLabel ? <Button intent="action" onPress={onAction}>{actionLabel}</Button> : null}
     </YStack>
   );
 }
@@ -86,16 +96,16 @@ export function ErrorState({
       gap="$3"
       padding={config.padding}
       borderWidth={1}
-      borderColor={designTokens.colors.border.danger}
-      borderRadius={designTokens.radius.md}
-      backgroundColor={designTokens.colors.bg.surface}
+      borderColor={designTokens.colors.feedback.errorBorder}
+      borderRadius={designTokens.radius.cardFlat}
+      backgroundColor={designTokens.colors.feedback.errorBg}
     >
-      <H3 color={designTokens.colors.danger}>{title}</H3>
+      <H3 color={designTokens.colors.feedback.errorText}>{title}</H3>
       <Paragraph textAlign="center" color={designTokens.colors.text.secondary}>
         {description}
       </Paragraph>
       {errorCode ? <Paragraph color={designTokens.colors.text.muted}>錯誤碼：{errorCode}</Paragraph> : null}
-      {onRetry ? <Button onPress={onRetry}>{retryLabel}</Button> : null}
+      {onRetry ? <Button intent="action" onPress={onRetry}>{retryLabel}</Button> : null}
     </YStack>
   );
 }

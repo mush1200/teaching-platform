@@ -46,11 +46,16 @@ router.post("/", requireAuth, requireParent, async (req, res) => {
 router.get("/my", requireAuth, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, user_id, status, payment_mode, total_amount, total_price,
-              paid_at, cancelled_at, created_at, updated_at
-       FROM orders
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
+      `SELECT o.id, o.user_id, o.status, o.payment_mode, o.total_amount, o.total_price,
+              o.paid_at, o.cancelled_at, o.created_at, o.updated_at,
+              COALESCE(
+                (SELECT COUNT(*)::int FROM manual_payment_proofs m
+                 WHERE m.order_id = o.id AND m.review_status = 'pending'),
+                0
+              ) AS payment_proof_pending_review_count
+       FROM orders o
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC`,
       [req.user.userId]
     );
     return res.json({ items: result.rows });
@@ -64,10 +69,15 @@ router.get("/:id", requireAuth, async (req, res) => {
   try {
     const orderId = String(req.params.id);
     const result = await db.query(
-      `SELECT id, user_id, status, payment_mode, total_amount, total_price,
-              paid_at, cancelled_at, created_at, updated_at
-       FROM orders
-       WHERE id = $1
+      `SELECT o.id, o.user_id, o.status, o.payment_mode, o.total_amount, o.total_price,
+              o.paid_at, o.cancelled_at, o.created_at, o.updated_at,
+              COALESCE(
+                (SELECT COUNT(*)::int FROM manual_payment_proofs m
+                 WHERE m.order_id = o.id AND m.review_status = 'pending'),
+                0
+              ) AS payment_proof_pending_review_count
+       FROM orders o
+       WHERE o.id = $1
        LIMIT 1`,
       [orderId]
     );
