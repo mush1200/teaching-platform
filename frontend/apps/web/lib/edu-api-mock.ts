@@ -4,6 +4,9 @@
  */
 
 import type { MockAdminOrder, MockAdminStats, MockCartItem, MockMaterial, MockReview } from "./mock-data";
+import { apiFetch } from "./api-client";
+import type { Material } from "./api-types";
+import { materialToMock } from "./material-mapper";
 import {
   mockAdminRecentOrders,
   mockAdminStats,
@@ -21,6 +24,15 @@ export async function getMaterials(): Promise<MockMaterial[]> {
 
 export async function getMaterialById(id: string): Promise<MockMaterial | null> {
   await delay(100);
+  try {
+    const res = await apiFetch(`materials/${encodeURIComponent(id)}`);
+    if (res.ok) {
+      const row = (await res.json()) as Material;
+      return materialToMock(row);
+    }
+  } catch {
+    // fallback to local mock
+  }
   return mockMaterials.find((m) => m.id === id) ?? null;
 }
 

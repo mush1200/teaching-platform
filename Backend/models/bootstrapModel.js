@@ -507,6 +507,12 @@ function ensureCoreTables() {
           price NUMERIC NOT NULL DEFAULT 0,
           category TEXT,
           age_range TEXT,
+          teaching_objective TEXT,
+          teaching_methods JSONB,
+          usage_duration TEXT,
+          activity_steps TEXT,
+          extension_value TEXT,
+          short_description TEXT,
           teacher_id TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending_review',
           file_key TEXT NOT NULL,
@@ -516,6 +522,32 @@ function ensureCoreTables() {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS material_contents (
+          id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+          material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+          type TEXT NOT NULL,
+          name TEXT NOT NULL,
+          count INTEGER CHECK (count > 0),
+          description TEXT,
+          sort_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await db.query(`
+        CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
+      `);
+
+      await db.query(`
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS teaching_objective TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS teaching_methods JSONB;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS usage_duration TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS activity_steps TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS extension_value TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS short_description TEXT;
+      `);
+
       await db.query(`
         CREATE TABLE IF NOT EXISTS cart_items (
           id TEXT NOT NULL DEFAULT (gen_random_uuid()::text),

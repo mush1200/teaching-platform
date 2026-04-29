@@ -12,12 +12,34 @@ export type Material = {
   teacher_id?: string;
   status?: string;
   file_key?: string;
+  teaching_objective?: string;
+  teaching_methods?: string[];
+  usage_duration?: string;
+  activity_steps?: string;
+  extension_value?: string;
+  short_description?: string;
+  contents?: MaterialContent[];
   created_at?: string;
   updated_at?: string;
 };
 
+export type MaterialContent = {
+  type: string;
+  name: string;
+  count?: number | null;
+  description?: string | null;
+};
+
+export type MaterialsPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
 export type MaterialsListResponse = {
   items: Material[];
+  pagination?: MaterialsPagination;
 };
 
 export type CartItem = {

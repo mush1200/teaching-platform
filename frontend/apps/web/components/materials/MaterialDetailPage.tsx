@@ -9,14 +9,11 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { IconCheck, IconChevronLeft, IconHeart, IconShare } from "../ui/icons";
 
-type Tab = "intro" | "syllabus" | "reviews";
-
 type Props = {
   materialId: string;
 };
 
 export function MaterialDetailPage({ materialId }: Props) {
-  const [tab, setTab] = useState<Tab>("intro");
   const [material, setMaterial] = useState<MockMaterial | null>(null);
   const [loading, setLoading] = useState(true);
   const [reportHint, setReportHint] = useState<string | null>(null);
@@ -190,70 +187,74 @@ export function MaterialDetailPage({ materialId }: Props) {
           </div>
         </div>
 
-        <div className="mt-10 border-t border-[#E5E7EB]/80 pt-8">
-          <div className="flex gap-2 border-b border-[#E5E7EB]">
-            {(
-              [
-                ["intro", "教材介紹"],
-                ["syllabus", "內容大綱"],
-                ["reviews", "評論"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={`relative pb-3 text-sm font-semibold ${
-                  tab === key ? "text-[#FF6B73]" : "text-[#6B7280]"
-                }`}
-              >
-                {label}
-                {tab === key ? (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#FF6B73]" />
-                ) : null}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            {tab === "intro" ? (
-              <Card level="default">
-                <p className="text-sm font-semibold text-[#1F2937]">教材介紹</p>
-                <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">{material.description}</p>
-                <p className="mt-6 font-semibold text-[#1F2937]">適用對象</p>
-                <p className="mt-2 text-sm text-[#4B5563]">{material.ageLabel}，希望建立系統化學習節奏的家庭與教師。</p>
-                <p className="mt-6 font-semibold text-[#1F2937]">你將學到</p>
-                <ul className="mt-3 space-y-2">
-                  {material.learnPoints.map((pt) => (
-                    <li key={pt} className="flex items-start gap-2 text-sm text-[#4B5563]">
-                      <IconCheck className="mt-0.5 shrink-0 text-[#22C55E]" />
-                      {pt}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ) : null}
-            {tab === "syllabus" ? (
-              <Card level="default">
-                <p className="text-sm font-semibold text-[#1F2937]">內容包含</p>
-                <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-[#4B5563]">
-                  {material.outline.map((o) => (
-                    <li key={o}>{o}</li>
-                  ))}
-                </ol>
-              </Card>
-            ) : null}
-            {tab === "reviews" ? (
-              <Card level="default">
-                <p className="text-sm text-[#6B7280]">查看完整星等分布與留言</p>
-                <Link href={`/materials/${material.id}/reviews`} className="mt-3 inline-flex">
-                  <Button type="button" intent="action" className="!px-4 !py-2.5 text-sm">
-                    前往課程評論頁
-                  </Button>
-                </Link>
-              </Card>
-            ) : null}
-          </div>
+        <div className="mt-10 space-y-4 border-t border-[#E5E7EB]/80 pt-8">
+          {material.shortDescription ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">簡短介紹</p>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">{material.shortDescription}</p>
+            </Card>
+          ) : null}
+          {(material.usageDuration || (material.teachingMethods && material.teachingMethods.length > 0)) ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">一句話價值</p>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">
+                {`${material.usageDuration || "可彈性安排課程時間"}，透過${(material.teachingMethods || []).join("、") || "多元互動活動"}學習${material.title}`}
+              </p>
+            </Card>
+          ) : null}
+          <Card level="default">
+            <p className="text-sm font-semibold text-[#1F2937]">教材內容</p>
+            <ul className="mt-3 space-y-2">
+              {(material.contents && material.contents.length > 0
+                ? material.contents
+                : material.outline.map((name) => ({ type: "outline", name, count: null }))).map((item) => (
+                <li key={`${item.type}-${item.name}`} className="text-sm text-[#4B5563]">
+                  {item.name}
+                  {item.count ? ` × ${item.count}` : ""}
+                </li>
+              ))}
+            </ul>
+          </Card>
+          {material.teachingObjective ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">教學目標</p>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">{material.teachingObjective}</p>
+            </Card>
+          ) : null}
+          {(material.teachingMethods || []).length > 0 ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">教學玩法</p>
+              <ul className="mt-2 space-y-1 text-sm text-[#4B5563]">
+                {(material.teachingMethods || []).map((method) => (
+                  <li key={method} className="flex items-start gap-2">
+                    <IconCheck className="mt-0.5 shrink-0 text-[#22C55E]" />
+                    <span>{method}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+          {material.activitySteps ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">教學步驟</p>
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[#4B5563]">{material.activitySteps}</p>
+            </Card>
+          ) : null}
+          {material.usageDuration ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">使用時間</p>
+              <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">{material.usageDuration}</p>
+            </Card>
+          ) : null}
+          {(material.ageLabel || material.extensionValue) ? (
+            <Card level="default">
+              <p className="text-sm font-semibold text-[#1F2937]">其他</p>
+              <ul className="mt-2 space-y-1 text-sm text-[#4B5563]">
+                {material.ageLabel ? <li>適用年齡：{material.ageLabel}</li> : null}
+                {material.extensionValue ? <li>延伸活動：{material.extensionValue}</li> : null}
+              </ul>
+            </Card>
+          ) : null}
         </div>
       </div>
 

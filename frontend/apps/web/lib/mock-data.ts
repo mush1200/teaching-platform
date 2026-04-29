@@ -16,6 +16,20 @@ export type MockMaterial = {
   description: string;
   outline: string[];
   learnPoints: string[];
+  teachingObjective?: string;
+  teachingMethods?: string[];
+  usageDuration?: string;
+  activitySteps?: string;
+  extensionValue?: string;
+  shortDescription?: string;
+  contents?: Array<{
+    type: string;
+    name: string;
+    count?: number | null;
+    description?: string | null;
+  }>;
+  /** ISO date for client-side "latest" sorting when API omits it */
+  publishedAt?: string;
 };
 
 export type MockCartItem = {
@@ -74,6 +88,7 @@ export const mockMaterials: MockMaterial[] = [
     durationHours: 12,
     units: 24,
     learners: 1234,
+    publishedAt: "2025-11-01",
     description:
       "透過生活化題目與遊戲化練習，培養孩子的邏輯推理與解題策略。課程由淺入深，搭配可列印學習單，適合親子共學。",
     outline: ["數感與運算", "圖形與空間", "生活應用題", "綜合評量"],
@@ -92,6 +107,7 @@ export const mockMaterials: MockMaterial[] = [
     durationHours: 10,
     units: 18,
     learners: 892,
+    publishedAt: "2026-01-10",
     description:
       "以繪本與韻文引導中英文聽讀，搭配發音練習音檔，讓孩子在輕鬆氛圍中愛上閱讀。",
     outline: ["字母與拼音", "主題單字", "簡短句型", "親子共讀活動"],
@@ -110,6 +126,7 @@ export const mockMaterials: MockMaterial[] = [
     durationHours: 15,
     units: 30,
     learners: 2103,
+    publishedAt: "2025-08-20",
     description:
       "安全可在家進行的小實驗影片與觀察紀錄表，涵蓋力、熱、光、電基礎觀念。",
     outline: ["觀察與假設", "實驗步驟", "紀錄與討論", "科學閱讀"],
@@ -128,10 +145,83 @@ export const mockMaterials: MockMaterial[] = [
     durationHours: 8,
     units: 16,
     learners: 445,
+    publishedAt: "2026-02-15",
     description:
       "從色彩理論到構圖練習，搭配簡單數位繪圖教學，激發孩子的視覺表達力。",
     outline: ["色彩基礎", "線條與形狀", "構圖練習", "主題創作"],
     learnPoints: ["建立美感語彙", "鼓勵自由創作", "作品展示技巧", "欣賞名家作品"],
+  },
+  {
+    id: "mat_demo_5",
+    title: "幼兒語感律動課",
+    ageLabel: "適合 3–6 歲",
+    category: "language",
+    price: 0,
+    originalPrice: 199,
+    rating: 4.4,
+    reviewCount: 31,
+    coverGradient: "from-fuchsia-100 to-pink-50",
+    durationHours: 6,
+    units: 12,
+    learners: 3201,
+    publishedAt: "2026-04-20",
+    description: "兒歌、手指謠與簡單英文韻文，培養語感與節奏，適合親子一起玩中學。",
+    outline: ["律動遊戲", "主題兒歌", "簡單單字", "親子任務"],
+    learnPoints: ["建立語音覺察", "提升專注力", "增進親子互動", "銜接幼兒園課程"],
+  },
+  {
+    id: "mat_demo_6",
+    title: "生活數學：量與形",
+    ageLabel: "適合 7–9 歲",
+    category: "math",
+    price: 180,
+    originalPrice: 220,
+    rating: 4.7,
+    reviewCount: 72,
+    coverGradient: "from-sky-100 to-blue-50",
+    durationHours: 9,
+    units: 20,
+    learners: 1566,
+    publishedAt: "2026-04-01",
+    description: "從廚房與購物情境學習重量、容量與幾何，連結真實生活。",
+    outline: ["量的比較", "簡單圖形", "估測與紀錄", "生活應用"],
+    learnPoints: ["具體量感經驗", "建立數學詞彙", "解題策略啟蒙", "銜接中年級"],
+  },
+  {
+    id: "mat_demo_7",
+    title: "天文觀測入門（親子版）",
+    ageLabel: "適合 10–14 歲",
+    category: "science",
+    price: 199,
+    originalPrice: 249,
+    rating: 4.95,
+    reviewCount: 112,
+    coverGradient: "from-indigo-100 to-slate-100",
+    durationHours: 11,
+    units: 22,
+    learners: 987,
+    publishedAt: "2026-03-18",
+    description: "月相、星座與望遠鏡基礎，附觀測紀錄表與安全提醒。",
+    outline: ["夜空導覽", "月相變化", "簡易觀測", "科學閱讀"],
+    learnPoints: ["科學態度", "觀察紀錄能力", "連結理化概念", "親子共學"],
+  },
+  {
+    id: "mat_demo_8",
+    title: "免費試讀：繪本創作工作坊",
+    ageLabel: "適合 8–12 歲",
+    category: "art",
+    price: 0,
+    originalPrice: 0,
+    rating: 4.2,
+    reviewCount: 18,
+    coverGradient: "from-teal-100 to-emerald-50",
+    durationHours: 5,
+    units: 10,
+    learners: 2110,
+    publishedAt: "2026-04-22",
+    description: "故事發想、分鏡與簡單裝幀，附可列印版型與示範影片。",
+    outline: ["故事發想", "角色設計", "分鏡草稿", "成品分享"],
+    learnPoints: ["敘事結構", "美術表達", "口語發表", "同儕回饋"],
   },
 ];
 

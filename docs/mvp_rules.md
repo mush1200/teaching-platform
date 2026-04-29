@@ -73,7 +73,38 @@ hidden from parents
 
 ---
 
-# 4. Order and payment state
+# 4. Material create/update payload（teaching product spec）
+
+`POST /materials`（teacher）與 `PUT /materials/:id` 目前支援下列教學商品欄位：
+
+- 基本：`title`、`price`、`file_key`（也接受 alias: `fileKey`）
+- 教學資訊：`teaching_objective`、`teaching_methods`（array）、`usage_duration`、`activity_steps`
+- 建議填寫（非必填）：`age_range`、`extension_value`、`short_description`
+- 內容清單：`contents[]`（每筆含 `type`、`name`、可選 `count`、`description`）
+
+Create 時必填/驗證：
+
+- `title` 不可空
+- `price > 0`
+- `file_key` 不可空
+- `ipDeclarationAccepted` 必須為 `true`
+- `teaching_objective` 不可空
+- `teaching_methods` 必須存在，長度 `>=1` 且 `<=4`，每筆不可空字串
+- `usage_duration` 不可空
+- `activity_steps` 不可空
+- `contents` 至少 1 筆；每筆 `type`、`name` 必填；`count` 若提供需 `> 0`
+
+Update 時：
+
+- 仍只有 admin 可改 `status`
+- 若 body 含 `contents`，以該陣列整批覆蓋（replace）`material_contents` 舊資料
+- 送入 `price` 時必須 `> 0`
+
+`GET /materials/:id` 會回傳 `materials` 主表欄位，並附上 `contents`（依 `sort_order` 升冪）。
+
+---
+
+# 5. Order and payment state
 
 **Order (`orders.status`)**
 
@@ -95,7 +126,7 @@ hidden from parents
 
 ---
 
-# 5. Report lifecycle (`reports.status`)
+# 6. Report lifecycle (`reports.status`)
 
 - `pending` — created by parent.
 - `reviewed` — admin acknowledged (PATCH); does not imply material takedown.
@@ -104,7 +135,7 @@ Same reporter cannot submit duplicate reports for the same material (`UNIQUE (ma
 
 ---
 
-# 6. Download authorization rule
+# 7. Download authorization rule
 
 ALLOW if:
 
@@ -120,7 +151,7 @@ material not found
 
 ---
 
-# 7. Review authorization rule
+# 8. Review authorization rule
 
 ALLOW if:
 
@@ -133,7 +164,7 @@ duplicate review for same material (unique constraint; a second **POST** returns
 
 ---
 
-# 8. Activity log actions & admin audit API
+# 9. Activity log actions & admin audit API
 
 **Audit API（僅 admin，JWT）：**
 
@@ -162,13 +193,17 @@ duplicate review for same material (unique constraint; a second **POST** returns
 
 ---
 
-# 9. HTTP API 一覽
+# 10. HTTP API 一覽
 
-完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.3.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**
+完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。
+
+教材上架與商品 Detail 實作細節（欄位語意、內容結構、Detail 顯示順序、MVP 排序機制）見 **`docs/materials-detail-spec.md`**。
+
+**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.3.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**
 
 ---
 
-# 10. Swagger / OpenAPI 文件規則
+# 11. Swagger / OpenAPI 文件規則
 
 - 後端啟動後需提供 Swagger UI：`GET /api-doc`。
 - 需同步提供 OpenAPI JSON：`GET /api-doc.json`。
@@ -181,7 +216,7 @@ duplicate review for same material (unique constraint; a second **POST** returns
 
 ---
 
-# 11. Admin payment proof listing（新增）
+# 12. Admin payment proof listing（新增）
 
 新增管理員付款憑證清單 API（admin JWT 必要）：
 
@@ -205,7 +240,7 @@ duplicate review for same material (unique constraint; a second **POST** returns
 
 ---
 
-# 12. Teacher sales analytics + parent order detail（新增）
+# 13. Teacher sales analytics + parent order detail（新增）
 
 新增 teacher 銷售統計 API（皆需 JWT，且角色為 teacher）：
 
@@ -222,8 +257,8 @@ duplicate review for same material (unique constraint; a second **POST** returns
 資料範圍規則：
 
 - 僅統計 `order_items.seller_id = 當前 teacher userId` 之資料。
-- `summary` 與 `materials` 若未指定 `status`，預設採成交口徑（`approved`、`completed`）。
-- `records` 若未指定 `status` 或 `status=all`，預設採成交口徑（`approved`、`completed`）。
+- `summary` 與 `materials` 若未指定 `status`，預設採成交口徑（`approved`，並相容歷史資料中的 `completed`）。
+- `records` 若未指定 `status` 或 `status=all`，預設採成交口徑（`approved`，並相容歷史資料中的 `completed`）。
 
 新增 parent / admin 訂單詳情 API：
 

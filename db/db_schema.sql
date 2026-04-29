@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS materials (
   price NUMERIC NOT NULL DEFAULT 0,
   category TEXT,
   age_range TEXT,
+  teaching_objective TEXT,
+  teaching_methods JSONB,
+  usage_duration TEXT,
+  activity_steps TEXT,
+  extension_value TEXT,
+  short_description TEXT,
   teacher_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending_review',
   file_key TEXT NOT NULL,
@@ -35,6 +41,18 @@ CREATE TABLE IF NOT EXISTS materials (
   ip_declaration_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS material_contents (
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  count INTEGER CHECK (count > 0),
+  description TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS cart_items (
@@ -135,6 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_manual_payment_proofs_status ON manual_payment_pr
 CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);
 CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
+CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
 
 CREATE INDEX IF NOT EXISTS idx_activity_logs_actor_id ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);

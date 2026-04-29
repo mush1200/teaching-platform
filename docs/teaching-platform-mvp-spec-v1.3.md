@@ -2,6 +2,8 @@
 
 Supersedes v1.2. Aligned with `Backend/models/bootstrapModel.js` (ensureCoreTables + runIdempotentMigrations) and current API behavior.
 
+Supplemental feature spec for materials domain: `docs/materials-detail-spec.md`.
+
 Architecture: Backend-first  
 Database: PostgreSQL  
 Auth: JWT  
@@ -12,7 +14,8 @@ Identifiers: primary keys are **TEXT** (e.g. `mat_*`, `ord_*`, user ids); amount
 
 # 1. Core domain language
 
-material = sellable teaching content (includes `file_key`, optional `category` / `age_range`, IP declaration flags)  
+material = sellable teaching content (includes `file_key`, `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, optional `category` / `age_range` / `extension_value` / `short_description`, IP declaration flags)  
+material_content = itemized teaching assets of one material (`type`, `name`, optional `count`, `description`, with `sort_order`)  
 order = transaction container (`status`, `payment_mode`, `total_amount`, timestamps)  
 order_item = line item with snapshots (`title_snapshot`, `price_snapshot`, `quantity`, `seller_id`, `subtotal`)  
 manual_payment_proof = uploaded payment evidence per order (`proof_url`, `review_status`: pending | approved | rejected)  
@@ -44,6 +47,14 @@ Only **admin** may set `status` on update; teacher edits other fields on own mat
 
 **POST /materials (create):** request body must **not** include `status` (**400** if present). New rows always start as `pending_review` (same as DB default).
 
+**Create validation (implemented):**
+
+- required: `title`, `price` (`> 0`), `file_key` (alias `fileKey`), `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, `contents`
+- `teaching_methods`: array length `1..4`, empty strings are rejected
+- `contents`: at least one row; each row requires `type` + `name`; `count` if provided must be `> 0`
+
+**Detail payload (`GET /materials/:id`):** returns material fields plus `contents[]`, sourced from `material_contents` and ordered by `sort_order ASC`.
+
 ---
 
 # 4. Order lifecycle (orders.status)
@@ -52,6 +63,8 @@ Concrete values used by the backend:
 
 - **pending_payment** — set when an order is created from the cart. Default for new orders.
 - **approved** — set when an admin **approves** a pending `manual_payment_proof` for that order.
+
+Compatibility note: some analytics/reporting queries may include legacy/deployed rows with `completed`. Canonical create/update flow uses `pending_payment` and `approved`.
 
 There is **no** `proof_uploaded` value on `orders`. Uploading proofs inserts rows into `manual_payment_proofs` with `review_status = 'pending'` while the order remains `pending_payment`.
 
@@ -176,9 +189,9 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials/:id/reviews` | — | Public list of reviews for material. |
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
-| GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. |
-| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Body requires `title`, `price`, `fileKey`, `ipDeclarationAccepted: true`, etc. **Must not** send `status` (**400**). |
-| PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Update fields; **only admin** may send `status`. |
+| GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. Response includes `contents[]` ordered by `sort_order`. |
+| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `ipDeclarationAccepted: true`. **Must not** send `status` (**400**). |
+| PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Update fields; **only admin** may send `status`. If body includes `contents`, backend replaces existing `material_contents` rows. |
 
 ### Cart (`/cart`)
 
@@ -263,7 +276,30 @@ All routes below: **JWT + admin**.
 
 ---
 
-# 12. Swagger / OpenAPI（對接文件）
+# 12. Canonical DB schema highlights（materials domain）
+
+Besides legacy MVP tables, current materials domain includes:
+
+- `materials` extra columns:
+  - `teaching_objective TEXT`
+  - `teaching_methods JSONB`
+  - `usage_duration TEXT`
+  - `activity_steps TEXT`
+  - `extension_value TEXT`
+  - `short_description TEXT`
+- `material_contents` table:
+  - `id TEXT PK`
+  - `material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE`
+  - `type TEXT NOT NULL`
+  - `name TEXT NOT NULL`
+  - `count INTEGER CHECK (count > 0)`
+  - `description TEXT`
+  - `sort_order INTEGER DEFAULT 0`
+  - timestamps: `created_at`, `updated_at`
+
+---
+
+# 13. Swagger / OpenAPI（對接文件）
 
 Backend server 啟動後，文件入口如下：
 
