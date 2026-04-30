@@ -14,7 +14,8 @@ Identifiers: primary keys are **TEXT** (e.g. `mat_*`, `ord_*`, user ids); amount
 
 # 1. Core domain language
 
-material = sellable teaching content (includes `file_key`, `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, optional `category` / `age_range` / `extension_value` / `short_description`, IP declaration flags)  
+material = sellable teaching content (includes `file_key`, `cover_image_url`, optional `demo_video_url`, `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, optional `category` / `age_range` / `extension_value` / `short_description`, IP declaration flags)  
+material_image = detail image row for one material (`image_url`, optional `alt_text`, `sort_order`; does not store cover image)  
 material_content = itemized teaching assets of one material (`type`, `name`, optional `count`, `description`, with `sort_order`)  
 order = transaction container (`status`, `payment_mode`, `total_amount`, timestamps)  
 order_item = line item with snapshots (`title_snapshot`, `price_snapshot`, `quantity`, `seller_id`, `subtotal`)  
@@ -50,8 +51,13 @@ Only **admin** may set `status` on update; teacher edits other fields on own mat
 **Create validation (implemented):**
 
 - required: `title`, `price` (`> 0`), `file_key` (alias `fileKey`), `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, `contents`
+- required: `cover_image_url` (alias `coverImageUrl`) and it must be a valid URL
 - `teaching_methods`: array length `1..4`, empty strings are rejected
 - `contents`: at least one row; each row requires `type` + `name`; `count` if provided must be `> 0`
+- optional: `detail_images` (alias `detailImages`), each `image_url` is required and must be valid URL
+- optional: `demo_video_url` (alias `demoVideoUrl`) must be valid URL if provided
+
+**Media URLs (teacher):** the web app uploads files with **POST /teacher/uploads/material-media** (`multipart/form-data`, field `file`, query `kind=cover|detail|demo`) and stores the returned **`url`** in `cover_image_url`, `detail_images`, or `demo_video_url`. The API still validates **http(s) URL strings** only. In production, set **PUBLIC_BACKEND_URL** (or **API_PUBLIC_URL**) on the backend so returned URLs match the public host.
 
 **Detail payload (`GET /materials/:id`):** returns material fields plus `contents[]`, sourced from `material_contents` and ordered by `sort_order ASC`.
 
@@ -190,8 +196,10 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
 | GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. Response includes `contents[]` ordered by `sort_order`. |
-| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `ipDeclarationAccepted: true`. **Must not** send `status` (**400**). |
-| PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Update fields; **only admin** may send `status`. If body includes `contents`, backend replaces existing `material_contents` rows. |
+| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `cover_image_url`/`coverImageUrl`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `ipDeclarationAccepted: true`. Optional: `detail_images`, `demo_video_url`. **Must not** send `status` (**400**). |
+| PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Full update fields; **only admin** may send `status`. If body includes `contents`, backend replaces existing `material_contents`; if body includes `detail_images`, backend replaces existing `material_images`. |
+| PATCH | `/materials/:id` | JWT (**teacher** owner or **admin**) | Partial update semantics, same field validation/authorization as PUT. |
+| POST | `/teacher/uploads/material-media` | JWT (**teacher**) | `multipart/form-data` with field **`file`**; query **`kind`**: `cover` / `detail` (images, max 10MB) or `demo` (MP4/WebM, max 80MB). **201** `{ url, filename }` — use **`url`** when creating/updating material media fields. Files served at `GET /uploads/material-media/<filename>`. |
 
 ### Cart (`/cart`)
 
@@ -287,6 +295,8 @@ Besides legacy MVP tables, current materials domain includes:
   - `activity_steps TEXT`
   - `extension_value TEXT`
   - `short_description TEXT`
+  - `cover_image_url TEXT`
+  - `demo_video_url TEXT`
 - `material_contents` table:
   - `id TEXT PK`
   - `material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE`
@@ -294,6 +304,13 @@ Besides legacy MVP tables, current materials domain includes:
   - `name TEXT NOT NULL`
   - `count INTEGER CHECK (count > 0)`
   - `description TEXT`
+  - `sort_order INTEGER DEFAULT 0`
+  - timestamps: `created_at`, `updated_at`
+- `material_images` table:
+  - `id TEXT PK`
+  - `material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE`
+  - `image_url TEXT NOT NULL`
+  - `alt_text TEXT`
   - `sort_order INTEGER DEFAULT 0`
   - timestamps: `created_at`, `updated_at`
 

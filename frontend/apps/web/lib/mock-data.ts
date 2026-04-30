@@ -10,6 +10,9 @@ export type MockMaterial = {
   rating: number;
   reviewCount: number;
   coverGradient: string;
+  coverImageUrl?: string;
+  demoVideoUrl?: string;
+  detailImages?: Array<{ image_url: string; alt_text?: string | null; sort_order?: number | null }>;
   durationHours: number;
   units: number;
   learners: number;

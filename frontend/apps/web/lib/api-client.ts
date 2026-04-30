@@ -19,6 +19,9 @@ export function getStoredRole(): UserRole | null {
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getStoredToken();
   const headers = new Headers(init?.headers);
+  if (init?.body instanceof FormData) {
+    headers.delete("Content-Type");
+  }
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }

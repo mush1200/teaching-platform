@@ -16,6 +16,7 @@ export function middleware(request: NextRequest) {
   const isProtected =
     pathname.startsWith("/cart") ||
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/explore") ||
     pathname.startsWith("/teacher") ||
     pathname.startsWith("/admin") ||
     pathname === "/my-reviews";
@@ -37,11 +38,25 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/dashboard") && role !== "parent") {
     return NextResponse.redirect(new URL("/403", request.url));
   }
+  if (pathname.startsWith("/explore")) {
+    if (role !== "parent") {
+      return NextResponse.redirect(new URL("/materials", request.url));
+    }
+  }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/cart/:path*", "/dashboard", "/dashboard/:path*", "/teacher/:path*", "/admin/:path*", "/my-reviews"],
+  matcher: [
+    "/cart/:path*",
+    "/dashboard",
+    "/dashboard/:path*",
+    "/explore",
+    "/explore/:path*",
+    "/teacher/:path*",
+    "/admin/:path*",
+    "/my-reviews",
+  ],
 };
 

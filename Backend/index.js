@@ -18,10 +18,13 @@ const reportsRouter = require("./routes/reports");
 const adminRouter = require("./routes/admin");
 const adminActivityLogsRouter = require("./routes/adminActivityLogs");
 const teacherSalesRouter = require("./routes/teacherSales");
+const teacherUploadRouter = require("./routes/teacherUpload");
 const { ensureCoreTables } = require("./models/bootstrapModel");
 const { setupSwagger } = require("./swagger");
 app.use(express.json());
 setupSwagger(app);
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/auth", authRouter);
 app.use("/download", downloadRouter);
@@ -34,6 +37,7 @@ app.use("/reports", reportsRouter);
 app.use("/admin", adminRouter);
 app.use("/admin", adminActivityLogsRouter);
 app.use("/teacher/sales", teacherSalesRouter);
+app.use("/teacher", teacherUploadRouter);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

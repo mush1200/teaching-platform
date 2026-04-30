@@ -20,7 +20,11 @@ const openApiSpec = {
     { name: "Download", description: "Download authorization APIs / 下載授權 API" },
     { name: "Reviews", description: "Review APIs / 評價 API" },
     { name: "Reports", description: "Report APIs / 檢舉 API" },
-    { name: "Teacher", description: "Teacher sales analytics / 教師銷售分析" },
+    {
+      name: "Teacher",
+      description:
+        "Teacher uploads and sales analytics / 教師媒體上傳與銷售分析（教材圖片／影片上傳後取得 URL，銷售報表）",
+    },
     { name: "Admin", description: "Admin-only endpoints / 管理員專用 API" },
   ],
   components: {
@@ -70,6 +74,19 @@ const openApiSpec = {
           activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
           extension_value: { type: "string", nullable: true, example: "可作為回家作業延伸" },
           short_description: { type: "string", nullable: true, example: "透過配對遊戲學習地點與物品" },
+          cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
+          demo_video_url: { type: "string", format: "uri", nullable: true, example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+          detail_images: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/detail-1.jpg" },
+                alt_text: { type: "string", nullable: true, example: "教材卡片細節圖" },
+                sort_order: { type: "integer", example: 0 },
+              },
+            },
+          },
           contents: {
             type: "array",
             items: {
@@ -224,6 +241,20 @@ const openApiSpec = {
           soldUnits: { type: "integer", example: 36 },
           revenue: { type: "integer", example: 7164 },
           lastSoldAt: { type: "string", format: "date-time", nullable: true, example: "2026-04-25T09:30:00.000Z" },
+        },
+      },
+      TeacherMaterialMediaUploadResponse: {
+        type: "object",
+        required: ["url", "filename"],
+        properties: {
+          url: {
+            type: "string",
+            format: "uri",
+            description:
+              "Absolute URL of the stored file (uses PUBLIC_BACKEND_URL when set). Pass this value into POST/PUT materials fields.",
+            example: "http://localhost:3000/uploads/material-media/mj8abc_sample.jpg",
+          },
+          filename: { type: "string", example: "mj8abc_sample.jpg" },
         },
       },
       TeacherSalesRecord: {
@@ -438,6 +469,7 @@ const openApiSpec = {
                   "teaching_methods",
                   "usage_duration",
                   "activity_steps",
+                  "cover_image_url",
                   "contents",
                   "ipDeclarationAccepted",
                 ],
@@ -462,6 +494,22 @@ const openApiSpec = {
                   activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
                   extension_value: { type: "string", example: "可作為回家作業延伸" },
                   short_description: { type: "string", example: "透過配對遊戲學習地點與物品" },
+                  cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
+                  coverImageUrl: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
+                  demo_video_url: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                  demoVideoUrl: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                  detail_images: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["image_url"],
+                      properties: {
+                        image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/detail-1.jpg" },
+                        alt_text: { type: "string", example: "教材細節照片" },
+                        sort_order: { type: "integer", example: 0 },
+                      },
+                    },
+                  },
                   contents: {
                     type: "array",
                     minItems: 1,
@@ -542,6 +590,22 @@ const openApiSpec = {
                   activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
                   extension_value: { type: "string", example: "可作為回家作業延伸" },
                   short_description: { type: "string", example: "透過配對遊戲學習地點與物品" },
+                  cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
+                  coverImageUrl: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
+                  demo_video_url: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                  demoVideoUrl: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                  detail_images: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: ["image_url"],
+                      properties: {
+                        image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/detail-1.jpg" },
+                        alt_text: { type: "string", example: "教材細節照片" },
+                        sort_order: { type: "integer", example: 0 },
+                      },
+                    },
+                  },
                   contents: {
                     type: "array",
                     minItems: 1,
@@ -880,6 +944,50 @@ const openApiSpec = {
           403: { $ref: "#/components/responses/Forbidden" },
           404: { $ref: "#/components/responses/NotFound" },
           409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/teacher/uploads/material-media": {
+      post: {
+        tags: ["Teacher"],
+        summary: "上傳教材媒體檔並取得 URL / Upload material media (returns URL)",
+        description:
+          "Requires **teacher** JWT. Send `multipart/form-data` with field **`file`** (single file). Query **`kind`**: `cover` or `detail` accepts JPEG/PNG/GIF/WebP (max 10MB); `demo` accepts MP4/WebM (max 80MB). Response `{ url, filename }` — store `url` in `cover_image_url`, `detail_images[].image_url`, or `demo_video_url`. Files are publicly readable at GET `/uploads/material-media/<filename>` (set **PUBLIC_BACKEND_URL** in production so `url` matches your public API host).",
+        security: bearerSecurity,
+        parameters: [
+          {
+            in: "query",
+            name: "kind",
+            required: false,
+            schema: { type: "string", enum: ["cover", "detail", "demo"], default: "cover" },
+            description: "Validation rules and size limit for the uploaded file.",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["file"],
+                properties: {
+                  file: { type: "string", format: "binary", description: "One image or video file." },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Stored successfully; returns absolute URL.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/TeacherMaterialMediaUploadResponse" } },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
           500: { $ref: "#/components/responses/ServerError" },
         },
       },

@@ -117,6 +117,24 @@ async function runIdempotentMigrations() {
     ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
   `);
 
+  await db.query(`
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS demo_video_url TEXT;
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS material_images (
+      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+      material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+      image_url TEXT NOT NULL,
+      alt_text TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);`);
+
   await db.query(`ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending';`);
   await db.query(`
     ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS note TEXT;
@@ -513,6 +531,8 @@ function ensureCoreTables() {
           activity_steps TEXT,
           extension_value TEXT,
           short_description TEXT,
+          cover_image_url TEXT,
+          demo_video_url TEXT,
           teacher_id TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending_review',
           file_key TEXT NOT NULL,
@@ -536,7 +556,21 @@ function ensureCoreTables() {
         );
       `);
       await db.query(`
+        CREATE TABLE IF NOT EXISTS material_images (
+          id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+          material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+          image_url TEXT NOT NULL,
+          alt_text TEXT,
+          sort_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await db.query(`
         CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
+      `);
+      await db.query(`
+        CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);
       `);
 
       await db.query(`
@@ -546,6 +580,8 @@ function ensureCoreTables() {
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS activity_steps TEXT;
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS extension_value TEXT;
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS short_description TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS demo_video_url TEXT;
       `);
 
       await db.query(`

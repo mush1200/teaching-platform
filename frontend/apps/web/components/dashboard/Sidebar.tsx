@@ -72,7 +72,7 @@ export function Sidebar({ cartBadge = 2, ordersBadge = 1, onNavigate }: Props) {
             </Link>
           </li>
           <li>
-            <Link href="/materials" className={linkCls("/materials")} onClick={onNavigate}>
+            <Link href="/explore" className={linkCls("/explore")} onClick={onNavigate}>
               <span aria-hidden>🔍</span>
               探索教材
             </Link>

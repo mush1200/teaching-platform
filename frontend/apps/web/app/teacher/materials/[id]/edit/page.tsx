@@ -6,6 +6,7 @@ import { Button, EmptyState, ErrorState, InputField, LoadingState } from "@teach
 import Link from "next/link";
 import type { Material } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
+import { MaterialMediaFields } from "../../../../../components/teacher/MaterialMediaFields";
 
 type FormValue = {
   title: string;
@@ -20,6 +21,9 @@ type FormValue = {
   activitySteps: string;
   extensionValue: string;
   shortDescription: string;
+  coverImageUrl: string;
+  detailImagesText: string;
+  demoVideoUrl: string;
   contentsText: string;
 };
 
@@ -44,6 +48,30 @@ function parseContents(raw: string): Array<{ type: string; name: string; count?:
       if (description) out.description = description;
       return out;
     });
+}
+
+function parseDetailImages(raw: string): Array<{ image_url: string; alt_text?: string; sort_order: number }> {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, idx) => {
+      const [image_url = "", alt_text = ""] = line.split("|").map((v) => v.trim());
+      return {
+        image_url,
+        alt_text: alt_text || undefined,
+        sort_order: idx,
+      };
+    });
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export default function TeacherMaterialEditPage() {
@@ -80,6 +108,11 @@ export default function TeacherMaterialEditPage() {
         activitySteps: data.activity_steps ?? "",
         extensionValue: data.extension_value ?? "",
         shortDescription: data.short_description ?? "",
+        coverImageUrl: data.cover_image_url ?? "",
+        detailImagesText: (data.detail_images ?? [])
+          .map((img) => `${img.image_url ?? ""}|${img.alt_text ?? ""}`)
+          .join("\n"),
+        demoVideoUrl: data.demo_video_url ?? "",
         contentsText: (data.contents ?? [])
           .map((c) => [c.type ?? "", c.name ?? "", c.count ?? "", c.description ?? ""].join("|"))
           .join("\n"),
@@ -146,6 +179,23 @@ export default function TeacherMaterialEditPage() {
       setMessage("教材內容 count 若填寫需大於 0。");
       return;
     }
+    if (!form.coverImageUrl.trim()) {
+      setMessage("請填寫封面照 URL（必填）。");
+      return;
+    }
+    if (!isValidUrl(form.coverImageUrl.trim())) {
+      setMessage("封面照 URL 格式不正確。");
+      return;
+    }
+    if (form.demoVideoUrl.trim() && !isValidUrl(form.demoVideoUrl.trim())) {
+      setMessage("教學玩法影片 URL 格式不正確。");
+      return;
+    }
+    const detailImages = parseDetailImages(form.detailImagesText);
+    if (detailImages.some((img) => !img.image_url || !isValidUrl(img.image_url))) {
+      setMessage("細節照片每筆都必須是合法 URL，可用格式：image_url|alt_text");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -164,6 +214,9 @@ export default function TeacherMaterialEditPage() {
           activity_steps: form.activitySteps.trim(),
           extension_value: form.extensionValue.trim() || undefined,
           short_description: form.shortDescription.trim() || undefined,
+          cover_image_url: form.coverImageUrl.trim(),
+          detail_images: detailImages,
+          demo_video_url: form.demoVideoUrl.trim() || undefined,
           contents,
         }),
       });
@@ -224,6 +277,17 @@ export default function TeacherMaterialEditPage() {
             />
             <InputField id="edit-short-description" label="簡短介紹" value={form.shortDescription} onChangeText={(v) => update("shortDescription", v)} disabled={saving} />
             <InputField id="edit-extension-value" label="延伸活動 / 練習單" value={form.extensionValue} onChangeText={(v) => update("extensionValue", v)} disabled={saving} />
+
+            <MaterialMediaFields
+              coverImageUrl={form.coverImageUrl}
+              onCoverImageUrlChange={(v) => update("coverImageUrl", v)}
+              detailImagesText={form.detailImagesText}
+              onDetailImagesTextChange={(v) => update("detailImagesText", v)}
+              demoVideoUrl={form.demoVideoUrl}
+              onDemoVideoUrlChange={(v) => update("demoVideoUrl", v)}
+              disabled={saving}
+              onNotify={(msg) => setMessage(msg)}
+            />
 
             <div className="flex flex-wrap gap-2">
               <Button onPress={() => void handleSave()} disabled={saving} loading={saving}>

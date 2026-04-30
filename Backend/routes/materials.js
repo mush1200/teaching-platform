@@ -38,6 +38,30 @@ function normalizeContents(value) {
   return items;
 }
 
+function isValidUrl(value) {
+  if (!value) return false;
+  try {
+    const url = new URL(String(value));
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeDetailImages(value) {
+  if (!Array.isArray(value)) return null;
+  const rows = [];
+  for (let i = 0; i < value.length; i += 1) {
+    const row = value[i];
+    const imageUrl = cleanText(typeof row === "string" ? row : row?.image_url ?? row?.imageUrl ?? row?.url);
+    const altText = cleanText(typeof row === "string" ? null : row?.alt_text ?? row?.altText);
+    const rawSort = typeof row === "string" ? i : row?.sort_order ?? row?.sortOrder ?? i;
+    const sortOrder = Number.isFinite(Number(rawSort)) ? Number(rawSort) : i;
+    rows.push({ image_url: imageUrl, alt_text: altText, sort_order: sortOrder });
+  }
+  return rows;
+}
+
 function validatePayload(body, { isCreate }) {
   const title = cleanText(body?.title);
   const fileKey = cleanText(body?.fileKey ?? body?.file_key);
@@ -47,6 +71,9 @@ function validatePayload(body, { isCreate }) {
   const usageDuration = cleanText(body?.usageDuration ?? body?.usage_duration);
   const activitySteps = cleanText(body?.activitySteps ?? body?.activity_steps);
   const contents = normalizeContents(body?.contents);
+  const coverImageUrl = cleanText(body?.cover_image_url ?? body?.coverImageUrl);
+  const detailImages = normalizeDetailImages(body?.detail_images ?? body?.detailImages);
+  const demoVideoUrl = cleanText(body?.demo_video_url ?? body?.demoVideoUrl);
 
   if (isCreate) {
     if (!title) return "title is required";
@@ -58,6 +85,7 @@ function validatePayload(body, { isCreate }) {
     if (!usageDuration) return "usage_duration is required";
     if (!activitySteps) return "activity_steps is required";
     if (!contents || contents.length < 1) return "contents must include at least one item";
+    if (!coverImageUrl) return "cover_image_url is required";
   }
 
   if (!isCreate && price !== null && (!Number.isFinite(price) || price <= 0)) {
@@ -72,6 +100,14 @@ function validatePayload(body, { isCreate }) {
       if (c.count !== null && (!Number.isFinite(c.count) || c.count <= 0)) return "content.count must be greater than 0";
     }
   }
+  if (coverImageUrl && !isValidUrl(coverImageUrl)) return "cover_image_url must be a valid URL";
+  if (detailImages) {
+    for (const image of detailImages) {
+      if (!image.image_url) return "detail_images.image_url is required";
+      if (!isValidUrl(image.image_url)) return "detail_images.image_url must be a valid URL";
+    }
+  }
+  if (demoVideoUrl && !isValidUrl(demoVideoUrl)) return "demo_video_url must be a valid URL";
 
   return null;
 }
@@ -89,6 +125,19 @@ async function replaceMaterialContents(materialId, contents) {
   }
 }
 
+async function replaceMaterialImages(materialId, detailImages) {
+  if (!Array.isArray(detailImages)) return;
+  await db.query(`DELETE FROM material_images WHERE material_id = $1`, [materialId]);
+  for (let i = 0; i < detailImages.length; i += 1) {
+    const image = detailImages[i];
+    await db.query(
+      `INSERT INTO material_images(id, material_id, image_url, alt_text, sort_order)
+       VALUES((gen_random_uuid()::text), $1, $2, $3, $4)`,
+      [materialId, image.image_url, image.alt_text, image.sort_order ?? i]
+    );
+  }
+}
+
 router.get("/", optionalAuth, async (req, res) => {
   try {
     const user = req.user || null;
@@ -96,7 +145,8 @@ router.get("/", optionalAuth, async (req, res) => {
     const canSeeOwn = user?.role === "teacher";
     const result = await db.query(
       `SELECT id, title, description, price, created_at, updated_at, category, age_range, teacher_id, status, file_key, ip_declaration_accepted, ip_declaration_at,
-              teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description
+              teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
+              cover_image_url, demo_video_url
        FROM materials
        WHERE ($1::boolean = true)
           OR ($2::boolean = true AND teacher_id = $3)
@@ -153,7 +203,8 @@ router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, title, description, price, created_at, updated_at, category, age_range, teacher_id, status, file_key, ip_declaration_accepted, ip_declaration_at,
-              teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description
+              teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
+              cover_image_url, demo_video_url
        FROM materials WHERE id = $1 LIMIT 1`,
       [String(req.params.id)]
     );
@@ -172,7 +223,14 @@ router.get("/:id", optionalAuth, async (req, res) => {
        ORDER BY sort_order ASC, created_at ASC`,
       [row.id]
     );
-    return res.json({ ...row, contents: contentsResult.rows });
+    const imagesResult = await db.query(
+      `SELECT image_url, alt_text, sort_order
+       FROM material_images
+       WHERE material_id = $1
+       ORDER BY sort_order ASC, created_at ASC`,
+      [row.id]
+    );
+    return res.json({ ...row, contents: contentsResult.rows, detail_images: imagesResult.rows });
   } catch (err) {
     console.error("get material failed:", err);
     return res.status(500).json({ message: "server error" });
@@ -193,7 +251,10 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
     const activitySteps = req.body?.activitySteps ?? req.body?.activity_steps;
     const extensionValue = req.body?.extensionValue ?? req.body?.extension_value;
     const shortDescription = req.body?.shortDescription ?? req.body?.short_description;
+    const coverImageUrl = cleanText(req.body?.coverImageUrl ?? req.body?.cover_image_url);
+    const demoVideoUrl = cleanText(req.body?.demoVideoUrl ?? req.body?.demo_video_url);
     const contents = normalizeContents(req.body?.contents) || [];
+    const detailImages = normalizeDetailImages(req.body?.detailImages ?? req.body?.detail_images) || [];
 
     if (ipDeclarationAccepted !== true) {
       return res.status(400).json({ message: "ipDeclarationAccepted must be true" });
@@ -210,8 +271,9 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
       `INSERT INTO materials(
          id, title, description, price, category, age_range, teacher_id, status, file_key,
          ip_declaration_accepted, ip_declaration_at,
-         teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description
-       ) VALUES($1, $2, $3, $4, $5, $6, $7, 'pending_review', $8, true, NOW(), $9, $10::jsonb, $11, $12, $13, $14)
+         teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
+         cover_image_url, demo_video_url
+       ) VALUES($1, $2, $3, $4, $5, $6, $7, 'pending_review', $8, true, NOW(), $9, $10::jsonb, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         id,
@@ -228,9 +290,12 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
         cleanText(activitySteps),
         cleanText(extensionValue),
         cleanText(shortDescription),
+        coverImageUrl,
+        demoVideoUrl,
       ]
     );
     await replaceMaterialContents(id, contents);
+    await replaceMaterialImages(id, detailImages);
 
     await writeActivityLog({
       actorId: req.user.userId,
@@ -240,14 +305,14 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
       action: "material.created",
       meta: { status: "pending_review" },
     });
-    return res.status(201).json({ ...created.rows[0], contents });
+    return res.status(201).json({ ...created.rows[0], contents, detail_images: detailImages });
   } catch (err) {
     console.error("create material failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });
 
-router.put("/:id", requireAuth, async (req, res) => {
+async function updateMaterialHandler(req, res) {
   try {
     const id = String(req.params.id);
     const beforeResult = await db.query(`SELECT * FROM materials WHERE id = $1 LIMIT 1`, [id]);
@@ -284,6 +349,8 @@ router.put("/:id", requireAuth, async (req, res) => {
            activity_steps = COALESCE($12, activity_steps),
            extension_value = COALESCE($13, extension_value),
            short_description = COALESCE($14, short_description),
+           cover_image_url = COALESCE($15, cover_image_url),
+           demo_video_url = COALESCE($16, demo_video_url),
            updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -305,11 +372,19 @@ router.put("/:id", requireAuth, async (req, res) => {
         cleanText(req.body?.activitySteps ?? req.body?.activity_steps),
         cleanText(req.body?.extensionValue ?? req.body?.extension_value),
         cleanText(req.body?.shortDescription ?? req.body?.short_description),
+        cleanText(req.body?.coverImageUrl ?? req.body?.cover_image_url),
+        cleanText(req.body?.demoVideoUrl ?? req.body?.demo_video_url),
       ]
     );
     const row = updated.rows[0];
     if (Object.prototype.hasOwnProperty.call(req.body || {}, "contents")) {
       await replaceMaterialContents(id, normalizeContents(req.body?.contents) || []);
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(req.body || {}, "detail_images") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "detailImages")
+    ) {
+      await replaceMaterialImages(id, normalizeDetailImages(req.body?.detail_images ?? req.body?.detailImages) || []);
     }
 
     if (before.status !== row.status) {
@@ -341,11 +416,21 @@ router.put("/:id", requireAuth, async (req, res) => {
        ORDER BY sort_order ASC, created_at ASC`,
       [id]
     );
-    return res.json({ ...row, contents: contentsResult.rows });
+    const imagesResult = await db.query(
+      `SELECT image_url, alt_text, sort_order
+       FROM material_images
+       WHERE material_id = $1
+       ORDER BY sort_order ASC, created_at ASC`,
+      [id]
+    );
+    return res.json({ ...row, contents: contentsResult.rows, detail_images: imagesResult.rows });
   } catch (err) {
     console.error("update material failed:", err);
     return res.status(500).json({ message: "server error" });
   }
-});
+}
+
+router.put("/:id", requireAuth, updateMaterialHandler);
+router.patch("/:id", requireAuth, updateMaterialHandler);
 
 module.exports = router;

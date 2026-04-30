@@ -1,12 +1,15 @@
 import Link from "next/link";
 import type { MockMaterial } from "../../lib/mock-data";
+import { recordMaterialView } from "../../lib/recent-materials";
 import { IconHeart, IconStar } from "../ui/icons";
 
 type Props = {
   material: MockMaterial;
+  /** When true, records this material in recent views (localStorage) on navigate */
+  trackRecent?: boolean;
 };
 
-export function MaterialCard({ material }: Props) {
+export function MaterialCard({ material, trackRecent }: Props) {
   const href = `/materials/${material.id}`;
   const off =
     material.originalPrice > material.price
@@ -15,7 +18,22 @@ export function MaterialCard({ material }: Props) {
   return (
     <div className="group flex flex-col overflow-hidden rounded-3xl border border-[#E5E7EB]/80 bg-white shadow-[0_10px_36px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_16px_48px_rgba(108,99,255,0.12)]">
       <div className={`relative aspect-[4/3] bg-gradient-to-br ${material.coverGradient}`}>
-        <Link href={href} className="absolute inset-0 z-0" aria-label={material.title} />
+        {material.coverImageUrl ? (
+          <img
+            src={material.coverImageUrl}
+            alt={material.title}
+            className="absolute inset-0 z-0 h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : null}
+        <Link
+          href={href}
+          className="absolute inset-0 z-0"
+          aria-label={material.title}
+          onClick={() => {
+            if (trackRecent) recordMaterialView(material.id);
+          }}
+        />
         <button
           type="button"
           className="relative z-10 ml-auto mr-3 mt-3 flex size-9 items-center justify-center rounded-full bg-white/90 text-[#6B7280] shadow-sm hover:text-[#FF6B73]"
@@ -27,7 +45,13 @@ export function MaterialCard({ material }: Props) {
           {material.ageLabel}
         </div>
       </div>
-      <Link href={href} className="flex flex-1 flex-col gap-2 p-4">
+      <Link
+        href={href}
+        className="flex flex-1 flex-col gap-2 p-4"
+        onClick={() => {
+          if (trackRecent) recordMaterialView(material.id);
+        }}
+      >
         <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-snug text-[#1F2937] group-hover:text-[#6C63FF]">
           {material.title}
         </h3>

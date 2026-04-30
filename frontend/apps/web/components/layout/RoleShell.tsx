@@ -20,7 +20,7 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/register", label: "註冊" },
   ],
   parent: [
-    { href: "/materials", label: "教材列表" },
+    { href: "/explore", label: "探索教材" },
     { href: "/cart", label: "購物車" },
     { href: "/checkout", label: "結帳" },
     { href: "/orders", label: "我的訂單" },
@@ -87,7 +87,8 @@ function getRoleByPath(pathname: string, storedRole: RoleKind | null): RoleKind 
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/orders") ||
     pathname.startsWith("/downloads") ||
-    pathname.startsWith("/my-reviews")
+    pathname.startsWith("/my-reviews") ||
+    pathname.startsWith("/explore")
   ) {
     return "parent";
   }
@@ -181,8 +182,8 @@ export function RoleShell({ children }: { children: ReactNode }) {
     };
   }, [pathname, role]);
 
-  /** Parent dashboard route group already uses ParentAppShell; avoid double chrome. */
-  if (pathname.startsWith("/dashboard")) {
+  /** Parent route group `(parent)/*` already uses ParentAppShell; avoid double chrome. */
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/explore")) {
     return <>{children}</>;
   }
   /** Auth pages should not render any global sidebar chrome. */
@@ -194,7 +195,15 @@ export function RoleShell({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  const parentShellRoutes = ["/materials", "/cart", "/checkout", "/orders", "/downloads", "/my-reviews"];
+  const parentShellRoutes = [
+    "/materials",
+    "/explore",
+    "/cart",
+    "/checkout",
+    "/orders",
+    "/downloads",
+    "/my-reviews",
+  ];
   const shouldUseParentShell =
     role === "parent" && parentShellRoutes.some((base) => pathname === base || pathname.startsWith(`${base}/`));
   if (shouldUseParentShell) {

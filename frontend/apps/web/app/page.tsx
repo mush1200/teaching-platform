@@ -39,7 +39,7 @@ export default function Home() {
       router.replace("/teacher/materials");
       return;
     }
-    router.replace("/materials");
+    router.replace("/dashboard");
   }, [router]);
 
   return (

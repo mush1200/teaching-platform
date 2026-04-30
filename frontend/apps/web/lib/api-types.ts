@@ -18,6 +18,9 @@ export type Material = {
   activity_steps?: string;
   extension_value?: string;
   short_description?: string;
+  cover_image_url?: string;
+  demo_video_url?: string;
+  detail_images?: MaterialImage[];
   contents?: MaterialContent[];
   created_at?: string;
   updated_at?: string;
@@ -28,6 +31,12 @@ export type MaterialContent = {
   name: string;
   count?: number | null;
   description?: string | null;
+};
+
+export type MaterialImage = {
+  image_url: string;
+  alt_text?: string | null;
+  sort_order?: number | null;
 };
 
 export type MaterialsPagination = {

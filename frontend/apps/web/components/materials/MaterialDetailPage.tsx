@@ -13,6 +13,24 @@ type Props = {
   materialId: string;
 };
 
+function toYouTubeEmbed(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = u.searchParams.get("v");
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+    if (host === "youtu.be") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      return id ? `https://www.youtube.com/embed/${id}` : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function MaterialDetailPage({ materialId }: Props) {
   const [material, setMaterial] = useState<MockMaterial | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +55,7 @@ export function MaterialDetailPage({ materialId }: Props) {
     if (!material || material.originalPrice <= material.price) return 0;
     return Math.round((1 - material.price / material.originalPrice) * 100);
   }, [material]);
+  const demoVideoEmbed = material?.demoVideoUrl ? toYouTubeEmbed(material.demoVideoUrl) : null;
 
   if (loading) {
     return (
@@ -100,9 +119,59 @@ export function MaterialDetailPage({ materialId }: Props) {
       <div className="mx-auto max-w-6xl px-4 pb-28 pt-4 lg:pb-12">
         <div className="lg:grid lg:grid-cols-[minmax(260px,400px)_minmax(0,1fr)] lg:gap-10 lg:items-start">
           <div className="space-y-5">
-            <div
-              className={`aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-card-default)] border border-[#E5E7EB]/80 bg-gradient-to-br shadow-[var(--shadow-card-default)] ${material.coverGradient}`}
-            />
+            <div className={`aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-card-default)] border border-[#E5E7EB]/80 bg-gradient-to-br shadow-[var(--shadow-card-default)] ${material.coverGradient}`}>
+              {material.coverImageUrl ? (
+                <img src={material.coverImageUrl} alt={material.title} className="h-full w-full object-cover" />
+              ) : null}
+            </div>
+            {material.demoVideoUrl ? (
+              <Card level="flat" padding="md">
+                <p className="text-sm font-semibold text-[#1F2937]">教學玩法影片</p>
+                <div className="mt-3 aspect-video overflow-hidden rounded-xl border border-[#E5E7EB]/80 bg-black">
+                  {demoVideoEmbed ? (
+                    <iframe
+                      src={demoVideoEmbed}
+                      title={`${material.title} 教學玩法影片`}
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      controls
+                      preload="metadata"
+                      className="h-full w-full"
+                      src={material.demoVideoUrl}
+                    />
+                  )}
+                </div>
+                <a
+                  href={material.demoVideoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-block text-xs text-[#6C63FF] underline"
+                >
+                  無法直接播放？點此開啟影片連結
+                </a>
+              </Card>
+            ) : null}
+            {Array.isArray(material.detailImages) && material.detailImages.length > 0 ? (
+              <Card level="flat" padding="md">
+                <p className="text-sm font-semibold text-[#1F2937]">教材細節照片</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {material.detailImages.map((img, idx) => (
+                    <div key={`${img.image_url}-${idx}`} className="overflow-hidden rounded-lg border border-[#E5E7EB]/80 bg-white">
+                      <img
+                        src={img.image_url}
+                        alt={img.alt_text || `${material.title} 細節照片 ${idx + 1}`}
+                        className="aspect-[4/3] h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ) : null}
             <Card level="flat" padding="md" className="hidden lg:block">
               <p className="text-center text-xs font-medium uppercase tracking-wide text-[#6B7280]">快速瀏覽</p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">

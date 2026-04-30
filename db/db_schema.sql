@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS materials (
   activity_steps TEXT,
   extension_value TEXT,
   short_description TEXT,
+  cover_image_url TEXT,
+  demo_video_url TEXT,
   teacher_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending_review',
   file_key TEXT NOT NULL,
@@ -41,6 +43,16 @@ CREATE TABLE IF NOT EXISTS materials (
   ip_declaration_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS material_images (
+  id TEXT PRIMARY KEY,
+  material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  alt_text TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS material_contents (
@@ -154,6 +166,7 @@ CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);
 CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
 CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
+CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);
 
 CREATE INDEX IF NOT EXISTS idx_activity_logs_actor_id ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);

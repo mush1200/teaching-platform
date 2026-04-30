@@ -31,13 +31,13 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.fill("#login-email", "parent@example.com");
     await page.fill("#login-password", "Password123!");
     await page.getByRole("button", { name: "登入", exact: true }).click();
-    await expect(page).toHaveURL(/\/materials/);
-    await expect(page.getByRole("heading", { name: "精選教材" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole("heading", { name: "探索適合你的教材" })).toBeVisible();
   });
 
   test("SHOP | CI | 3) materials list renders cards", async ({ page }) => {
     await page.goto("/materials");
-    await expect(page.getByRole("heading", { name: "精選教材" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "探索教材" })).toBeVisible();
     await expect(page.locator("#edu-materials-grid a").first()).toBeVisible();
   });
 
@@ -143,10 +143,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.fill("#login-password", "Password123!");
     await page.getByRole("button", { name: "登入", exact: true }).click();
     await page.waitForLoadState("networkidle");
-    if ((await page.url()).endsWith("/")) {
-      await page.goto("/materials");
-    }
-    await expect(page).toHaveURL(/\/materials/);
+    await expect(page).toHaveURL(/\/dashboard/);
 
     await page.goto("/materials/mat_demo_1");
     await page.getByRole("link", { name: "加入購物車" }).click();
