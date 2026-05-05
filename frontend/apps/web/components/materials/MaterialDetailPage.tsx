@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getMaterialById } from "../../lib/edu-api-mock";
 import type { MockMaterial } from "../../lib/mock-data";
+import { apiFetch, getStoredRole, parseApiErrorMessage } from "../../lib/api-client";
+import type { UserRole } from "../../lib/api-types";
 import { AppShell } from "../layout/AppShell";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -34,7 +36,14 @@ function toYouTubeEmbed(url: string): string | null {
 export function MaterialDetailPage({ materialId }: Props) {
   const [material, setMaterial] = useState<MockMaterial | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reportHint, setReportHint] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportFeedback, setReportFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  useEffect(() => {
+    setRole(getStoredRole());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +66,33 @@ export function MaterialDetailPage({ materialId }: Props) {
   }, [material]);
   const demoVideoEmbed = material?.demoVideoUrl ? toYouTubeEmbed(material.demoVideoUrl) : null;
 
+  const submitReport = useCallback(
+    async (mid: string) => {
+      const trimmed = reportReason.trim();
+      if (!trimmed) return;
+      setReportBusy(true);
+      setReportFeedback(null);
+      try {
+        const res = await apiFetch("reports", {
+          method: "POST",
+          body: JSON.stringify({ material_id: mid, reason: trimmed }),
+        });
+        if (!res.ok) {
+          const msg = await parseApiErrorMessage(res);
+          setReportFeedback({ kind: "err", text: msg });
+          return;
+        }
+        setReportReason("");
+        setReportFeedback({ kind: "ok", text: "檢舉已送出，管理員將於後台檢視。" });
+      } catch {
+        setReportFeedback({ kind: "err", text: "連線失敗，請稍後再試。" });
+      } finally {
+        setReportBusy(false);
+      }
+    },
+    [reportReason],
+  );
+
   if (loading) {
     return (
       <AppShell>
@@ -77,6 +113,8 @@ export function MaterialDetailPage({ materialId }: Props) {
       </AppShell>
     );
   }
+
+  const contentItemCount = material.contents?.length ?? 0;
 
   const purchaseBlock = (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:flex-col">
@@ -172,23 +210,12 @@ export function MaterialDetailPage({ materialId }: Props) {
                 </div>
               </Card>
             ) : null}
-            <Card level="flat" padding="md" className="hidden lg:block">
-              <p className="text-center text-xs font-medium uppercase tracking-wide text-[#6B7280]">快速瀏覽</p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-lg font-bold text-[#1F2937]">{material.durationHours} 小時</p>
-                  <p className="text-xs text-[#6B7280]">課程時長</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-[#1F2937]">{material.units} 個</p>
-                  <p className="text-xs text-[#6B7280]">課程單元</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-[#1F2937]">{material.learners.toLocaleString()} 人</p>
-                  <p className="text-xs text-[#6B7280]">學習人數</p>
-                </div>
-              </div>
-            </Card>
+            {contentItemCount > 0 ? (
+              <Card level="flat" padding="md" className="hidden lg:block">
+                <p className="text-center text-xs font-medium uppercase tracking-wide text-[#6B7280]">教材內容項目</p>
+                <p className="mt-2 text-center text-lg font-bold text-[#1F2937]">共 {contentItemCount} 項</p>
+              </Card>
+            ) : null}
           </div>
 
           <div className="mt-5 min-w-0 space-y-5 lg:mt-0">
@@ -200,10 +227,18 @@ export function MaterialDetailPage({ materialId }: Props) {
                 </span>
                 <Link
                   href={`/materials/${material.id}/reviews`}
-                  className="inline-flex items-center gap-1 text-sm font-semibold text-amber-500 hover:underline"
+                  className={`inline-flex items-center gap-1 text-sm font-semibold hover:underline ${
+                    material.reviewCount > 0 ? "text-amber-500" : "text-[#6B7280]"
+                  }`}
                 >
-                  ★ {material.rating.toFixed(1)}
-                  <span className="font-normal text-[#6B7280]">（{material.reviewCount} 則評價）</span>
+                  {material.reviewCount > 0 ? (
+                    <>
+                      ★ {material.rating.toFixed(1)}
+                      <span className="font-normal text-[#6B7280]">（{material.reviewCount} 則評價）</span>
+                    </>
+                  ) : (
+                    <span className="font-normal">尚無評價 · 查看評論頁</span>
+                  )}
                 </Link>
               </div>
               <div className="mt-4 flex flex-wrap items-end gap-2">
@@ -215,17 +250,51 @@ export function MaterialDetailPage({ materialId }: Props) {
                   </>
                 ) : null}
               </div>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setReportHint("檢舉管道即將開放（MVP）。若內容有疑慮，請聯絡平台客服協助。")}
-                  className="text-sm font-medium text-[#9CA3AF] underline-offset-4 transition hover:text-[#EF4444] hover:underline"
-                >
-                  檢舉教材
-                </button>
-                {reportHint ? (
-                  <p className="mt-2 max-w-md text-xs text-[#6B7280]" role="status">
-                    {reportHint}
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-medium text-[#1F2937]">檢舉不當內容</p>
+                {role === "parent" ? (
+                  <>
+                    <textarea
+                      value={reportReason}
+                      onChange={(e) => {
+                        setReportReason(e.target.value);
+                        setReportFeedback(null);
+                      }}
+                      placeholder="請簡述檢舉原因（必填）"
+                      rows={3}
+                      disabled={reportBusy}
+                      className="w-full max-w-lg rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#374151] outline-none ring-[#6C63FF]/30 focus:border-[#6C63FF] focus:ring-2"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        intent="neutral"
+                        variant="outline"
+                        className="!text-sm"
+                        disabled={reportBusy || !reportReason.trim()}
+                        onClick={() => void submitReport(material.id)}
+                      >
+                        {reportBusy ? "送出中…" : "送出檢舉"}
+                      </Button>
+                    </div>
+                  </>
+                ) : role === "teacher" || role === "admin" ? (
+                  <p className="text-xs text-[#6B7280]">檢舉功能僅限家長帳號；若有疑慮請聯絡平台客服。</p>
+                ) : (
+                  <p className="text-xs text-[#6B7280]">
+                    請先{" "}
+                    <Link href={`/login?redirect=${encodeURIComponent(`/materials/${material.id}`)}`} className="font-medium text-[#6C63FF] underline">
+                      登入家長帳號
+                    </Link>{" "}
+                    後再提交檢舉。
+                  </p>
+                )}
+                {reportFeedback ? (
+                  <p
+                    className={`max-w-md text-xs ${reportFeedback.kind === "ok" ? "text-emerald-700" : "text-red-600"}`}
+                    role="status"
+                  >
+                    {reportFeedback.text}
                   </p>
                 ) : null}
               </div>
@@ -239,20 +308,12 @@ export function MaterialDetailPage({ materialId }: Props) {
 
             <div className="lg:hidden">{purchaseBlock}</div>
 
-            <div className="grid grid-cols-3 gap-2 rounded-[var(--radius-card-flat)] border border-[#E5E7EB]/80 bg-white p-4 text-center shadow-[var(--shadow-card-default)] sm:gap-4 sm:p-5 lg:hidden">
-              <div>
-                <p className="text-lg font-bold text-[#1F2937]">{material.durationHours} 小時</p>
-                <p className="text-xs text-[#6B7280]">課程時長</p>
+            {contentItemCount > 0 ? (
+              <div className="rounded-[var(--radius-card-flat)] border border-[#E5E7EB]/80 bg-white p-4 text-center shadow-[var(--shadow-card-default)] sm:p-5 lg:hidden">
+                <p className="text-xs font-medium text-[#6B7280]">教材內容項目</p>
+                <p className="mt-1 text-lg font-bold text-[#1F2937]">共 {contentItemCount} 項</p>
               </div>
-              <div>
-                <p className="text-lg font-bold text-[#1F2937]">{material.units} 個</p>
-                <p className="text-xs text-[#6B7280]">課程單元</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold text-[#1F2937]">{material.learners.toLocaleString()} 人</p>
-                <p className="text-xs text-[#6B7280]">學習人數</p>
-              </div>
-            </div>
+            ) : null}
           </div>
         </div>
 

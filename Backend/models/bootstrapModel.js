@@ -503,6 +503,17 @@ async function runIdempotentMigrations() {
   await db.query(
     `CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);`
   );
+
+  // Dev/demo: stable placeholder cover art when missing (Lorem Picsum — one image per material id).
+  await db.query(`
+    UPDATE materials
+    SET cover_image_url = 'https://picsum.photos/seed/tp-' || md5(id::text) || '/640/480'
+    WHERE cover_image_url IS NULL
+       OR trim(cover_image_url) = ''
+       OR lower(trim(cover_image_url)) IN ('https://example.com/cover.jpg', 'http://example.com/cover.jpg');
+  `).catch((err) => {
+    console.warn("material cover_image_url placeholder seed skipped:", err.message);
+  });
 }
 
 function ensureCoreTables() {

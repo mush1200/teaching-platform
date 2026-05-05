@@ -11,7 +11,7 @@ export function MaterialCarousel({ materials, trackRecent }: Props) {
   return (
     <div className="-mx-1">
       <div
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory gap-6 overflow-x-auto pb-2 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-2 md:gap-6 md:overflow-visible lg:grid-cols-4 [&::-webkit-scrollbar]:hidden"
         role="list"
         aria-label="橫向教材列表"
       >

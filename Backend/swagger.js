@@ -431,7 +431,12 @@ const openApiSpec = {
         tags: ["Materials"],
         summary: "教材列表 / List materials",
         description:
-          "匿名僅可見 published；老師可見 published+自己教材；管理員可見全部。Anonymous sees published only, teacher sees own + published, admin sees all.",
+          "回傳 `{ \"items\": [...] }`，無分頁。JWT 選填（optionalAuth）。匿名僅可見 **published**；老師可見 **published** 與自己的教材；管理員可見全部。" +
+          "\n\n**排序（後端固定）：** 先依「品質分」**由高到低**（加權見 `docs/materials-detail-spec.md` §10：`teaching_methods` 陣列長度、`usage_duration` / `activity_steps` / `short_description` 是否非空、`material_contents` 是否存在至少一筆）；同分再依 **`created_at` 新到舊**。" +
+          "\n\n**Query：** URL 上任意 query 參數後端**不**解析，**不**影響篩選與 SQL 排序；若產品需在列表搜尋／重排，請在取得 `items` 後於客戶端處理。" +
+          "\n\nReturns `{ \"items\": [...] }`, no pagination. JWT optional. Anonymous: **published** only; teacher: own + **published**; admin: all." +
+          "\n\n**Server ordering:** quality score **DESC** (see `docs/materials-detail-spec.md` §10), then **`created_at` DESC**." +
+          "\n\n**Query params:** **ignored** by the server; filter or sort client-side after fetching `items` if needed.",
         responses: {
           200: {
             description: "成功 / Success.",

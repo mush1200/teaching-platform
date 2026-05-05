@@ -412,14 +412,22 @@ detail_images 有值才顯示
 
 # 10. 排序機制（MVP）
 
+後端 **`GET /materials`** 之預設排序使用下列規則計算「品質分」（score）：**分數高者在前**；同分則依 **`created_at` 新到舊**。
+
+「有 contents」在實作上以 **`material_contents` 是否存在至少一筆**（`EXISTS` 子查詢）判定，與前端表單 `contents` 陣列語意一致。
+
+**前端補充：** Web 探索頁若附帶搜尋、篩選、排序等 query，後端目前**不**解析；可在取得 `items` 後於瀏覽器端再篩選或重排（例如「熱門」「評分」僅能基於已載入之資料運算，除非另接批次 rating API 或擴充後端）。
+
 ---
 
+計分（與 `Backend/routes/materials.js` 列表查詢一致）：
+
 ```text
-+2 teaching_methods >= 2
-+1 有 usage_duration
-+1 有 activity_steps
-+1 有 contents
-+1 有 short_description
++2 teaching_methods（JSON 陣列長度 >= 2）
++1 有 usage_duration（非空白）
++1 有 activity_steps（非空白）
++1 有 material_contents 列
++1 有 short_description（非空白）
 ```
 
 ---

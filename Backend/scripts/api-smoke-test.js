@@ -49,6 +49,22 @@ function expect(name, cond, detail) {
   }
 }
 
+/** 符合目前 POST /materials 必填欄位之最小 body（教學商品欄位）。 */
+function smokeMaterialBody({ title, fileKey, price = 100 }) {
+  return {
+    title,
+    price,
+    file_key: fileKey,
+    cover_image_url: "https://picsum.photos/seed/smoke-cover/640/480",
+    teaching_objective: "Smoke test teaching objective",
+    teaching_methods: ["遊戲活動"],
+    usage_duration: "約 1 小時",
+    activity_steps: "1. 說明\n2. 練習",
+    contents: [{ type: "worksheet", name: "練習", count: 1 }],
+    ipDeclarationAccepted: true,
+  };
+}
+
 async function main() {
   const stamp = Date.now();
   const emails = {
@@ -118,12 +134,7 @@ async function main() {
   {
     const { status, data } = await http("POST", "/materials", {
       token: teacherToken,
-      body: {
-        title: `Smoke material ${stamp}`,
-        price: 100,
-        fileKey: `files/smoke_${stamp}.pdf`,
-        ipDeclarationAccepted: true,
-      },
+      body: smokeMaterialBody({ title: `Smoke material ${stamp}`, fileKey: `files/smoke_${stamp}.pdf` }),
     });
     expect("POST /materials", status === 201 && data?.id, JSON.stringify(data));
     materialId = data.id;
@@ -229,12 +240,11 @@ async function main() {
   {
     const cre = await http("POST", "/materials", {
       token: teacherToken,
-      body: {
+      body: smokeMaterialBody({
         title: `Smoke reject-flow ${stamp}`,
-        price: 50,
         fileKey: `files/smoke_rej_${stamp}.pdf`,
-        ipDeclarationAccepted: true,
-      },
+        price: 50,
+      }),
     });
     expect("POST /materials (reject flow)", cre.status === 201 && cre.data?.id, JSON.stringify(cre.data));
     const materialRejectId = cre.data.id;

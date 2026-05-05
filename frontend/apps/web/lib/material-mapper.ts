@@ -17,6 +17,7 @@ function pickGradient(id: string): string {
 export function materialToMock(m: Material): MockMaterial {
   const price = Number(m.price) || 0;
   const ar = m.age_range?.trim();
+  const contentsLen = Array.isArray(m.contents) ? m.contents.length : 0;
   return {
     id: m.id,
     title: m.title,
@@ -24,14 +25,14 @@ export function materialToMock(m: Material): MockMaterial {
     category: m.category && m.category.length > 0 ? m.category : "language",
     price,
     originalPrice: price,
-    rating: 4.5,
+    rating: 0,
     reviewCount: 0,
     coverGradient: pickGradient(m.id),
     coverImageUrl: m.cover_image_url ?? undefined,
     demoVideoUrl: m.demo_video_url ?? undefined,
     detailImages: Array.isArray(m.detail_images) ? m.detail_images : [],
     durationHours: 0,
-    units: 0,
+    units: contentsLen,
     learners: 0,
     description: m.description ?? "",
     outline: [],

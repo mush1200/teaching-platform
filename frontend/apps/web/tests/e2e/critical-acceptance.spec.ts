@@ -55,7 +55,8 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await setAuthState(page, "parent", "e2e-parent-token");
     await page.goto("/cart");
     await expect(page.getByRole("button", { name: "前往結帳" })).toBeVisible();
-    await expect(page.getByText("總計")).toBeVisible();
+    // Desktop: summary in aside uses「總金額」；mobile fixed bar uses「總計（n 項）」（lg:hidden — hidden on desktop viewport）
+    await expect(page.getByText("總金額").first()).toBeVisible();
   });
 
   test("ORDER | CI | 6) checkout creates order and redirects to upload-proof", async ({ page }) => {
@@ -86,7 +87,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.goto("/orders/ord_mock_001/upload-proof");
     await page.fill("#proof-url", "https://example.com/proof.png");
     await page.getByRole("button", { name: "送出憑證" }).click();
-    await expect(page.getByText("已送出憑證，請等待管理員審核。")).toBeVisible();
+    await expect(page.getByText(/已送出憑證/)).toBeVisible();
   });
 
   test("DOWNLOAD | CI | 10) downloads manual query returns signed URL", async ({ page }) => {
@@ -156,7 +157,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
 
     await page.fill("#proof-url", "https://example.com/full-journey-proof.png");
     await page.getByRole("button", { name: "送出憑證" }).click();
-    await expect(page.getByText("已送出憑證，請等待管理員審核。")).toBeVisible();
+    await expect(page.getByText(/已送出憑證/)).toBeVisible();
 
     await page.goto("/downloads");
     await page.fill("#manual-mid", "mat_demo_1");

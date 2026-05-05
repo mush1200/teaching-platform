@@ -1,20 +1,36 @@
 import type { ReactNode } from "react";
+import { SectionHeader } from "./SectionHeader";
 
 type Props = {
   title: string;
-  action?: ReactNode;
+  icon?: string;
+  subtitle?: string;
+  actionHref?: string;
+  actionLabel?: string;
   children: ReactNode;
   className?: string;
   id?: string;
 };
 
-export function Section({ title, action, children, className = "", id }: Props) {
+export function Section({
+  title,
+  icon,
+  subtitle,
+  actionHref,
+  actionLabel,
+  children,
+  className = "",
+  id,
+}: Props) {
   return (
     <section id={id} className={`space-y-4 ${className}`.trim()}>
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <h2 className="text-lg font-bold tracking-tight text-[#1F2937] md:text-xl">{title}</h2>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
+      <SectionHeader
+        icon={icon}
+        title={title}
+        subtitle={subtitle}
+        actionHref={actionHref}
+        actionLabel={actionLabel}
+      />
       {children}
     </section>
   );

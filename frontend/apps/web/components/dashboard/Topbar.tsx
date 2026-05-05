@@ -62,7 +62,7 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
   );
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#E5E7EB]/80 bg-white/95 px-4 backdrop-blur md:gap-4 md:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[#E5E7EB]/80 bg-white/95 px-4 backdrop-blur md:gap-4 md:px-6">
       <button
         type="button"
         onClick={onMenuClick}
@@ -85,7 +85,7 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
               if (e.key === "Enter") pushQuery(q);
             }}
             placeholder="搜尋教材、主題、年齡..."
-            className="w-full rounded-full border border-[#E5E7EB] bg-[#FAFAFA] py-2.5 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition focus:border-[#6C63FF]/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/15"
+            className="w-full rounded-full border border-[#E5E7EB] bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition focus:border-[#6C63FF]/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/15"
           />
         </label>
       </div>

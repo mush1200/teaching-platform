@@ -21,20 +21,24 @@ export function RatingSummary({ average, reviewCount }: Props) {
             <p className="mt-1 text-sm text-[#6B7280]">{reviewCount} 個評價</p>
           </div>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          {mockStarDistribution.map((pct, idx) => {
-            const stars = 5 - idx;
-            return (
-              <div key={stars} className="flex items-center gap-2 text-xs">
-                <span className="w-8 shrink-0 text-[#6B7280]">{stars} 星</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#F3F4F6]">
-                  <div className="h-full rounded-full bg-[#6C63FF]/70" style={{ width: `${pct * 100}%` }} />
+        {reviewCount > 0 ? (
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {mockStarDistribution.map((pct, idx) => {
+              const stars = 5 - idx;
+              return (
+                <div key={stars} className="flex items-center gap-2 text-xs">
+                  <span className="w-8 shrink-0 text-[#6B7280]">{stars} 星</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#F3F4F6]">
+                    <div className="h-full rounded-full bg-[#6C63FF]/70" style={{ width: `${pct * 100}%` }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-right text-[#9CA3AF]">{Math.round(pct * 100)}%</span>
                 </div>
-                <span className="w-10 shrink-0 text-right text-[#9CA3AF]">{Math.round(pct * 100)}%</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-[#6B7280]">尚無評價資料。</p>
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,8 @@ import { MaterialCarousel } from "./MaterialCarousel";
 import { MaterialGrid } from "./MaterialGrid";
 import { Section } from "./Section";
 
-const SECTION_LIMIT = 6;
+/** 每個區塊（為你推薦、熱門、新上架、高評價等）顯示 8 張卡片（桌機 2 排 × 4 欄） */
+const SECTION_LIMIT = 8;
 
 export function ParentHomePage() {
   const [recent, setRecent] = useState<MockMaterial[]>([]);
@@ -58,52 +59,54 @@ export function ParentHomePage() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-10 md:space-y-12">
+    <div className="mx-auto max-w-7xl">
       <Hero />
 
-      {error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
+      <div className="mt-7 space-y-9 md:space-y-10 lg:space-y-11">
+        {error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
 
-      {loading ? (
-        <p className="text-center text-sm text-[#6B7280]" aria-live="polite">
-          載入中…
-        </p>
-      ) : null}
+        {loading ? (
+          <p className="text-center text-sm text-[#6B7280]" aria-live="polite">
+            載入中…
+          </p>
+        ) : null}
 
-      {!loading && recent.length > 0 ? (
-        <Section title="最近瀏覽">
-          <MaterialCarousel materials={recent} trackRecent />
-        </Section>
-      ) : null}
+        {!loading && recent.length > 0 ? (
+          <Section title="最近瀏覽" icon="🕘" subtitle="你最近查看過的教材" actionLabel="查看更多教材 >">
+            <MaterialCarousel materials={recent} trackRecent />
+          </Section>
+        ) : null}
 
-      {!loading && forYou.length > 0 ? (
-        <Section title="為你推薦">
-          <MaterialGrid materials={forYou} trackRecent />
-        </Section>
-      ) : null}
+        {!loading && forYou.length > 0 ? (
+          <Section title="為你推薦" icon="✨" subtitle="根據熱門與最新教材精選" actionLabel="查看更多教材 >">
+            <MaterialGrid materials={forYou} trackRecent />
+          </Section>
+        ) : null}
 
-      {!loading && hot.length > 0 ? (
-        <Section title="🔥 熱門教材">
-          <MaterialGrid materials={hot} trackRecent />
-        </Section>
-      ) : null}
+        {!loading && hot.length > 0 ? (
+          <Section title="熱門教材" icon="🔥" subtitle="最多人瀏覽與購買的教材" actionLabel="查看更多教材 >">
+            <MaterialGrid materials={hot} trackRecent />
+          </Section>
+        ) : null}
 
-      {!loading && latest.length > 0 ? (
-        <Section title="🆕 新上架">
-          <MaterialGrid materials={latest} trackRecent />
-        </Section>
-      ) : null}
+        {!loading && latest.length > 0 ? (
+          <Section title="最新教材" icon="🆕" subtitle="最新上架教材" actionLabel="查看更多教材 >">
+            <MaterialGrid materials={latest} trackRecent />
+          </Section>
+        ) : null}
 
-      {!loading && topRated.length > 0 ? (
-        <Section title="⭐ 高評價">
-          <MaterialGrid materials={topRated} trackRecent />
-        </Section>
-      ) : null}
+        {!loading && topRated.length > 0 ? (
+          <Section title="高評價" icon="⭐" subtitle="家長與老師評價最高的教材" actionLabel="查看更多教材 >">
+            <MaterialGrid materials={topRated} trackRecent />
+          </Section>
+        ) : null}
 
-      {!loading && !error && hot.length === 0 && forYou.length === 0 ? (
-        <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-8 text-center text-sm text-[#6B7280]">
-          目前沒有可供展示的教材，請稍後再試。
-        </p>
-      ) : null}
+        {!loading && !error && hot.length === 0 && forYou.length === 0 ? (
+          <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-8 text-center text-sm text-[#6B7280]">
+            目前沒有可供展示的教材，請稍後再試。
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

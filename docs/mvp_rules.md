@@ -102,6 +102,8 @@ Update 時：
 
 `GET /materials/:id` 會回傳 `materials` 主表欄位，並附上 `contents`（依 `sort_order` 升冪）。
 
+`GET /materials` 回傳 `{ items }`（**無**伺服端分頁）；可見範圍同 MVP 規格（匿名僅 `published`、教師可見自己的與已上架、管理員可見全部）。**列表排序**：依 `docs/materials-detail-spec.md` §10 之品質分 **由高到低**，再以 `created_at` **新到舊**。URL query 參數後端**忽略**；Web 探索頁得對回傳之陣列再做前端篩選／排序。
+
 ---
 
 # 5. Order and payment state

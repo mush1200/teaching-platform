@@ -184,7 +184,9 @@ export async function listMaterials(params: ListMaterialsParams = {}): Promise<L
         };
       }
       if (items.length > 0) {
-        const { slice, pagination } = paginate(items, page, limit);
+        let list = filterMaterials(items, params);
+        list = sortMaterials(list, params.sort);
+        const { slice, pagination } = paginate(list, page, limit);
         return { items: slice, pagination, usedMockFallback: false };
       }
     }

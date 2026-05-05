@@ -2,6 +2,8 @@
 
 Supersedes v1.2. Aligned with `Backend/models/bootstrapModel.js` (ensureCoreTables + runIdempotentMigrations) and current API behavior.
 
+**Document note (2026-05-03):** §11 `GET /materials` row and routing note updated to match implemented **list quality score** ordering and **ignored query string**; see `docs/materials-detail-spec.md` §10.
+
 Supplemental feature spec for materials domain: `docs/materials-detail-spec.md`.
 
 Architecture: Backend-first  
@@ -191,7 +193,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| GET | `/materials` | Optional JWT | List: anonymous sees **published** only; **teacher** sees own + published; **admin** sees all. Query none. |
+| GET | `/materials` | Optional JWT | List: anonymous sees **published** only; **teacher** sees own + published; **admin** sees all. Response `{ "items": [...] }` (no pagination). **Server ignores query string** (filters/sort params are not applied). **Order:** **quality score** per `docs/materials-detail-spec.md` §10 **DESC**, then **`created_at` DESC**. |
 | GET | `/materials/:id/reviews` | — | Public list of reviews for material. |
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
@@ -281,6 +283,8 @@ All routes below: **JWT + admin**.
 ---
 
 **Routing note:** `materials` router registers static segments (`/:id/reviews`, `/:id/rating`, `/:id/reports`) before `/:id` so paths resolve correctly.
+
+**`GET /materials` — client integration:** The web app explore flow may send search/sort/pagination query parameters to the proxy; the **backend does not use them** for filtering or SQL ordering. Clients should treat the response as the full visible list for the caller’s role and may **filter or re-sort in memory** (e.g. popular / rating / latest) if product requires it.
 
 ---
 

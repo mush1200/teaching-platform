@@ -151,7 +151,21 @@ router.get("/", optionalAuth, async (req, res) => {
        WHERE ($1::boolean = true)
           OR ($2::boolean = true AND teacher_id = $3)
           OR status = 'published'
-       ORDER BY created_at DESC`,
+       ORDER BY (
+          CASE
+            WHEN teaching_methods IS NOT NULL
+             AND jsonb_typeof(teaching_methods) = 'array'
+             AND jsonb_array_length(teaching_methods) >= 2
+            THEN 2 ELSE 0
+          END
+          + CASE WHEN NULLIF(TRIM(usage_duration), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(activity_steps), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN EXISTS (
+              SELECT 1 FROM material_contents mc WHERE mc.material_id = materials.id
+            ) THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(short_description), '') IS NOT NULL THEN 1 ELSE 0 END
+       ) DESC,
+       created_at DESC`,
       [canSeeAll, canSeeOwn, user?.userId || null]
     );
     return res.json({ items: result.rows });

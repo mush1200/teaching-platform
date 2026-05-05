@@ -82,9 +82,31 @@ export function AdminDashboardPage() {
       return pick(payload);
     }
 
+    /** GET /admin/reports returns a JSON array (see MVP spec §11); tolerate `{ items }` if ever wrapped. */
+    async function resolveReportsList(result: PromiseSettledResult<Response>): Promise<Report[]> {
+      if (result.status === "rejected") {
+        next.errors.reports = "無法連線至伺服器，請稍後再試。";
+        return [];
+      }
+      if (!result.value.ok) {
+        next.errors.reports = await parseApiErrorMessage(result.value);
+        return [];
+      }
+      const payload = (await result.value.json()) as unknown;
+      if (Array.isArray(payload)) return payload as Report[];
+      if (
+        payload &&
+        typeof payload === "object" &&
+        Array.isArray((payload as { items?: Report[] }).items)
+      ) {
+        return (payload as { items: Report[] }).items;
+      }
+      return [];
+    }
+
     next.materials = await resolveList<{ items?: Material[] }, Material>(materialsRes, "materials", (p) => p.items ?? []);
     next.orders = await resolveList<OrdersListResponse, Order>(ordersRes, "orders", (p) => p.items ?? []);
-    next.reports = await resolveList<{ items?: Report[] }, Report>(reportsRes, "reports", (p) => p.items ?? []);
+    next.reports = await resolveReportsList(reportsRes);
     next.proofs = await resolveList<AdminPaymentProofsResponse, AdminPaymentProof>(proofsRes, "proofs", (p) => p.items ?? []);
     next.activities = await resolveList<ActivityLogsResponse, ActivityLog>(activitiesRes, "activities", (p) => p.items ?? []);
     setState(next);
