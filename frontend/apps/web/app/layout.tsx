@@ -4,6 +4,7 @@ import { Inter, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./providers";
 import { RoleShell } from "../components/layout/RoleShell";
+import { GlobalToastHost } from "../components/ui/GlobalToastHost";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -41,6 +42,7 @@ export default function RootLayout({
         <AppProviders>
           <Suspense fallback={children}>
             <RoleShell>{children}</RoleShell>
+            <GlobalToastHost />
           </Suspense>
         </AppProviders>
       </body>

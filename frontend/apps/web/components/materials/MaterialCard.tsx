@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { MockMaterial } from "../../lib/mock-data";
+import { readFavoriteMaterialIds, writeFavoriteMaterialIds } from "../../lib/favorites-storage";
 import { recordMaterialView } from "../../lib/recent-materials";
 import { IconHeart, IconStar } from "../ui/icons";
 
@@ -23,6 +27,8 @@ function categoryDisplay(category: string | undefined): string {
 }
 
 export function MaterialCard({ material, trackRecent }: Props) {
+  const [isFavorite, setIsFavorite] = useState(false);
+  const favoriteBtnRef = useRef<HTMLButtonElement | null>(null);
   const href = `/materials/${material.id}`;
   const off =
     material.originalPrice > material.price
@@ -34,6 +40,42 @@ export function MaterialCard({ material, trackRecent }: Props) {
     ) : (
       <p className="text-lg font-bold text-[#1F2937]">NT${material.price.toLocaleString()}</p>
     );
+
+  useEffect(() => {
+    try {
+      setIsFavorite(readFavoriteMaterialIds().includes(material.id));
+    } catch {
+      setIsFavorite(false);
+    }
+  }, [material.id]);
+
+  const handleToggleFavorite = () => {
+    const next = !isFavorite;
+    setIsFavorite(next);
+    favoriteBtnRef.current?.animate(
+      [
+        { transform: "scale(1)" },
+        { transform: "scale(0.95)", offset: 0.45 },
+        { transform: "scale(1.14)" },
+        { transform: "scale(1)" },
+      ],
+      { duration: 200, easing: "cubic-bezier(0.2, 0.9, 0.2, 1)" },
+    );
+
+    try {
+      const ids = readFavoriteMaterialIds();
+      const nextIds = next ? Array.from(new Set([...ids, material.id])) : ids.filter((id) => id !== material.id);
+      writeFavoriteMaterialIds(nextIds);
+    } catch {
+      // Ignore storage failures; keep UI responsive.
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("tp:toast", {
+        detail: { message: next ? "已加入收藏" : "已從收藏移除" },
+      }),
+    );
+  };
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-[18px] border border-[#E5E7EB]/70 bg-white shadow-[0_4px_20px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_28px_rgba(15,23,42,0.08)]">
@@ -55,11 +97,22 @@ export function MaterialCard({ material, trackRecent }: Props) {
           }}
         />
         <button
+          ref={favoriteBtnRef}
           type="button"
-          className="relative z-10 ml-auto mr-3 mt-3 flex size-9 items-center justify-center rounded-full bg-white/90 text-[#6B7280] shadow-sm hover:text-[#FF6B73]"
-          aria-label="收藏"
+          className={`relative z-10 ml-auto mr-3 mt-3 flex h-9 w-9 min-h-8 min-w-8 items-center justify-center rounded-full shadow-sm transition duration-200 ease-out hover:scale-110 active:scale-95 ${
+            isFavorite
+              ? "bg-[#FEE2E2] text-[#EF4444] hover:bg-[#FECACA] hover:text-[#DC2626]"
+              : "bg-white/90 text-[#9CA3AF] hover:bg-[#F3F4F6] hover:text-[#6B7280]"
+          }`}
+          aria-label={isFavorite ? "取消收藏" : "收藏"}
+          aria-pressed={isFavorite}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleToggleFavorite();
+          }}
         >
-          <IconHeart />
+          <IconHeart filled={isFavorite} className="size-5" />
         </button>
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-emerald-700 shadow-sm">
           {material.ageLabel.replace(/^適合\s*/, "").trim()}

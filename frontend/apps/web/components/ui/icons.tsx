@@ -137,3 +137,23 @@ export function IconThumbsUp(props: { className?: string }) {
     </svg>
   );
 }
+
+export function IconTrash(props: { className?: string }) {
+  return (
+    <svg className={props.className} width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 7h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7 7l1 12a1 1 0 001 .92h6a1 1 0 001-.92L17 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconArrowRight(props: { className?: string }) {
+  return (
+    <svg className={props.className} width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

@@ -16,6 +16,68 @@ import {
 } from "./mock-data";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const CART_STORAGE_KEY_PREFIX = "tp_mock_cart_items_v1";
+const CART_BOOTSTRAP_FLAG_PREFIX = "tp_mock_cart_bootstrap_v1";
+const SPECIAL_SEED_EMAIL = "parent1@test.com";
+
+function cloneCart(items: MockCartItem[]): MockCartItem[] {
+  return items.map((c) => ({ ...c }));
+}
+
+function canUseStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function currentUserEmail(): string {
+  if (!canUseStorage()) return "guest";
+  const email = window.localStorage.getItem("tp_user_email");
+  return email && email.trim() ? email.trim().toLowerCase() : "guest";
+}
+
+function storageKeyForUser(email: string): string {
+  return `${CART_STORAGE_KEY_PREFIX}:${email}`;
+}
+
+function bootstrapFlagKeyForUser(email: string): string {
+  return `${CART_BOOTSTRAP_FLAG_PREFIX}:${email}`;
+}
+
+function specialSeedItemsForUser(email: string): MockCartItem[] | null {
+  if (email !== SPECIAL_SEED_EMAIL) return null;
+  return cloneCart(mockCartItems.slice(0, 2));
+}
+
+function readStoredCart(email: string): MockCartItem[] | null {
+  if (!canUseStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(storageKeyForUser(email));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const valid = parsed.every(
+      (row) =>
+        row &&
+        typeof row === "object" &&
+        typeof (row as MockCartItem).id === "string" &&
+        typeof (row as MockCartItem).materialId === "string" &&
+        typeof (row as MockCartItem).title === "string" &&
+        typeof (row as MockCartItem).ageLabel === "string" &&
+        typeof (row as MockCartItem).price === "number" &&
+        typeof (row as MockCartItem).quantity === "number" &&
+        typeof (row as MockCartItem).coverGradient === "string",
+    );
+    return valid ? (parsed as MockCartItem[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCart(items: MockCartItem[]) {
+  if (!canUseStorage()) return;
+  const email = currentUserEmail();
+  window.localStorage.setItem(storageKeyForUser(email), JSON.stringify(items));
+  window.dispatchEvent(new Event("tp:cart-updated"));
+}
 
 export async function getMaterials(): Promise<MockMaterial[]> {
   await delay(120);
@@ -69,7 +131,25 @@ function apiReviewRowToMock(
 
 export async function getCartItems(): Promise<MockCartItem[]> {
   await delay(80);
-  return mockCartItems.map((c) => ({ ...c }));
+  const email = currentUserEmail();
+  const stored = readStoredCart(email);
+  if (stored) return cloneCart(stored);
+
+  const bootstrapKey = bootstrapFlagKeyForUser(email);
+  const hasBootstrapped = canUseStorage() ? window.localStorage.getItem(bootstrapKey) === "1" : false;
+  const specialSeed = specialSeedItemsForUser(email);
+  const seeded = specialSeed && !hasBootstrapped ? specialSeed : cloneCart(mockCartItems);
+
+  writeStoredCart(seeded);
+  if (canUseStorage() && specialSeed && !hasBootstrapped) {
+    window.localStorage.setItem(bootstrapKey, "1");
+  }
+  return seeded;
+}
+
+export async function replaceCartItems(items: MockCartItem[]): Promise<void> {
+  await delay(50);
+  writeStoredCart(cloneCart(items));
 }
 
 export async function getReviewsForMaterial(materialId: string): Promise<MockReview[]> {

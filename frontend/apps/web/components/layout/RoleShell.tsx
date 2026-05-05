@@ -21,6 +21,7 @@ const NAVS: Record<RoleKind, NavItem[]> = {
   ],
   parent: [
     { href: "/explore", label: "探索教材" },
+    { href: "/favorites", label: "收藏清單" },
     { href: "/cart", label: "購物車" },
     { href: "/checkout", label: "結帳" },
     { href: "/orders", label: "我的訂單" },
@@ -88,7 +89,8 @@ function getRoleByPath(pathname: string, storedRole: RoleKind | null): RoleKind 
     pathname.startsWith("/orders") ||
     pathname.startsWith("/downloads") ||
     pathname.startsWith("/my-reviews") ||
-    pathname.startsWith("/explore")
+    pathname.startsWith("/explore") ||
+    pathname.startsWith("/favorites")
   ) {
     return "parent";
   }
@@ -203,6 +205,7 @@ export function RoleShell({ children }: { children: ReactNode }) {
     "/orders",
     "/downloads",
     "/my-reviews",
+    "/favorites",
   ];
   const shouldUseParentShell =
     role === "parent" && parentShellRoutes.some((base) => pathname === base || pathname.startsWith(`${base}/`));

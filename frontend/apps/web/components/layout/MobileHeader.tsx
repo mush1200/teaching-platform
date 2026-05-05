@@ -8,6 +8,8 @@ type Props = {
   title?: string;
   /** When set, shows back link instead of hamburger */
   backHref?: string;
+  /** Hide leading nav affordance for conversion-focused pages */
+  leading?: "auto" | "none";
   right?: "search-cart" | "edit" | "none";
   /** Extra actions on the right (e.g. 寫評論) */
   trailing?: ReactNode;
@@ -17,15 +19,19 @@ type Props = {
 export function MobileHeader({
   title = "EduMarket",
   backHref,
+  leading = "auto",
   right = "search-cart",
   trailing,
   onMenuClick,
 }: Props) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[#E5E7EB]/80 bg-white/90 backdrop-blur">
+    <header
+      className="sticky top-0 z-40 border-b border-[#E5E7EB]/80 bg-white/90 backdrop-blur"
+    >
       <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {backHref ? (
+          {leading === "none" ? <div className="size-10 shrink-0" aria-hidden /> : null}
+          {leading !== "none" && backHref ? (
             <Link
               href={backHref}
               className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
@@ -33,7 +39,8 @@ export function MobileHeader({
             >
               ←
             </Link>
-          ) : (
+          ) : null}
+          {leading !== "none" && !backHref ? (
             <button
               type="button"
               className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
@@ -42,8 +49,8 @@ export function MobileHeader({
             >
               <IconMenu />
             </button>
-          )}
-          {backHref ? (
+          ) : null}
+          {backHref || leading === "none" ? (
             <span className="flex-1 truncate text-base font-bold text-[#1F2937]">{title}</span>
           ) : (
             <Link href="/materials" className="truncate text-center text-base font-bold text-[#1F2937]">

@@ -13,7 +13,7 @@ type Props = {
 
 export function CategoryChips({ activeId, onSelect }: Props) {
   return (
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label="教材分類">
+    <div className="flex flex-nowrap gap-2 whitespace-nowrap" role="tablist" aria-label="教材分類">
       {EXPLORE_CATEGORY_OPTIONS.map((c) => {
         const active = activeId === c.id;
         return (

@@ -91,6 +91,12 @@ export function Sidebar({ cartBadge = 2, ordersBadge = 1, onNavigate }: Props) {
               <NavBadge n={ordersBadge} />
             </Link>
           </li>
+          <li>
+            <Link href="/favorites" className={linkCls("/favorites", true)} onClick={onNavigate}>
+              <span aria-hidden>❤️</span>
+              收藏清單
+            </Link>
+          </li>
         </ul>
 
         <p className="mb-2 mt-6 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF]">我的內容</p>

@@ -5,13 +5,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState } from "@teaching-platform/ui";
 import type { ListMaterialsResult, MaterialsSort } from "../../lib/materials-query";
 import { listMaterials } from "../../lib/materials-query";
-import { Card } from "../ui/Card";
+import { AgeFilter } from "./AgeFilter";
 import { CategoryChips } from "./CategoryChips";
-import { FilterBar } from "./FilterBar";
 import type { PriceMode } from "./PriceFilter";
+import { PriceFilter } from "./PriceFilter";
 import { MaterialGrid } from "./MaterialGrid";
 import { PaginationBar } from "./PaginationBar";
-import { SearchBar } from "./SearchBar";
+import { RatingFilter } from "./RatingFilter";
 import { SortDropdown } from "./SortDropdown";
 
 function parsePriceMode(sp: URLSearchParams): PriceMode {
@@ -62,7 +62,7 @@ export function ExplorePage() {
   const [data, setData] = useState<ListMaterialsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchDraft, setSearchDraft] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const listParams = useMemo(() => buildListParams(searchParams), [searchParams]);
 
@@ -78,19 +78,6 @@ export function ExplorePage() {
     },
     [pathname, router, searchParams],
   );
-
-  useEffect(() => {
-    setSearchDraft(searchParams.get("search") ?? "");
-  }, [searchParams]);
-
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      const cur = searchParams.get("search") ?? "";
-      if (searchDraft === cur) return;
-      pushQuery({ search: searchDraft.trim() || null, page: "1" });
-    }, 400);
-    return () => window.clearTimeout(id);
-  }, [searchDraft, pushQuery, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,17 +120,9 @@ export function ExplorePage() {
   }, [pathname, router]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-[#1F2937]">探索教材</h1>
-        <p className="text-sm text-[#6B7280]">搜尋、篩選並瀏覽完整教材清單</p>
-      </header>
-
-      <section aria-label="搜尋與分類">
-        <Card level="flat" padding="md" className="max-w-2xl border-[#E5E7EB]/80">
-          <SearchBar value={searchDraft} onChange={setSearchDraft} />
-        </Card>
-        <div className="mt-4">
+    <div className="mx-auto max-w-7xl space-y-4">
+      <section aria-label="分類與控制列">
+        <div className="flex items-center justify-between gap-3 overflow-x-auto">
           <CategoryChips
             activeId={activeCategory}
             onSelect={(id) => {
@@ -153,41 +132,20 @@ export function ExplorePage() {
               });
             }}
           />
+          <div className="flex shrink-0 items-center gap-2">
+            <SortDropdown compact value={sort} onChange={(v) => pushQuery({ sort: v, page: "1" })} />
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters(true)}
+              className="h-[42px] rounded-xl border border-[#E5E7EB] bg-white px-4 text-sm font-semibold text-[#374151] shadow-sm transition-colors hover:bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+            >
+              篩選
+            </button>
+          </div>
         </div>
       </section>
 
-      <FilterBar
-        age={age}
-        onAgeChange={(v) =>
-          pushQuery({
-            age: v || null,
-            page: "1",
-          })
-        }
-        priceMode={priceMode}
-        onPriceModeChange={(mode) => {
-          if (mode === "any") pushQuery({ price_min: null, price_max: null, page: "1" });
-          else if (mode === "free") pushQuery({ price_min: "0", price_max: "0", page: "1" });
-          else if (mode === "paid") pushQuery({ price_min: "1", price_max: null, page: "1" });
-          else if (mode === "custom") {
-            const has = searchParams.get("price_min") || searchParams.get("price_max");
-            if (!has) pushQuery({ price_min: "0", price_max: "500", page: "1" });
-          }
-        }}
-        priceMin={priceMode === "custom" ? priceMinStr : ""}
-        priceMax={priceMode === "custom" ? priceMaxStr : ""}
-        onPriceMinChange={(v) => pushQuery({ price_min: v || null, price_max: priceMaxStr || null, page: "1" })}
-        onPriceMaxChange={(v) =>
-          pushQuery({ price_min: priceMinStr || null, price_max: v || null, page: "1" })
-        }
-        minRating4={minRating4}
-        onMinRating4Change={(on) => pushQuery({ rating: on ? "4" : null, page: "1" })}
-      />
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <SortDropdown value={sort} onChange={(v) => pushQuery({ sort: v, page: "1" })} />
-        {loading ? <span className="text-sm text-[#6B7280]">載入中…</span> : null}
-      </div>
+      {loading ? <div className="text-sm text-[#6B7280]">載入中…</div> : null}
 
       {error ? (
         <ErrorState title="載入失敗" description={error} onRetry={() => router.refresh()} />
@@ -217,6 +175,58 @@ export function ExplorePage() {
             />
           ) : null}
         </>
+      ) : null}
+
+      {showAdvancedFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-3 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-2xl sm:p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-bold text-[#1F2937]">進階篩選</h2>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(false)}
+                className="rounded-lg px-2 py-1 text-sm font-medium text-[#6B7280] hover:bg-[#F3F4F6]"
+              >
+                關閉
+              </button>
+            </div>
+            <div className="space-y-4">
+              <AgeFilter
+                value={age}
+                onChange={(v) =>
+                  pushQuery({
+                    age: v || null,
+                    page: "1",
+                  })
+                }
+              />
+              <PriceFilter
+                mode={priceMode}
+                onModeChange={(mode) => {
+                  if (mode === "any") pushQuery({ price_min: null, price_max: null, page: "1" });
+                  else if (mode === "free") pushQuery({ price_min: "0", price_max: "0", page: "1" });
+                  else if (mode === "paid") pushQuery({ price_min: "1", price_max: null, page: "1" });
+                  else if (mode === "custom") {
+                    const has = searchParams.get("price_min") || searchParams.get("price_max");
+                    if (!has) pushQuery({ price_min: "0", price_max: "500", page: "1" });
+                  }
+                }}
+                priceMin={priceMode === "custom" ? priceMinStr : ""}
+                priceMax={priceMode === "custom" ? priceMaxStr : ""}
+                onPriceMinChange={(v) =>
+                  pushQuery({ price_min: v || null, price_max: priceMaxStr || null, page: "1" })
+                }
+                onPriceMaxChange={(v) =>
+                  pushQuery({ price_min: priceMinStr || null, price_max: v || null, page: "1" })
+                }
+              />
+              <RatingFilter
+                minRating4={minRating4}
+                onChange={(on) => pushQuery({ rating: on ? "4" : null, page: "1" })}
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
