@@ -499,12 +499,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{parentToken}}" }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"proofUrl\": \"https://example.com/proof.png\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "proofs",
+                  "type": "file",
+                  "src": [
+                    "/path/to/proof-a.jpg"
+                  ]
+                }
+              ]
             },
             "url": "{{baseUrl}}/orders/{{orderId}}/upload-proof"
           }
@@ -695,12 +702,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
               { "key": "Authorization", "value": "Bearer {{parentToken}}" }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"proofUrl\": \"https://example.com/reject-proof.png\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "proofs",
+                  "type": "file",
+                  "src": [
+                    "/path/to/proof-b.png"
+                  ]
+                }
+              ]
             },
             "url": "{{baseUrl}}/orders/{{orderIdB}}/upload-proof"
           }

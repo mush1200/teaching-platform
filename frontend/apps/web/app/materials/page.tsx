@@ -92,7 +92,7 @@ export default function MaterialsPage() {
               <Link href="/cart" className="block rounded-2xl px-3 py-2 font-medium text-[#1F2937] hover:bg-[#F4F1FF]" onClick={() => setMenuOpen(false)}>
                 購物車
               </Link>
-              <Link href="/orders" className="block rounded-2xl px-3 py-2 font-medium text-[#1F2937] hover:bg-[#F4F1FF]" onClick={() => setMenuOpen(false)}>
+              <Link href="/me/orders" className="block rounded-2xl px-3 py-2 font-medium text-[#1F2937] hover:bg-[#F4F1FF]" onClick={() => setMenuOpen(false)}>
                 我的訂單
               </Link>
               <Link href="/login" className="block rounded-2xl px-3 py-2 font-medium text-[#6C63FF] hover:bg-[#F4F1FF]" onClick={() => setMenuOpen(false)}>

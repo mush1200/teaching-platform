@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../config/db");
 const { requireAuth, requireRole } = require("../middlewares/auth");
 const { writeActivityLog } = require("../utils/activityLog");
+const { sendPaymentApprovedEmail, sendPaymentRejectedEmail } = require("../services/emailService");
 const reportRepository = require("../repositories/report.repository");
 const reportAdminService = require("../services/reportAdmin.service");
 const { parseOptionalReportStatusQuery } = require("../utils/reportStatusQuery");
@@ -27,6 +28,7 @@ router.get("/orders", async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : null;
     const base = `SELECT id, user_id, status, payment_mode, total_amount, total_price,
+        promo_code, discount_amount, invoice_type, invoice_carrier,
         paid_at, cancelled_at, created_at, updated_at
        FROM orders`;
     const result = status
@@ -89,6 +91,9 @@ router.get("/payment-proofs", async (req, res) => {
          mpp.id,
          mpp.order_id,
          mpp.proof_url,
+         mpp.proof_mime_type,
+         mpp.proof_size_bytes,
+         mpp.original_filename,
          mpp.review_status,
          mpp.uploaded_at,
          mpp.created_at,
@@ -111,6 +116,9 @@ router.get("/payment-proofs", async (req, res) => {
       user_id: row.user_id,
       order_status: row.order_status,
       proof_url: row.proof_url,
+      proof_mime_type: row.proof_mime_type,
+      proof_size_bytes: row.proof_size_bytes,
+      original_filename: row.original_filename,
       review_status: row.review_status,
       uploaded_at: row.uploaded_at instanceof Date ? row.uploaded_at.toISOString() : row.uploaded_at,
       created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
@@ -209,6 +217,7 @@ router.post("/payment-proofs/:id/approve", async (req, res) => {
       action: "payment_proof.approved",
       meta: { proofId },
     });
+    void sendPaymentApprovedEmail(pr.order_id);
 
     const o = updatedOrder.rows[0];
     return res.json({
@@ -236,9 +245,6 @@ router.post("/payment-proofs/:id/approve", async (req, res) => {
 router.post("/payment-proofs/:id/reject", async (req, res) => {
   const proofId = String(req.params.id);
   const { note } = req.body || {};
-  if (!note || String(note).trim() === "") {
-    return res.status(400).json({ message: "note is required" });
-  }
   const client = await db.pool.connect();
   try {
     await client.query("BEGIN");
@@ -268,7 +274,7 @@ router.post("/payment-proofs/:id/reject", async (req, res) => {
            note = $3
        WHERE id = $1
        RETURNING id, review_status, note`,
-      [proofId, req.user.userId, String(note).trim()]
+      [proofId, req.user.userId, note != null ? String(note).trim() : ""]
     );
 
     await client.query("COMMIT");
@@ -281,6 +287,7 @@ router.post("/payment-proofs/:id/reject", async (req, res) => {
       action: "payment_proof.rejected",
       meta: { proofId },
     });
+    void sendPaymentRejectedEmail(proofResult.rows[0].order_id, note != null ? String(note).trim() : "");
 
     const p = updated.rows[0];
     return res.json({

@@ -143,9 +143,12 @@ const openApiSpec = {
       PaymentProof: {
         type: "object",
         properties: {
-          id: { type: "integer", example: 10 },
+          id: { type: "string", example: "9fe1273a-8a4b-4db8-b3f7-7bde0612a4a1" },
           order_id: { type: "string", example: "ord_lg8b93v1az1" },
           proof_url: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" },
+          proof_mime_type: { type: "string", example: "image/jpeg" },
+          proof_size_bytes: { type: "integer", example: 421233 },
+          original_filename: { type: "string", example: "transfer-proof.jpg" },
           review_status: { type: "string", enum: ["pending", "approved", "rejected"], example: "pending" },
           uploaded_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
@@ -811,13 +814,28 @@ const openApiSpec = {
       post: {
         tags: ["Orders"],
         summary: "上傳付款憑證 / Upload payment proof",
-        description: "上傳手動付款憑證，供管理員審核。Upload payment proof for admin review.",
+        description:
+          "上傳手動付款憑證圖檔，供管理員審核。Upload payment proof images for admin review. Allowed mime types: JPG/PNG/WEBP; max 5MB each; up to 3 images per order.",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
         requestBody: {
           required: true,
           content: {
-            "application/json": { schema: { type: "object", required: ["proofUrl"], properties: { proofUrl: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" } } } },
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["proofs"],
+                properties: {
+                  proofs: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 3,
+                    items: { type: "string", format: "binary" },
+                    description: "Payment proof images (JPG/PNG/WEBP), each <= 5MB.",
+                  },
+                },
+              },
+            },
           },
         },
         responses: {
@@ -828,7 +846,10 @@ const openApiSpec = {
                 schema: {
                   type: "object",
                   properties: {
+                    proofs: { type: "array", items: { $ref: "#/components/schemas/PaymentProof" } },
                     proof: { $ref: "#/components/schemas/PaymentProof" },
+                    uploadedCount: { type: "integer", example: 2 },
+                    maxAllowed: { type: "integer", example: 3 },
                     orderId: { type: "string", example: "ord_lg8b93v1az1" },
                   },
                 },
@@ -915,6 +936,45 @@ const openApiSpec = {
         security: bearerSecurity,
         responses: {
           200: { description: "成功 / Success.", content: { "application/json": { schema: { type: "array", items: { $ref: "#/components/schemas/Review" } } } } },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/me/materials": {
+      get: {
+        tags: ["Materials", "Me"],
+        summary: "我的教材庫 / Purchased materials library",
+        description:
+          "已購買且訂單狀態為 approved 的教材清單（彙整自 order_items）。需 JWT。",
+        security: bearerSecurity,
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          materialId: { type: "string" },
+                          title: { type: "string" },
+                          coverImageUrl: { type: "string", nullable: true },
+                          materialUpdatedAt: { type: "string", format: "date-time", nullable: true },
+                          purchasedAt: { type: "string", format: "date-time", nullable: true },
+                          authorName: { type: "string", nullable: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           401: { $ref: "#/components/responses/Unauthorized" },
           500: { $ref: "#/components/responses/ServerError" },
         },
@@ -1147,6 +1207,9 @@ const openApiSpec = {
                           user_id: { type: "string", example: "usr_parent_001" },
                           order_status: { type: "string", example: "pending_payment" },
                           proof_url: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" },
+                          proof_mime_type: { type: "string", example: "image/png" },
+                          proof_size_bytes: { type: "integer", example: 328899 },
+                          original_filename: { type: "string", nullable: true, example: "proof.png" },
                           review_status: { type: "string", enum: ["pending", "approved", "rejected"], example: "pending" },
                           uploaded_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
                           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
@@ -1242,7 +1305,7 @@ const openApiSpec = {
                     proof: {
                       type: "object",
                       properties: {
-                        id: { type: "integer", example: 10 },
+                        id: { type: "string", example: "9fe1273a-8a4b-4db8-b3f7-7bde0612a4a1" },
                         review_status: { type: "string", example: "rejected" },
                         note: { type: "string", example: "Image is not clear." },
                       },

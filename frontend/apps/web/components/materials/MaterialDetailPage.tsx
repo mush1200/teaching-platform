@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getMaterialById } from "../../lib/edu-api-mock";
+import { useRouter } from "next/navigation";
+import { getCartItems, getMaterialById, replaceCartItems } from "../../lib/edu-api-mock";
 import type { MockMaterial } from "../../lib/mock-data";
 import { apiFetch, getStoredRole, parseApiErrorMessage } from "../../lib/api-client";
 import type { UserRole } from "../../lib/api-types";
@@ -34,12 +35,15 @@ function toYouTubeEmbed(url: string): string | null {
 }
 
 export function MaterialDetailPage({ materialId }: Props) {
+  const router = useRouter();
   const [material, setMaterial] = useState<MockMaterial | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [reportFeedback, setReportFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [cartBusy, setCartBusy] = useState(false);
+  const [cartFeedback, setCartFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     setRole(getStoredRole());
@@ -93,6 +97,56 @@ export function MaterialDetailPage({ materialId }: Props) {
     [reportReason],
   );
 
+  const addToCart = useCallback(
+    async (nextPath?: "/checkout") => {
+      if (!material) return;
+      if (role !== "parent") {
+        setCartFeedback({ kind: "err", text: "請先以家長帳號登入後再加入購物車。" });
+        return;
+      }
+      setCartBusy(true);
+      setCartFeedback(null);
+      try {
+        const res = await apiFetch("cart/items", {
+          method: "POST",
+          body: JSON.stringify({ materialId: material.id, quantity: 1 }),
+        });
+        if (!res.ok) {
+          setCartFeedback({ kind: "err", text: await parseApiErrorMessage(res) });
+          return;
+        }
+
+        // Keep local mock cart in sync so existing cart UI shows latest state.
+        const current = await getCartItems();
+        const existed = current.find((it) => it.materialId === material.id);
+        const next = existed
+          ? current.map((it) => (it.materialId === material.id ? { ...it, quantity: Math.max(1, it.quantity) } : it))
+          : [
+              ...current,
+              {
+                id: `cart_local_${material.id}`,
+                materialId: material.id,
+                title: material.title,
+                ageLabel: material.ageLabel,
+                price: material.price,
+                quantity: 1,
+                coverGradient: material.coverGradient,
+              },
+            ];
+        await replaceCartItems(next);
+        setCartFeedback({ kind: "ok", text: "已加入購物車。" });
+        if (nextPath === "/checkout") {
+          router.push(nextPath);
+        }
+      } catch {
+        setCartFeedback({ kind: "err", text: "加入購物車失敗，請稍後再試。" });
+      } finally {
+        setCartBusy(false);
+      }
+    },
+    [material, role, router],
+  );
+
   if (loading) {
     return (
       <AppShell>
@@ -118,21 +172,24 @@ export function MaterialDetailPage({ materialId }: Props) {
 
   const purchaseBlock = (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:flex-col">
-      <Link href="/cart" className="min-w-0 flex-1 sm:flex-none lg:w-full">
-        <Button type="button" intent="flow" fullWidth className="lg:w-full">
+      <div className="min-w-0 flex-1 sm:flex-none lg:w-full">
+        <Button type="button" intent="flow" fullWidth className="lg:w-full" disabled={cartBusy} onClick={() => void addToCart()}>
           加入購物車
         </Button>
-      </Link>
-      <Link href="/checkout" className="min-w-0 flex-1 sm:flex-none lg:w-full">
-        <Button type="button" intent="action" fullWidth className="lg:w-full">
+      </div>
+      <div className="min-w-0 flex-1 sm:flex-none lg:w-full">
+        <Button type="button" intent="action" fullWidth className="lg:w-full" disabled={cartBusy} onClick={() => void addToCart("/checkout")}>
           立即購買
         </Button>
-      </Link>
+      </div>
       <Link href={`/materials/${material.id}/reviews`} className="min-w-0 flex-1 sm:flex-none lg:w-full">
         <Button type="button" intent="neutral" variant="outline" fullWidth className="lg:w-full">
           查看評論
         </Button>
       </Link>
+      {cartFeedback ? (
+        <p className={`text-xs ${cartFeedback.kind === "ok" ? "text-emerald-700" : "text-amber-700"}`}>{cartFeedback.text}</p>
+      ) : null}
     </div>
   );
 
@@ -395,16 +452,12 @@ export function MaterialDetailPage({ materialId }: Props) {
             <p className="text-lg font-bold text-[#1F2937]">NT${material.price}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Link href="/cart">
-              <Button type="button" intent="flow" className="!px-3 !py-2.5 text-xs sm:!px-4 sm:text-sm">
-                加入購物車
-              </Button>
-            </Link>
-            <Link href="/checkout">
-              <Button type="button" intent="action" className="!px-3 !py-2.5 text-xs sm:!px-4 sm:text-sm">
-                立即購買
-              </Button>
-            </Link>
+            <Button type="button" intent="flow" className="!px-3 !py-2.5 text-xs sm:!px-4 sm:text-sm" disabled={cartBusy} onClick={() => void addToCart()}>
+              加入購物車
+            </Button>
+            <Button type="button" intent="action" className="!px-3 !py-2.5 text-xs sm:!px-4 sm:text-sm" disabled={cartBusy} onClick={() => void addToCart("/checkout")}>
+              立即購買
+            </Button>
           </div>
         </div>
       </div>

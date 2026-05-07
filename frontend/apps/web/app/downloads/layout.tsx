@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "下載 | Teaching Platform",
-  description: "取得已購買教材的下載連結。",
+  title: "我的教材 | Teaching Platform",
+  description: "已購買並取得授權的教材庫。",
 };
 
 export default function DownloadsLayout({ children }: { children: React.ReactNode }) {

@@ -14,6 +14,51 @@ async function runIdempotentMigrations() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode TEXT;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code TEXT;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_type TEXT NOT NULL DEFAULT 'none';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_carrier TEXT;
+  `);
+  await db.query(`
+    UPDATE orders SET discount_amount = 0 WHERE discount_amount IS NULL;
+    UPDATE orders SET invoice_type = 'none' WHERE invoice_type IS NULL OR TRIM(invoice_type) = '';
+  `);
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE orders
+        ADD CONSTRAINT orders_invoice_type_check CHECK (invoice_type IN ('none', 'carrier'));
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END $$;
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS promotions (
+      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+      code TEXT NOT NULL UNIQUE,
+      type TEXT NOT NULL CHECK (type IN ('fixed', 'percent')),
+      value INTEGER NOT NULL CHECK (value >= 0),
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(`
+    INSERT INTO promotions(code, type, value, is_active)
+    VALUES ('WELCOME100', 'fixed', 100, TRUE)
+    ON CONFLICT (code) DO NOTHING;
+  `);
+  await db.query(`
+    INSERT INTO promotions(code, type, value, is_active)
+    VALUES ('MAY10', 'percent', 10, TRUE)
+    ON CONFLICT (code) DO NOTHING;
+  `);
+  await db.query(`
+    ALTER TABLE orders DROP COLUMN IF EXISTS proof_url;
+    ALTER TABLE orders DROP COLUMN IF EXISTS proof_uploaded_at;
+    ALTER TABLE orders DROP COLUMN IF EXISTS payment_method;
+    ALTER TABLE orders DROP COLUMN IF EXISTS rejected_reason;
+    ALTER TABLE orders DROP COLUMN IF EXISTS approved_by;
+    ALTER TABLE orders DROP COLUMN IF EXISTS approved_at;
   `);
 
   await db.query(`
@@ -115,6 +160,9 @@ async function runIdempotentMigrations() {
   await db.query(`
     ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP;
     ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+    ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS proof_mime_type TEXT;
+    ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS proof_size_bytes INTEGER;
+    ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS original_filename TEXT;
   `);
 
   await db.query(`
@@ -615,16 +663,24 @@ function ensureCoreTables() {
           payment_mode TEXT NOT NULL DEFAULT 'manual_transfer',
           total_amount INTEGER NOT NULL DEFAULT 0,
           total_price INTEGER,
+          promo_code TEXT,
+          discount_amount INTEGER NOT NULL DEFAULT 0,
+          invoice_type TEXT NOT NULL DEFAULT 'none',
+          invoice_carrier TEXT,
           paid_at TIMESTAMP,
           cancelled_at TIMESTAMP,
-          proof_url TEXT,
-          proof_uploaded_at TIMESTAMP,
-          payment_method TEXT,
-          rejected_reason TEXT,
-          approved_by TEXT,
-          approved_at TIMESTAMP,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS promotions (
+          id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+          code TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL CHECK (type IN ('fixed', 'percent')),
+          value INTEGER NOT NULL CHECK (value >= 0),
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
       await db.query(`

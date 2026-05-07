@@ -28,13 +28,13 @@ test.describe("Parent Flow Pages", () => {
 
   test("orders and upload proof workflow skeleton", async ({ page }) => {
     await test.step("orders list page", async () => {
-      await page.goto("/orders");
+      await page.goto("/me/orders");
       await expect(page.locator("main")).toBeVisible();
       // TODO(assert): verify order status text and amount formatting.
     });
 
     await test.step("upload-proof page", async () => {
-      await page.goto("/orders/ord_mock_001/upload-proof");
+      await page.goto("/orders/ord_mock_001/payment-proof");
       await expect(page.locator("main")).toBeVisible();
       // TODO(assert): submit proof url/file and validate success prompt.
       // TODO(assert): mock API 400 and assert readable error.
@@ -43,7 +43,7 @@ test.describe("Parent Flow Pages", () => {
 
   test("downloads and my-reviews skeleton", async ({ page }) => {
     await test.step("downloads page", async () => {
-      await page.goto("/downloads");
+      await page.goto("/me/materials");
       await expect(page.locator("main, section")).toBeVisible();
       // TODO(assert): request signed URL and assert link appears.
       // TODO(assert): manual material id lookup shows response.

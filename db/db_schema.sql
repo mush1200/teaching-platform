@@ -85,16 +85,24 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_mode TEXT NOT NULL DEFAULT 'manual_transfer',
   total_amount INTEGER NOT NULL DEFAULT 0,
   total_price INTEGER,
+  promo_code TEXT,
+  discount_amount INTEGER NOT NULL DEFAULT 0,
+  invoice_type TEXT NOT NULL DEFAULT 'none',
+  invoice_carrier TEXT,
   paid_at TIMESTAMP,
   cancelled_at TIMESTAMP,
-  proof_url TEXT,
-  proof_uploaded_at TIMESTAMP,
-  payment_method TEXT,
-  rejected_reason TEXT,
-  approved_by TEXT,
-  approved_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT orders_invoice_type_check CHECK (invoice_type IN ('none', 'carrier'))
+);
+
+CREATE TABLE IF NOT EXISTS promotions (
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  code TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL CHECK (type IN ('fixed', 'percent')),
+  value INTEGER NOT NULL CHECK (value >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS order_items (
@@ -114,6 +122,9 @@ CREATE TABLE IF NOT EXISTS manual_payment_proofs (
   id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
   order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   proof_url TEXT NOT NULL,
+  proof_mime_type TEXT,
+  proof_size_bytes INTEGER,
+  original_filename TEXT,
   review_status TEXT NOT NULL DEFAULT 'pending',
   note TEXT,
   reviewed_by TEXT REFERENCES users(id),

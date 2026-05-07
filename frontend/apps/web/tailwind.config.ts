@@ -8,6 +8,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        /** Account / commerce UI — mirrors globals.css `--ds-*` */
+        ds: {
+          page: "var(--ds-page-bg)",
+          surface: "var(--ds-surface)",
+          surfaceMuted: "var(--ds-surface-muted)",
+          surfaceSubtle: "var(--ds-surface-subtle)",
+          border: "var(--ds-border-default)",
+          borderMuted: "var(--ds-border-muted)",
+          borderStrong: "var(--ds-border-strong)",
+          heading: "var(--ds-text-heading)",
+          body: "var(--ds-text-body)",
+          textMuted: "var(--ds-text-muted)",
+          textSubtle: "var(--ds-text-subtle)",
+          focus: "var(--ds-focus-ring)",
+        },
         edu: {
           page: "#F4F1FF",
           card: "#FFFFFF",
@@ -59,6 +74,9 @@ const config: Config = {
         },
       },
       boxShadow: {
+        "ds-card": "var(--ds-shadow-card)",
+        "ds-card-soft": "var(--ds-shadow-card-soft)",
+        "ds-card-hover": "var(--ds-shadow-card-hover)",
         edu: "0 10px 40px rgba(15, 23, 42, 0.06)",
         "edu-lg": "0 16px 48px rgba(108, 99, 255, 0.12)",
         "card-elevated": "0 18px 60px rgba(15, 23, 42, 0.10)",
@@ -72,6 +90,9 @@ const config: Config = {
         normal: "1024px",
         wide: "1280px",
       },
+      ringOffsetColor: {
+        ds: "var(--ds-page-bg)",
+      },
       spacing: {
         "layout-sidebar": "240px",
         "page-mobile": "16px",
@@ -83,6 +104,7 @@ const config: Config = {
         "section-xl": "48px",
       },
       borderRadius: {
+        "ds-card": "var(--ds-radius-card)",
         "card-elevated": "32px",
         "card-default": "28px",
         "card-flat": "24px",

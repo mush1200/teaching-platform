@@ -1,6 +1,15 @@
-# Teaching Platform — MVP Spec v1.3
+# Teaching Platform — MVP Spec v1.4
 
-Supersedes v1.2. Aligned with `Backend/models/bootstrapModel.js` (ensureCoreTables + runIdempotentMigrations) and current API behavior.
+Supersedes v1.3. Aligned with `Backend/models/bootstrapModel.js` (ensureCoreTables + runIdempotentMigrations) and current API behavior.
+
+**Document note (2026-05-08):** Checkout + payment-proof + order-progress experience has been upgraded to production-style MVP:
+- Stepper checkout with promo/invoice data persistence
+- payment-proof progress timeline
+- order detail timeline with canonical backend `order_progress_state`
+- proof upload idempotency protection (`x-idempotency-key`)
+- transactional emails + activity logs for email success/failure
+- payment-proof page layout finalized as two-column desktop: left (`order info + payment proof upload`), right (`order status timeline`)
+- timeline icons finalized with Lucide icon system (no emoji)
 
 **Document note (2026-05-03):** §11 `GET /materials` row and routing note updated to match implemented **list quality score** ordering and **ignored query string**; see `docs/materials-detail-spec.md` §10.
 
@@ -19,9 +28,9 @@ Identifiers: primary keys are **TEXT** (e.g. `mat_*`, `ord_*`, user ids); amount
 material = sellable teaching content (includes `file_key`, `cover_image_url`, optional `demo_video_url`, `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, optional `category` / `age_range` / `extension_value` / `short_description`, IP declaration flags)  
 material_image = detail image row for one material (`image_url`, optional `alt_text`, `sort_order`; does not store cover image)  
 material_content = itemized teaching assets of one material (`type`, `name`, optional `count`, `description`, with `sort_order`)  
-order = transaction container (`status`, `payment_mode`, `total_amount`, timestamps)  
+order = transaction container (`status`, `payment_mode`, `total_amount`, `promo_code`, `discount_amount`, `invoice_type`, `invoice_carrier`, timestamps)  
 order_item = line item with snapshots (`title_snapshot`, `price_snapshot`, `quantity`, `seller_id`, `subtotal`)  
-manual_payment_proof = uploaded payment evidence per order (`proof_url`, `review_status`: pending | approved | rejected)  
+manual_payment_proof = uploaded payment evidence image per order (`proof_url`, `proof_mime_type`, `proof_size_bytes`, `original_filename`, `review_status`: pending | approved | rejected)  
 review = parent rating/comment per material (at most one row per `(material_id, parent_id)`; MVP exposes **POST** create only — duplicate **409**; no separate update endpoint)  
 report = parent-submitted flag on material (`status`: pending | reviewed; admin marking does not imply takedown)  
 activity_log = audit row (`target_type`, `target_id`, `action`, `meta` JSONB)
@@ -76,6 +85,14 @@ Compatibility note: some analytics/reporting queries may include legacy/deployed
 
 There is **no** `proof_uploaded` value on `orders`. Uploading proofs inserts rows into `manual_payment_proofs` with `review_status = 'pending'` while the order remains `pending_payment`.
 
+For UI/state consistency, API now exposes **derived** `order_progress_state`:
+
+- `pending` — order created, no proof uploaded yet
+- `proof_uploaded` — proof exists (non-pending historical state)
+- `reviewing` — latest/active proof is pending review
+- `approved` — order approved and downloadable
+- `rejected` — latest proof rejected; order stays `pending_payment`
+
 Rejecting a proof (**POST** admin reject) updates only `manual_payment_proofs.review_status` to `rejected`; the **order stays `pending_payment`** until a proof is approved.
 
 Legacy DB values may be normalized at startup (`paid` → `approved`).  
@@ -96,7 +113,13 @@ One order may contain multiple materials via `order_items`.
 
 Stores:
 
-- `order_id`, `proof_url`, `review_status` (pending | approved | rejected), optional `note`, `reviewed_by`, `reviewed_at`, `created_at`, etc.
+- `order_id`, `proof_url`, `proof_mime_type`, `proof_size_bytes`, `original_filename`, `review_status` (pending | approved | rejected), optional `note`, `reviewed_by`, `reviewed_at`, `created_at`, etc.
+- Upload constraints: image only (`JPG`/`JPEG`/`PNG`/`WEBP`), max **10MB per file**, max **3 files per order**.
+- Canonical upload endpoint: `POST /orders/:id/payment-proof` (legacy alias kept: `POST /orders/:id/upload-proof`).
+- Client may pass `x-idempotency-key` to prevent duplicate uploads from repeated clicks/retries. Replayed key for same user/order is safely ignored.
+- Frontend payment-proof page uses **status timeline** (not stepper) and separates:
+  - order info / bank transfer info / upload form (left)
+  - order timeline tracker (right)
 
 Admin **approve** on one pending proof sets the order to `approved` and may mark other pending proofs for that order as superseded (rejected) in implementation.
 
@@ -150,6 +173,7 @@ Critical paths emit logs. Implemented action strings include (non-exhaustive):
 - `payment_proof.approved`, `payment_proof.rejected`
 - `download.attempted`, `download.denied`, `download.allowed`
 - `review_created`, `report_created`, `report_reviewed`
+- `order_email_sent`, `order_email_failed` (meta.type: `order_created` | `proof_uploaded` | `payment_approved` | `payment_rejected`)
 
 **Material status actions:** `material.published` is emitted only when an update sets `status` to **`published`** (changed from prior value). `material.unpublished` only when the new `status` is **`unpublished`**. (For example, moving to `pending_review` does **not** emit `material.unpublished`.)
 
@@ -215,10 +239,12 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| POST | `/orders` | JWT (**parent**) | Creates order from cart (empties cart path in service). Empty cart **400**; unavailable material **409**. |
-| GET | `/orders/my` | JWT | Lists orders for `req.user`. Each `order` includes `payment_proof_pending_review_count` (count of `manual_payment_proofs` with `review_status = pending` for that order). |
-| GET | `/orders/:id` | JWT | Returns `{ order, items }` for a single order; `order` includes `payment_proof_pending_review_count` (same semantics as list). Access allowed to owner parent or admin; otherwise **403**. |
-| POST | `/orders/:id/upload-proof` | JWT | Body: `proofUrl`. Order must exist, `user_id` must match caller, status `pending_payment`. Inserts `manual_payment_proofs` pending row. |
+| POST | `/orders` | JWT (**parent**) | Creates order from cart (empties cart path in service). Supports `promo_code`, `invoice_type`, `invoice_carrier`. Empty cart **400**; unavailable material **409**; promo/invoice validation errors return **4xx**. |
+| POST | `/orders/promo/validate` | JWT (**parent**) | Validates promo code against subtotal. Returns `code`, `discount_amount`, `total_amount`. |
+| GET | `/orders/my` | JWT | Lists orders for `req.user`. Includes payment-proof counters and compatibility fields. |
+| GET | `/orders/:id` | JWT | Returns `{ order, items }` for one order. Access allowed to owner parent or admin; otherwise **403**. |
+| POST | `/orders/:id/upload-proof` | JWT (**parent**) | Legacy upload endpoint; same behavior as canonical endpoint. |
+| POST | `/orders/:id/payment-proof` | JWT (**parent**) | `multipart/form-data`, field `proofs` (1..3 files, JPG/JPEG/PNG/WEBP, each <= 10MB). Optional header `x-idempotency-key` to dedupe retries. Order must exist, owner match, and order status must be `pending_payment`. |
 
 ### Teacher sales (`/teacher/sales`, `routes/teacherSales.js`)
 
@@ -240,7 +266,10 @@ All routes below: **JWT + teacher**. Non-teacher **403**.
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
+| GET | `/me/orders` | JWT | Canonical user order list endpoint (alias of `/orders/my`). Returns progress fields: `payment_proof_uploaded_count`, `payment_proof_latest_status`, `order_progress_state`. |
+| GET | `/me/orders/:orderId` | JWT | Canonical user order detail endpoint (alias of `/orders/:id` for owner). Returns `order`, `items`, and `payment_proof_rejected_note` / `order_progress_state` for timeline UI. |
 | GET | `/me/reviews` | JWT | Lists reviews authored by current user (service-shaped rows). |
+| GET | `/me/materials` | JWT | 已購買且訂單已核准（`orders.status = approved`）之教材清單，供「我的教材」頁顯示。回傳 `{ items: [{ materialId, title, coverImageUrl, materialUpdatedAt, purchasedAt, authorName }] }`。 |
 
 ### Reports (`/reports`)
 
@@ -263,7 +292,7 @@ All routes below: **JWT + admin**. Non-admin **403**.
 | GET | `/admin/materials` | All materials (admin list columns). |
 | GET | `/admin/orders` | All orders; optional query `status` (e.g. `pending_payment`, `approved`). |
 | POST | `/admin/payment-proofs/:id/approve` | Approve pending proof; may set order `approved`; supersede other pending proofs. Body optional `note`. |
-| POST | `/admin/payment-proofs/:id/reject` | Reject pending proof; body **`note` required**. Order status unchanged. |
+| POST | `/admin/payment-proofs/:id/reject` | Reject pending proof; body `note` optional (stored as empty string if omitted). Order status unchanged (`pending_payment`). |
 | GET | `/admin/reports` | Array of reports; optional `status=pending` or `reviewed` (invalid → **400**). |
 | GET | `/admin/materials/:materialId/reports` | Same columns as **`GET /admin/reports`**; optional `status=pending` or `reviewed` (invalid → **400**). |
 | PATCH | `/admin/reports/:id` | Body `{ "status": "reviewed" }`; pending → reviewed only; duplicate transition **409**. |
@@ -281,6 +310,27 @@ All routes below: **JWT + admin**.
 | GET | `/admin/orders/:orderId/activity-logs` | Logs with `target_type = order` and `target_id = orderId`; `page`, `limit`. |
 
 ---
+
+# 14. Timeline UI contract（前端追蹤介面）
+
+For order tracking surfaces (`/orders/:orderId/payment-proof`, `/me/orders/:orderId`), timeline must use **status tracker semantics** (not checkout stepper semantics).
+
+- Icon library: **Lucide** (`lucide-react`)
+- Emoji is not allowed in timeline status nodes.
+- Status mapping:
+  - `orderCreated` → `CheckCircle2` (green)
+  - `transferCompleted` → `Landmark` (green)
+  - `proofUploaded` → `Upload` (brand purple)
+  - `reviewing` → `Clock3` (brand purple)
+  - `downloadReady` → `Download` (green)
+  - `proofRejected` → `CircleX` (red)
+  - `locked` → `Lock` (gray)
+- Visual states:
+  - completed = green
+  - processing/current = purple
+  - failed = red
+  - locked/pending = gray
+- Timeline layout: vertical, left icon + connector line, right content card.
 
 **Routing note:** `materials` router registers static segments (`/:id/reviews`, `/:id/rating`, `/:id/reports`) before `/:id` so paths resolve correctly.
 

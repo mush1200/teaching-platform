@@ -74,12 +74,22 @@ export type Order = {
   payment_mode?: string | null;
   total_amount?: number;
   total_price?: number;
+  promo_code?: string | null;
+  discount_amount?: number;
+  invoice_type?: "none" | "carrier" | string;
+  invoice_carrier?: string | null;
   paid_at?: string | null;
   cancelled_at?: string | null;
   created_at?: string;
   updated_at?: string;
   /** Uploaded proofs awaiting admin review (manual_payment_proofs.review_status = pending) */
   payment_proof_pending_review_count?: number;
+  payment_proof_uploaded_count?: number;
+  payment_proof_latest_status?: "pending" | "approved" | "rejected" | string | null;
+  payment_proof_latest_uploaded_at?: string | null;
+  payment_proof_latest_reviewed_at?: string | null;
+  payment_proof_rejected_note?: string | null;
+  order_progress_state?: "pending" | "proof_uploaded" | "reviewing" | "approved" | "rejected" | string;
 };
 
 export type OrdersListResponse = {
@@ -113,6 +123,19 @@ export type DownloadLinkResponse = {
   materialId: string;
   signedUrl: string;
   expiresInSeconds?: number;
+};
+
+export type MyLibraryItem = {
+  materialId: string;
+  title: string;
+  coverImageUrl?: string | null;
+  materialUpdatedAt?: string | null;
+  purchasedAt?: string | null;
+  authorName?: string | null;
+};
+
+export type MyLibraryResponse = {
+  items: MyLibraryItem[];
 };
 
 export type Report = {
@@ -154,6 +177,9 @@ export type AdminPaymentProof = {
   user_id?: string;
   order_status?: string;
   proof_url?: string;
+  proof_mime_type?: string | null;
+  proof_size_bytes?: number | null;
+  original_filename?: string | null;
   review_status: "pending" | "approved" | "rejected" | string;
   uploaded_at?: string;
   created_at?: string;

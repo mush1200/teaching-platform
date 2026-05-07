@@ -24,13 +24,14 @@ async function http(method, path, opts = {}) {
   const url = `${BASE}${path}`;
   const headers = { ...opts.headers };
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
-  if (opts.body !== undefined && !headers["Content-Type"]) {
+  const hasRawBody = Object.prototype.hasOwnProperty.call(opts, "rawBody");
+  if (!hasRawBody && opts.body !== undefined && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
   const res = await fetch(url, {
     method,
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: hasRawBody ? opts.rawBody : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   const text = await res.text();
   let data;
@@ -63,6 +64,13 @@ function smokeMaterialBody({ title, fileKey, price = 100 }) {
     contents: [{ type: "worksheet", name: "練習", count: 1 }],
     ipDeclarationAccepted: true,
   };
+}
+
+function makeProofFormData(filename = "proof.png", mimetype = "image/png") {
+  const form = new FormData();
+  const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  form.append("proofs", new Blob([bytes], { type: mimetype }), filename);
+  return form;
 }
 
 async function main() {
@@ -215,7 +223,7 @@ async function main() {
   {
     const up = await http("POST", `/orders/${orderId}/upload-proof`, {
       token: parentToken,
-      body: { proofUrl: "https://example.com/proof.png" },
+      rawBody: makeProofFormData("proof-smoke-1.png"),
     });
     expect("POST /orders/:id/upload-proof", up.status === 201 && up.data?.proof?.id, JSON.stringify(up.data));
     proofId = up.data.proof.id;
@@ -234,6 +242,16 @@ async function main() {
       JSON.stringify(ap.data)
     );
     console.log("OK  POST /admin/payment-proofs/:id/approve");
+  }
+
+  {
+    const lib = await http("GET", "/me/materials", { token: parentToken });
+    expect(
+      "GET /me/materials",
+      lib.status === 200 && Array.isArray(lib.data?.items) && lib.data.items.length >= 1,
+      JSON.stringify(lib.data)
+    );
+    console.log("OK  GET /me/materials");
   }
 
   // Second material + order + reject（覆蓋 POST …/reject）
@@ -278,7 +296,7 @@ async function main() {
 
     const up2 = await http("POST", `/orders/${ord2.data.data.order.id}/upload-proof`, {
       token: parentToken,
-      body: { proofUrl: "https://example.com/reject-proof.png" },
+      rawBody: makeProofFormData("proof-smoke-reject.png"),
     });
     expect(
       "POST …/upload-proof (reject flow)",

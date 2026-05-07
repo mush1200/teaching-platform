@@ -24,8 +24,8 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/favorites", label: "收藏清單" },
     { href: "/cart", label: "購物車" },
     { href: "/checkout", label: "結帳" },
-    { href: "/orders", label: "我的訂單" },
-    { href: "/downloads", label: "下載中心" },
+    { href: "/me/orders", label: "我的訂單" },
+    { href: "/me/materials", label: "我的教材" },
     { href: "/my-reviews", label: "我的評價" },
   ],
   teacher: [
@@ -87,7 +87,9 @@ function getRoleByPath(pathname: string, storedRole: RoleKind | null): RoleKind 
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/orders") ||
+    pathname.startsWith("/me/orders") ||
     pathname.startsWith("/downloads") ||
+    pathname.startsWith("/me/materials") ||
     pathname.startsWith("/my-reviews") ||
     pathname.startsWith("/explore") ||
     pathname.startsWith("/favorites")
@@ -203,7 +205,9 @@ export function RoleShell({ children }: { children: ReactNode }) {
     "/cart",
     "/checkout",
     "/orders",
+    "/me/orders",
     "/downloads",
+    "/me/materials",
     "/my-reviews",
     "/favorites",
   ];

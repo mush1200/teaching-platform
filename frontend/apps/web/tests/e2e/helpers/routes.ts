@@ -11,9 +11,9 @@ export const PUBLIC_ROUTES = [
 export const PARENT_ROUTES = [
   "/cart",
   "/checkout",
-  "/orders",
-  "/orders/ord_mock_001/upload-proof",
-  "/downloads",
+  "/me/orders",
+  "/orders/ord_mock_001/payment-proof",
+  "/me/materials",
   "/my-reviews",
 ] as const;
 

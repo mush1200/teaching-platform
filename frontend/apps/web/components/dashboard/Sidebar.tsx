@@ -85,7 +85,7 @@ export function Sidebar({ cartBadge = 2, ordersBadge = 1, onNavigate }: Props) {
             </Link>
           </li>
           <li>
-            <Link href="/orders" className={linkCls("/orders", true)} onClick={onNavigate}>
+            <Link href="/me/orders" className={linkCls("/me/orders", true)} onClick={onNavigate}>
               <span aria-hidden>📦</span>
               我的訂單
               <NavBadge n={ordersBadge} />
@@ -102,9 +102,9 @@ export function Sidebar({ cartBadge = 2, ordersBadge = 1, onNavigate }: Props) {
         <p className="mb-2 mt-6 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF]">我的內容</p>
         <ul className="space-y-1">
           <li>
-            <Link href="/downloads" className={linkCls("/downloads", true)} onClick={onNavigate}>
-              <span aria-hidden>⬇️</span>
-              下載中心
+            <Link href="/me/materials" className={linkCls("/me/materials", true)} onClick={onNavigate}>
+              <span aria-hidden>📚</span>
+              我的教材
             </Link>
           </li>
           <li>

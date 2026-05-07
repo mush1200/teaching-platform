@@ -20,9 +20,9 @@ const FEATURE_CARDS = [
     emoji: "🔒",
   },
   {
-    title: "購買後下載",
-    desc: "核准後即可從下載中心取得教材檔案，隨時複習。",
-    emoji: "⬇️",
+    title: "我的教材庫",
+    desc: "核准後教材會出現在「我的教材」，隨時瀏覽與下載。",
+    emoji: "📚",
   },
 ] as const;
 
