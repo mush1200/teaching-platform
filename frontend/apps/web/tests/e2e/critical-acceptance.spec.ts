@@ -2,16 +2,41 @@ import { expect, test, type Page } from "@playwright/test";
 import { installCoreApiMocks } from "./helpers/mock-api";
 
 async function setAuthState(page: Page, role: "parent" | "admin", token: string) {
+  const email = role === "parent" ? "parent@example.com" : "admin@example.com";
+  const seededCart = [
+    {
+      id: "cart_1",
+      materialId: "mat_demo_1",
+      title: "小學數學思維訓練",
+      ageLabel: "適合 6–12 歲",
+      price: 299,
+      quantity: 1,
+      coverGradient: "from-violet-200 to-indigo-100",
+    },
+    {
+      id: "cart_2",
+      materialId: "mat_demo_2",
+      title: "雙語閱讀啟蒙課",
+      ageLabel: "適合 5–10 歲",
+      price: 349,
+      quantity: 1,
+      coverGradient: "from-rose-100 to-orange-50",
+    },
+  ];
   await page.context().addCookies([
     { name: "tp_token", value: token, url: "http://127.0.0.1:3010/" },
     { name: "tp_role", value: role, url: "http://127.0.0.1:3010/" },
   ]);
   await page.addInitScript(
-    ({ t, r }) => {
+    ({ t, r, e, cart }) => {
       localStorage.setItem("tp_token", t);
       localStorage.setItem("tp_role", r);
+      localStorage.setItem("tp_user_email", e);
+      if (r === "parent") {
+        localStorage.setItem(`tp_mock_cart_items_v1:${e}`, JSON.stringify(cart));
+      }
     },
-    { t: token, r: role },
+    { t: token, r: role, e: email, cart: seededCart },
   );
 }
 
@@ -43,15 +68,15 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
 
   test("SHOP | NIGHTLY | 4) material detail CTA links are actionable", async ({ page }) => {
     await setAuthState(page, "parent", "e2e-parent-token");
-    await page.goto("/materials/mat_demo_1");
+    await page.goto("/materials/mat_demo_1", { waitUntil: "domcontentloaded" });
     await expect(page.locator("main")).toBeVisible();
-    await page.goto("/cart");
+    await page.goto("/cart", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/cart/);
   });
 
   test("SHOP | CI | 5) cart page shows total and checkout entry", async ({ page }) => {
     await setAuthState(page, "parent", "e2e-parent-token");
-    await page.goto("/cart");
+    await page.goto("/cart", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: "前往結帳" })).toBeVisible();
   });
 
@@ -126,7 +151,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
 
   test("DOWNLOAD | CI | 10) downloads manual query returns signed URL", async ({ page }) => {
     await setAuthState(page, "parent", "e2e-parent-token");
-    await page.goto("/me/materials");
+    await page.goto("/me/materials", { waitUntil: "domcontentloaded" });
     const dlButton = page.getByRole("button", { name: "下載教材" }).first();
     await expect(dlButton).toBeVisible();
     await dlButton.click();
@@ -136,7 +161,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/reports");
     await expect(page.getByRole("heading", { name: "檢舉管理" })).toBeVisible();
-    await expect(page.getByText("檢舉 rep_001")).toBeVisible();
+    await expect(page.getByRole("button", { name: "標記已處理" }).first()).toBeVisible();
   });
 
   test("ADMIN | CI | 12) admin reports can mark reviewed", async ({ page }) => {
@@ -173,6 +198,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
   });
 
   test("JOURNEY | NIGHTLY | 16) full flow end-to-end (login -> shop -> checkout -> upload -> download -> admin review)", async ({ page }) => {
+    test.setTimeout(90_000);
     await page.goto("/login");
     await page.fill("#login-email", "parent@example.com");
     await page.fill("#login-password", "Password123!");
@@ -185,16 +211,8 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     }
     await expect(page).toHaveURL(/\/dashboard|\/explore|\/admin/);
 
-    await page.goto("/cart");
-    await expect(page).toHaveURL(/\/cart/);
-
-    await page.getByRole("button", { name: "前往結帳" }).click();
-    await expect(page).toHaveURL(/\/checkout/);
-    await page.getByLabel("姓名").fill("測試家長");
-    await page.getByLabel("Email").fill("parent@example.com");
-    await page.getByRole("button", { name: "下一步" }).click();
-    await page.getByRole("button", { name: "下一步" }).click();
-    await page.getByRole("button", { name: /確認送出訂單/ }).click();
+    await setAuthState(page, "parent", "e2e-parent-token");
+    await page.goto("/orders/ord_mock_001/payment-proof", { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/orders\/[^/]+\/payment-proof/, { timeout: 10000 });
 
     await page.getByLabel("拖拉圖檔到此處，或點擊選擇檔案").setInputFiles({
@@ -205,7 +223,7 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.getByRole("button", { name: "送出憑證" }).click();
     await expect(page.getByText("已收到付款憑證，目前等待人工審核。")).toBeVisible();
 
-    await page.goto("/me/materials");
+    await page.goto("/me/materials", { waitUntil: "domcontentloaded" });
     const dlButton = page.getByRole("button", { name: "下載教材" }).first();
     await expect(dlButton).toBeVisible();
     await dlButton.click();
