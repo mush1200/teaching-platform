@@ -1,9 +1,8 @@
 import type { Material, MaterialsListResponse, MaterialsPagination } from "./api-types";
 import { apiFetch } from "./api-client";
 import { materialToMock } from "./material-mapper";
-import type { MockMaterial } from "./mock-data";
-import { getMaterials } from "./edu-api-mock";
-import { mockMaterials } from "./mock-data";
+import type { MockMaterial } from "./view-models";
+import { getMaterials } from "./api-repository";
 
 export type MaterialsSort = "popular" | "latest" | "rating" | "recommended";
 
@@ -22,7 +21,6 @@ export type ListMaterialsParams = {
 export type ListMaterialsResult = {
   items: MockMaterial[];
   pagination: MaterialsPagination;
-  usedMockFallback: boolean;
 };
 
 function buildQueryString(params: ListMaterialsParams): string {
@@ -156,10 +154,7 @@ function mapApiPayload(data: MaterialsListResponse): MockMaterial[] {
   });
 }
 
-/**
- * Fetches materials from GET /materials with query params.
- * Falls back to client-side mock filtering when the response is not usable.
- */
+/** Fetches materials from GET /materials with query params. */
 export async function listMaterials(params: ListMaterialsParams = {}): Promise<ListMaterialsResult> {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
@@ -180,24 +175,28 @@ export async function listMaterials(params: ListMaterialsParams = {}): Promise<L
             total: pg.total,
             totalPages: Math.max(1, pg.totalPages ?? 1),
           },
-          usedMockFallback: false,
         };
       }
       if (items.length > 0) {
         let list = filterMaterials(items, params);
         list = sortMaterials(list, params.sort);
         const { slice, pagination } = paginate(list, page, limit);
-        return { items: slice, pagination, usedMockFallback: false };
+        return { items: slice, pagination };
       }
     }
-  } catch {
-    /* fallback */
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "materials request failed");
   }
 
-  let list = filterMaterials(mockMaterials, params);
-  list = sortMaterials(list, params.sort);
-  const { slice, pagination } = paginate(list, page, limit);
-  return { items: slice, pagination, usedMockFallback: true };
+  return {
+    items: [],
+    pagination: {
+      page,
+      limit,
+      total: 0,
+      totalPages: 1,
+    },
+  };
 }
 
 /** Home sections: fetch slice without pagination noise */
@@ -235,7 +234,7 @@ export async function resolveMaterialsByIds(ids: string[]): Promise<MockMaterial
 /** 「為你推薦」：優先 recommended API；否則 popular 洗牌並盡量與熱門前三名錯開。 */
 export async function listRecommendedForHome(hotIds: string[], limit: number): Promise<MockMaterial[]> {
   const tryRec = await listMaterials({ sort: "recommended", limit: Math.max(limit * 2, 12), page: 1 });
-  if (!tryRec.usedMockFallback && tryRec.items.length > 0) {
+  if (tryRec.items.length > 0) {
     const hotTop = new Set(hotIds.slice(0, 3));
     const picked = tryRec.items.filter((m) => !hotTop.has(m.id)).slice(0, limit);
     if (picked.length >= Math.min(3, limit)) return picked.slice(0, limit);

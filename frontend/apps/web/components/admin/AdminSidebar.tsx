@@ -22,7 +22,7 @@ const sections: NavSection[] = [
       { href: "/admin/reports?status=pending", label: "檢舉管理", icon: "🚩" },
       { href: "/admin/activity-logs", label: "活動紀錄", icon: "🕒" },
       { href: "/admin/users", label: "用戶管理", icon: "👥" },
-      { href: "/admin/reviews-hub", label: "評論管理", icon: "⭐" },
+      { href: "/admin/reviews-hub", label: "教學回饋管理", icon: "⭐" },
       { href: "/admin/settings", label: "系統設定", icon: "⚙️" },
     ],
   },

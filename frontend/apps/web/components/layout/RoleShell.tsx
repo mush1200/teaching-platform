@@ -7,10 +7,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, getStoredRole } from "../../lib/api-client";
 import { ParentAppShell } from "../dashboard/ParentAppShell";
 
-type RoleKind = "public" | "parent" | "teacher" | "admin";
+type RoleKind = "public" | "parent" | "teacher" | "creator" | "admin";
 type NavItem = { href: string; label: string; exact?: boolean };
-type TeacherNavItem = { id: string; href?: string; label: string; icon: string; exact?: boolean; action?: "logout" };
-type TeacherSection = { label: string; items: TeacherNavItem[] };
+type CreatorNavItem = { id: string; href?: string; label: string; icon: string; exact?: boolean; action?: "logout" };
+type CreatorSection = { label: string; items: CreatorNavItem[] };
 
 const NAVS: Record<RoleKind, NavItem[]> = {
   public: [
@@ -26,51 +26,56 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/checkout", label: "結帳" },
     { href: "/me/orders", label: "我的訂單" },
     { href: "/me/materials", label: "我的教材" },
-    { href: "/my-reviews", label: "我的評價" },
+    { href: "/my-reviews", label: "我的教學回饋" },
   ],
   teacher: [
-    { href: "/teacher/materials", label: "教材管理" },
-    { href: "/teacher/materials/new", label: "新增教材" },
-    { href: "/teacher/sales", label: "銷售與收益" },
+    { href: "/creator/materials", label: "教材管理" },
+    { href: "/creator/materials/new", label: "新增教材" },
+    { href: "/creator/sales", label: "銷售與收益" },
+  ],
+  creator: [
+    { href: "/creator/materials", label: "教材管理" },
+    { href: "/creator/materials/new", label: "新增教材" },
+    { href: "/creator/sales", label: "銷售與收益" },
   ],
   admin: [
     { href: "/admin", label: "儀表板", exact: true },
     { href: "/admin/materials", label: "教材管理" },
     { href: "/admin/orders", label: "訂單管理" },
     { href: "/admin/users", label: "用戶管理" },
-    { href: "/admin/reviews-hub", label: "評論管理" },
+    { href: "/admin/reviews-hub", label: "教學回饋管理" },
     { href: "/admin/reports", label: "檢舉管理" },
     { href: "/admin/activity-logs", label: "活動紀錄" },
     { href: "/admin/settings", label: "系統設定" },
   ],
 };
 
-const TEACHER_SECTIONS: TeacherSection[] = [
+const CREATOR_SECTIONS: CreatorSection[] = [
   {
     label: "主要功能",
     items: [
-      { id: "teacher-materials", href: "/teacher/materials?view=list", label: "教材管理", icon: "📖" },
-      { id: "teacher-create", href: "/teacher/materials/new", label: "新增教材", icon: "➕" },
-      { id: "teacher-sales", href: "/teacher/sales?tab=overview", label: "銷售與收益", icon: "📊" },
+      { id: "teacher-materials", href: "/creator/materials?view=list", label: "教材管理", icon: "📖" },
+      { id: "teacher-create", href: "/creator/materials/new", label: "新增教材", icon: "➕" },
+      { id: "teacher-sales", href: "/creator/sales?tab=overview", label: "銷售與收益", icon: "📊" },
     ],
   },
   {
     label: "教材狀態",
     items: [
-      { id: "teacher-status-draft", href: "/teacher/materials?status=draft", label: "草稿", icon: "📝" },
-      { id: "teacher-status-pending", href: "/teacher/materials?status=pending_review", label: "待審核", icon: "⏱️" },
-      { id: "teacher-status-published", href: "/teacher/materials?status=published", label: "已發布", icon: "✅" },
-      { id: "teacher-status-unpublished", href: "/teacher/materials?status=unpublished", label: "已下架", icon: "📦" },
+      { id: "teacher-status-draft", href: "/creator/materials?status=draft", label: "草稿", icon: "📝" },
+      { id: "teacher-status-pending", href: "/creator/materials?status=pending_review", label: "待審核", icon: "⏱️" },
+      { id: "teacher-status-published", href: "/creator/materials?status=published", label: "已發布", icon: "✅" },
+      { id: "teacher-status-unpublished", href: "/creator/materials?status=unpublished", label: "已下架", icon: "📦" },
     ],
   },
   {
     label: "成效與互動",
-    items: [{ id: "teacher-reviews", href: "/teacher/materials?view=reviews", label: "教材評論", icon: "💬" }],
+    items: [{ id: "teacher-reviews", href: "/creator/materials?view=reviews", label: "教材教學回饋", icon: "💬" }],
   },
   {
     label: "帳戶",
     items: [
-      { id: "teacher-profile", href: "/teacher/materials?view=profile", label: "個人資料", icon: "👤" },
+      { id: "teacher-profile", href: "/creator/materials?view=profile", label: "個人資料", icon: "👤" },
       { id: "teacher-logout", label: "登出", icon: "🚪", action: "logout" },
     ],
   },
@@ -78,9 +83,9 @@ const TEACHER_SECTIONS: TeacherSection[] = [
 
 function getRoleByPath(pathname: string, storedRole: RoleKind | null): RoleKind {
   if (pathname.startsWith("/admin")) return "admin";
-  if (pathname.startsWith("/teacher")) return "teacher";
+  if (pathname.startsWith("/teacher") || pathname.startsWith("/creator")) return "creator";
   if (storedRole === "parent") return "parent";
-  if (storedRole === "teacher") return "teacher";
+  if (storedRole === "teacher" || storedRole === "creator") return "creator";
   if (storedRole === "admin") return "admin";
   if (
     pathname.startsWith("/cart") ||
@@ -104,12 +109,12 @@ function isActive(pathname: string, item: NavItem) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function getTeacherActiveId(pathname: string, params: { status: string | null; view: string | null; tab: string | null }) {
-  if (pathname.startsWith("/teacher/materials/new")) return "teacher-create";
-  if (pathname.startsWith("/teacher/sales")) {
+function getCreatorActiveId(pathname: string, params: { status: string | null; view: string | null; tab: string | null }) {
+  if (pathname.startsWith("/teacher/materials/new") || pathname.startsWith("/creator/materials/new")) return "teacher-create";
+  if (pathname.startsWith("/teacher/sales") || pathname.startsWith("/creator/sales")) {
     return "teacher-sales";
   }
-  if (pathname.startsWith("/teacher/materials")) {
+  if (pathname.startsWith("/teacher/materials") || pathname.startsWith("/creator/materials")) {
     if (params.status === "draft") return "teacher-status-draft";
     if (params.status === "pending_review") return "teacher-status-pending";
     if (params.status === "published") return "teacher-status-published";
@@ -124,7 +129,7 @@ function getTeacherActiveId(pathname: string, params: { status: string | null; v
 
 function roleTitle(role: RoleKind) {
   if (role === "admin") return "管理員";
-  if (role === "teacher") return "教材工作台";
+  if (role === "teacher" || role === "creator") return "創作者工作台";
   if (role === "parent") return "使用者中心";
   return "探索教材";
 }
@@ -135,7 +140,7 @@ export function RoleShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [storedRole, setStoredRole] = useState<RoleKind | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [teacherStatusCounts, setTeacherStatusCounts] = useState({
+  const [creatorStatusCounts, setCreatorStatusCounts] = useState({
     draft: 0,
     pending_review: 0,
     published: 0,
@@ -150,15 +155,15 @@ export function RoleShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const role = getStoredRole();
-    if (role === "parent" || role === "teacher" || role === "admin") {
-      setStoredRole(role);
+    if (role === "parent" || role === "teacher" || role === "creator" || role === "admin") {
+      setStoredRole(role === "teacher" ? "creator" : role);
     } else {
       setStoredRole(null);
     }
   }, [pathname]);
 
   useEffect(() => {
-    if (role !== "teacher") return;
+    if (role !== "creator") return;
     let active = true;
     void (async () => {
       try {
@@ -176,7 +181,7 @@ export function RoleShell({ children }: { children: ReactNode }) {
           published: own.filter((item) => item.status === "published").length,
           unpublished: own.filter((item) => item.status === "unpublished").length,
         };
-        if (active) setTeacherStatusCounts(next);
+        if (active) setCreatorStatusCounts(next);
       } catch {
         /* keep last counts */
       }
@@ -231,29 +236,29 @@ export function RoleShell({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
-  const teacherActiveId = getTeacherActiveId(pathname, {
+  const creatorActiveId = getCreatorActiveId(pathname, {
     status: searchParams.get("status"),
     view: searchParams.get("view"),
     tab: searchParams.get("tab"),
   });
 
-  const teacherItemCls = (item: TeacherNavItem) =>
+  const creatorItemCls = (item: CreatorNavItem) =>
     [
       "flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-sm transition-colors",
-      teacherActiveId === item.id
+      creatorActiveId === item.id
         ? "border-[#6C63FF] bg-[#EDE9FE] font-semibold text-[#6C63FF]"
         : "border-transparent font-medium text-[#4B5563] hover:bg-[#F7F4FF] hover:text-[#1F2937]",
     ].join(" ");
 
-  const teacherStatusBadgeMap = {
-    "teacher-status-draft": { value: teacherStatusCounts.draft, tone: "bg-[#F3F4F6] text-[#6B7280]" },
-    "teacher-status-pending": { value: teacherStatusCounts.pending_review, tone: "bg-[#FEF3EC] text-[#F59E0B]" },
-    "teacher-status-published": { value: teacherStatusCounts.published, tone: "bg-[#ECFDF3] text-[#22C55E]" },
-    "teacher-status-unpublished": { value: teacherStatusCounts.unpublished, tone: "bg-[#F3F4F6] text-[#6B7280]" },
+  const creatorStatusBadgeMap = {
+    "teacher-status-draft": { value: creatorStatusCounts.draft, tone: "bg-[#F3F4F6] text-[#6B7280]" },
+    "teacher-status-pending": { value: creatorStatusCounts.pending_review, tone: "bg-[#FEF3EC] text-[#F59E0B]" },
+    "teacher-status-published": { value: creatorStatusCounts.published, tone: "bg-[#ECFDF3] text-[#22C55E]" },
+    "teacher-status-unpublished": { value: creatorStatusCounts.unpublished, tone: "bg-[#F3F4F6] text-[#6B7280]" },
   } as const;
 
-  const teacherSectionLabel = "mb-2 mt-6 px-3 text-xs font-semibold tracking-wide text-[#7C74C8]";
-  const teacherHeader = (
+  const creatorSectionLabel = "mb-2 mt-6 px-3 text-xs font-semibold tracking-wide text-[#7C74C8]";
+  const creatorHeader = (
     <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
       <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
       <div className="mt-3 rounded-3xl bg-[#F4F1FF] p-4">
@@ -261,18 +266,18 @@ export function RoleShell({ children }: { children: ReactNode }) {
           🎓
         </p>
         <p className="mt-2 text-[30px] font-bold leading-none text-[#1F2937]">Hi, 歡迎回來 👋</p>
-        <p className="mt-2 text-sm text-[#6B7280]">管理你的教材與銷售</p>
+        <p className="mt-2 text-sm text-[#6B7280]">管理你的創作者教材與銷售</p>
       </div>
     </div>
   );
 
-  if (role === "teacher") {
+  if (role === "creator" || role === "teacher") {
     return (
       <div className="min-h-dvh bg-gradient-to-br from-[#F4F1FF] via-white to-[#F4F1FF]">
         <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[#E5E7EB]/80 bg-white px-4 py-3 lg:hidden">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
-            <p className="text-sm font-bold text-[#1F2937]">教材工作台</p>
+            <p className="text-sm font-bold text-[#1F2937]">創作者工作台</p>
           </div>
           <button
             type="button"
@@ -299,11 +304,11 @@ export function RoleShell({ children }: { children: ReactNode }) {
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          {teacherHeader}
-          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="教材工作台手機側邊選單">
-            {TEACHER_SECTIONS.map((section) => (
+          {creatorHeader}
+          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="創作者工作台手機側邊選單">
+            {CREATOR_SECTIONS.map((section) => (
               <div key={`mobile-${section.label}`}>
-                <p className={teacherSectionLabel}>{section.label}</p>
+                <p className={creatorSectionLabel}>{section.label}</p>
                 <ul className="space-y-1">
                   {section.items.map((item) => (
                     <li key={`mobile-${item.id}`}>
@@ -317,16 +322,16 @@ export function RoleShell({ children }: { children: ReactNode }) {
                           {item.label}
                         </button>
                       ) : (
-                        <Link href={item.href ?? "/teacher/materials"} className={teacherItemCls(item)}>
+                        <Link href={item.href ?? "/creator/materials"} className={creatorItemCls(item)}>
                           <span aria-hidden>{item.icon}</span>
                           <span>{item.label}</span>
-                          {teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap] ? (
+                          {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap] ? (
                             <span
                               className={`ml-auto inline-flex min-w-[1.6rem] items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
-                                teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap].tone
+                                creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].tone
                               }`}
                             >
-                              {teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap].value}
+                              {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].value}
                             </span>
                           ) : null}
                         </Link>
@@ -340,11 +345,11 @@ export function RoleShell({ children }: { children: ReactNode }) {
         </aside>
 
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-[#E5E7EB]/80 bg-white lg:flex lg:flex-col">
-          {teacherHeader}
-          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="教材工作台側邊選單">
-            {TEACHER_SECTIONS.map((section) => (
+          {creatorHeader}
+          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="創作者工作台側邊選單">
+            {CREATOR_SECTIONS.map((section) => (
               <div key={section.label}>
-                <p className={teacherSectionLabel}>{section.label}</p>
+                <p className={creatorSectionLabel}>{section.label}</p>
                 <ul className="space-y-1">
                   {section.items.map((item) => (
                     <li key={item.id}>
@@ -358,16 +363,16 @@ export function RoleShell({ children }: { children: ReactNode }) {
                           {item.label}
                         </button>
                       ) : (
-                        <Link href={item.href ?? "/teacher/materials"} className={teacherItemCls(item)}>
+                        <Link href={item.href ?? "/creator/materials"} className={creatorItemCls(item)}>
                           <span aria-hidden>{item.icon}</span>
                           <span>{item.label}</span>
-                          {teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap] ? (
+                          {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap] ? (
                             <span
                               className={`ml-auto inline-flex min-w-[1.6rem] items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
-                                teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap].tone
+                                creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].tone
                               }`}
                             >
-                              {teacherStatusBadgeMap[item.id as keyof typeof teacherStatusBadgeMap].value}
+                              {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].value}
                             </span>
                           ) : null}
                         </Link>

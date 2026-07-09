@@ -1,5 +1,5 @@
 import type { Material } from "./api-types";
-import type { MockMaterial } from "./mock-data";
+import type { MockMaterial } from "./view-models";
 
 const GRADIENTS = [
   "from-violet-200 to-indigo-100",
@@ -43,6 +43,7 @@ export function materialToMock(m: Material): MockMaterial {
     activitySteps: m.activity_steps ?? "",
     extensionValue: m.extension_value ?? "",
     shortDescription: m.short_description ?? "",
+    materialFeatures: Array.isArray(m.material_features) ? m.material_features : [],
     contents: Array.isArray(m.contents) ? m.contents : [],
     publishedAt: m.created_at?.slice(0, 10),
   };

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card } from "../components/ui/Card";
 import { MaterialCard } from "../components/materials/MaterialCard";
 import { getStoredRole, getStoredToken } from "../lib/api-client";
-import { mockMaterials } from "../lib/mock-data";
+import type { MockMaterial } from "../lib/view-models";
+import { listMaterialsPreview } from "../lib/materials-query";
 
 const FEATURE_CARDS = [
   {
@@ -26,21 +27,37 @@ const FEATURE_CARDS = [
   },
 ] as const;
 
-const PREVIEW_MATERIALS = mockMaterials.slice(0, 4);
-
 export default function Home() {
   const router = useRouter();
+  const [previewMaterials, setPreviewMaterials] = useState<MockMaterial[]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(true);
+
+  const loadPreviewMaterials = useCallback(async () => {
+    setLoadingPreview(true);
+    try {
+      const items = await listMaterialsPreview({ sort: "popular", limit: 4 });
+      setPreviewMaterials(items);
+    } catch {
+      setPreviewMaterials([]);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, []);
 
   useEffect(() => {
     const token = getStoredToken();
     const role = getStoredRole();
     if (!token) return;
-    if (role === "teacher") {
-      router.replace("/teacher/materials");
+    if (role === "teacher" || role === "creator") {
+      router.replace("/creator/materials");
       return;
     }
     router.replace("/dashboard");
   }, [router]);
+
+  useEffect(() => {
+    void loadPreviewMaterials();
+  }, [loadPreviewMaterials]);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-[var(--color-surface-page)] via-[#FAF8FF] to-[var(--color-surface-page)] font-sans text-[var(--color-text-primary)] antialiased">
@@ -116,10 +133,13 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {PREVIEW_MATERIALS.map((m) => (
+            {previewMaterials.map((m) => (
               <MaterialCard key={m.id} material={m} />
             ))}
           </div>
+          {!loadingPreview && previewMaterials.length === 0 ? (
+            <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-4 text-sm text-[#6B7280]">目前暫無教材預覽資料。</p>
+          ) : null}
         </section>
       </main>
     </div>

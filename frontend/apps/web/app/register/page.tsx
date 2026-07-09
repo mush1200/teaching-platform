@@ -15,7 +15,7 @@ const registerSchema = z
     email: z.string().email("Email 格式不正確"),
     password: z.string().min(6, "密碼至少 6 個字元"),
     confirm: z.string().min(1, "請再次輸入密碼"),
-    role: z.enum(["parent", "teacher"]),
+    role: z.enum(["parent", "teacher", "creator"]),
     terms: z.boolean(),
   })
   .refine((d) => d.terms, { message: "請同意服務條款", path: ["terms"] })
@@ -90,7 +90,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           email: parsed.data.email,
           password: parsed.data.password,
-          role: parsed.data.role,
+          role: parsed.data.role === "creator" ? "teacher" : parsed.data.role,
         }),
       });
       if (!response.ok) {
@@ -219,17 +219,17 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     role="radio"
-                    aria-checked={role === "teacher"}
+                    aria-checked={role === "teacher" || role === "creator"}
                     disabled={loading}
-                    onClick={() => setRole("teacher")}
+                    onClick={() => setRole("creator")}
                     className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/35 ${
-                      role === "teacher"
+                      role === "teacher" || role === "creator"
                         ? "border-[#6D5CFF] bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#C4B5FD]"
                     }`}
                   >
                     <p className="text-sm font-bold text-[#0F172A]">我要上架教材</p>
-                    <p className="mt-1 text-xs text-[#64748B]">適合老師、教材創作者、教保員與教育工作者</p>
+                    <p className="mt-1 text-xs text-[#64748B]">適合創作者、教材設計者、教保員與教育工作者</p>
                   </button>
                 </div>
               </div>

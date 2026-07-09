@@ -12,7 +12,7 @@ import { getStoredRole } from "../../lib/api-client";
 export default function MaterialsPage() {
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
-  const [role, setRole] = useState<"parent" | "teacher" | "admin" | null>(null);
+  const [role, setRole] = useState<"parent" | "teacher" | "creator" | "admin" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -35,16 +35,16 @@ export default function MaterialsPage() {
     );
   }
 
-  if (role === "teacher") {
+  if (role === "teacher" || role === "creator") {
     return (
       <AppShell>
         <MobileHeader title="EduMarket" onMenuClick={() => setMenuOpen(true)} />
         <div className="mx-auto max-w-lg px-4 py-12 text-center">
-          <h1 className="text-xl font-bold text-[#1F2937]">教材工作台入口</h1>
-          <p className="mt-2 text-sm text-[#6B7280]">公開教材列表提供購買者瀏覽，請前往教材工作台管理你的內容。</p>
-          <Link href="/teacher/materials" className="mt-6 inline-block">
+          <h1 className="text-xl font-bold text-[#1F2937]">創作者工作台入口</h1>
+          <p className="mt-2 text-sm text-[#6B7280]">公開教材列表提供購買者瀏覽，請前往創作者工作台管理你的內容。</p>
+          <Link href="/creator/materials" className="mt-6 inline-block">
             <Button type="button" intent="flow">
-              前往教材工作台
+              前往創作者工作台
             </Button>
           </Link>
         </div>

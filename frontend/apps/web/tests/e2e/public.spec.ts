@@ -60,6 +60,28 @@ test.describe("Public Pages", () => {
     });
   });
 
+  test("seeded material detail page shows conversion-focused sections", async ({ page }) => {
+    await page.goto("/materials/mat_detail_seed_1", { waitUntil: "networkidle" });
+
+    await expect(page.getByRole("heading", { name: "主題圖卡：超市購物配對" })).toBeVisible();
+    await expect(page.getByText("教材包含")).toBeVisible();
+    await expect(page.getByText("📦 34 張圖卡")).toBeVisible();
+    await expect(page.getByText("⏱ 約 2 堂課")).toBeVisible();
+    await expect(page.getByText("👧 4-8 歲")).toBeVisible();
+    await expect(page.getByText("🎲 配對遊戲 / 搶答活動")).toBeVisible();
+
+    await expect(page.getByText("教材特色").first()).toBeVisible();
+    await expect(page.getByText("配對遊戲").first()).toBeVisible();
+    await expect(page.getByText("語言表達").first()).toBeVisible();
+
+    await expect(page.getByRole("button", { name: "加入購物車" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "立即購買" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "查看全部回饋" }).first()).toBeVisible();
+
+    await expect(page.getByText("創作者與家長回饋")).toBeVisible();
+    await expect(page.getByText("依最新排序")).toBeVisible();
+  });
+
   test("status pages are reachable", async ({ page }) => {
     for (const route of PUBLIC_ROUTES) {
       await test.step(`open ${route}`, async () => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { MockMaterial } from "../../lib/mock-data";
+import type { MockMaterial } from "../../lib/view-models";
 
 type Props = {
   material: MockMaterial;

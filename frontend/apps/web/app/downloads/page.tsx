@@ -178,7 +178,7 @@ export default function DownloadsPage() {
                     <article className="group flex h-full flex-col overflow-hidden rounded-ds-card border border-ds-border bg-ds-surface shadow-ds-card transition duration-300 hover:-translate-y-1 hover:border-ds-borderStrong hover:shadow-ds-card-hover focus-within:ring-2 focus-within:ring-edu-primary/25 focus-within:ring-offset-2 focus-within:ring-offset-ds">
                       <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-[#eef0ff] to-[#e8ecff]">
                         {cover ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- remote teacher uploads
+                          // eslint-disable-next-line @next/next/no-img-element -- remote creator uploads
                           <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                         ) : (
                           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-ds-textSubtle" aria-hidden>
@@ -192,7 +192,7 @@ export default function DownloadsPage() {
                       <div className="flex flex-1 flex-col p-5 pt-5">
                         <h2 className="line-clamp-2 text-[16px] font-semibold leading-snug tracking-tight text-ds-heading">{item.title}</h2>
                         <p className="mt-1.5 text-[13px] leading-snug text-ds-textMuted">
-                          {item.authorName?.trim() ? item.authorName : "授課教師"}
+                          {item.authorName?.trim() ? item.authorName : "授課創作者"}
                         </p>
 
                         <dl className="mt-4 space-y-1 border-t border-ds-borderMuted pt-4 text-[12px] leading-relaxed text-ds-textSubtle">
@@ -216,6 +216,16 @@ export default function DownloadsPage() {
                         <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
                           <Button intent="flow" fullWidth type="button" onClick={() => router.push(href)}>
                             查看教材
+                          </Button>
+                          <Button
+                            intent="neutral"
+                            variant="outline"
+                            fullWidth
+                            className="border-ds-borderMuted bg-ds-surface text-ds-body hover:border-gray-300 hover:bg-gray-50"
+                            type="button"
+                            onClick={() => router.push(`/me/materials/${encodeURIComponent(item.materialId)}/feedback`)}
+                          >
+                            分享教學回饋
                           </Button>
                           <Button
                             intent="neutral"

@@ -1,7 +1,7 @@
-import type { MockAdminStats } from "../../lib/mock-data";
+type OrderStatusDonutData = { label: string; value: number; color: string };
 
 type Props = {
-  segments: MockAdminStats["orderStatusDonut"];
+  segments: OrderStatusDonutData[];
 };
 
 export function OrderStatusDonutPlaceholder({ segments }: Props) {

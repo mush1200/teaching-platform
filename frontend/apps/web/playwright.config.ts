@@ -8,20 +8,12 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  metadata: {
-    flowReportOutput: "test-results/failure-flow-report.md",
-  },
-  reporter: [
-    ["list"],
-    ["html", { open: "never" }],
-    ["json", { outputFile: "test-results/results.json" }],
-    ["./tests/e2e/reporters/flow-failure-reporter.ts"],
-  ],
+  reporter: [["list"]],
   use: {
     baseURL,
-    trace: "on-first-retry",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    trace: "off",
+    screenshot: "off",
+    video: "off",
   },
   projects: [
     {

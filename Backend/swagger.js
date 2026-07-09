@@ -21,9 +21,9 @@ const openApiSpec = {
     { name: "Reviews", description: "Review APIs / 評價 API" },
     { name: "Reports", description: "Report APIs / 檢舉 API" },
     {
-      name: "Teacher",
+      name: "Creator",
       description:
-        "Teacher uploads and sales analytics / 教師媒體上傳與銷售分析（教材圖片／影片上傳後取得 URL，銷售報表）",
+        "Creator uploads and sales analytics / 創作者媒體上傳與銷售分析（教材圖片／影片上傳後取得 URL，銷售報表）",
     },
     { name: "Admin", description: "Admin-only endpoints / 管理員專用 API" },
   ],
@@ -44,7 +44,7 @@ const openApiSpec = {
         properties: {
           id: { type: "string", example: "usr_lg76h1ab2cd3" },
           email: { type: "string", format: "email", example: "parent@example.com" },
-          role: { type: "string", enum: ["teacher", "parent", "admin"], example: "parent" },
+          role: { type: "string", enum: ["teacher", "parent", "buyer", "admin"], example: "parent" },
           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:10:00.000Z" },
         },
       },
@@ -74,6 +74,11 @@ const openApiSpec = {
           activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
           extension_value: { type: "string", nullable: true, example: "可作為回家作業延伸" },
           short_description: { type: "string", nullable: true, example: "透過配對遊戲學習地點與物品" },
+          material_features: {
+            type: "array",
+            items: { type: "string" },
+            example: ["PDF教材", "教案", "角色扮演", "語言表達", "小組課", "需成人協助"],
+          },
           cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
           demo_video_url: { type: "string", format: "uri", nullable: true, example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
           detail_images: {
@@ -341,7 +346,7 @@ const openApiSpec = {
                 properties: {
                   email: { type: "string", format: "email", example: "teacher@example.com" },
                   password: { type: "string", minLength: 6, example: "P@ssw0rd123" },
-                  role: { type: "string", enum: ["teacher", "parent", "admin"], example: "teacher" },
+                  role: { type: "string", enum: ["teacher", "parent", "buyer", "admin"], example: "teacher" },
                 },
               },
             },
@@ -461,7 +466,7 @@ const openApiSpec = {
         tags: ["Materials"],
         summary: "建立教材(老師) / Create material (teacher)",
         description:
-          "老師建立教材，初始狀態為 pending_review。Teacher creates material with initial status pending_review.",
+          "創作者建立教材，初始狀態為 pending_review。Creator creates material with initial status pending_review.",
         security: bearerSecurity,
         requestBody: {
           required: true,
@@ -502,6 +507,12 @@ const openApiSpec = {
                   activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
                   extension_value: { type: "string", example: "可作為回家作業延伸" },
                   short_description: { type: "string", example: "透過配對遊戲學習地點與物品" },
+                  material_features: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "string" },
+                    example: ["PDF教材", "教案", "角色扮演", "語言表達", "小組課"],
+                  },
                   cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
                   coverImageUrl: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
                   demo_video_url: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
@@ -570,7 +581,7 @@ const openApiSpec = {
         tags: ["Materials"],
         summary: "更新教材 / Update material",
         description:
-          "老師可更新自己教材欄位；僅管理員可改 status。Teacher can edit own material fields; only admin can change status.",
+          "創作者可更新自己教材欄位；僅管理員可改 status。Creator can edit own material fields; only admin can change status.",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
         requestBody: {
@@ -598,6 +609,12 @@ const openApiSpec = {
                   activity_steps: { type: "string", example: "1. 展示圖卡\n2. 學生配對\n3. 口語表達" },
                   extension_value: { type: "string", example: "可作為回家作業延伸" },
                   short_description: { type: "string", example: "透過配對遊戲學習地點與物品" },
+                  material_features: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "string" },
+                    example: ["PDF教材", "教案", "角色扮演", "語言表達", "小組課"],
+                  },
                   cover_image_url: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
                   coverImageUrl: { type: "string", format: "uri", example: "https://cdn.example.com/materials/mat_001/cover.jpg" },
                   demo_video_url: { type: "string", format: "uri", example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
@@ -763,7 +780,7 @@ const openApiSpec = {
       post: {
         tags: ["Orders"],
         summary: "從購物車建立訂單 / Create order from cart",
-        description: "僅 parent 可呼叫。Only parent role can create order from current cart.",
+        description: "僅 parent/buyer 可呼叫。Only parent/buyer role can create order from current cart.",
         security: bearerSecurity,
         responses: {
           201: {
@@ -898,7 +915,7 @@ const openApiSpec = {
       post: {
         tags: ["Reviews"],
         summary: "新增評價 / Create review",
-        description: "僅 parent 可建立評價。Only parent role can create review.",
+        description: "僅 parent/buyer 可建立評價。Only parent/buyer role can create review.",
         security: bearerSecurity,
         requestBody: {
           required: true,
@@ -984,7 +1001,7 @@ const openApiSpec = {
       post: {
         tags: ["Reports"],
         summary: "新增檢舉 / Create report",
-        description: "僅 parent 可建立檢舉，初始 status=pending。Parent creates report with initial pending status.",
+        description: "僅 parent/buyer 可建立檢舉，初始 status=pending。Parent/buyer creates report with initial pending status.",
         security: bearerSecurity,
         requestBody: {
           required: true,
@@ -1015,7 +1032,7 @@ const openApiSpec = {
     },
     "/teacher/uploads/material-media": {
       post: {
-        tags: ["Teacher"],
+        tags: ["Creator"],
         summary: "上傳教材媒體檔並取得 URL / Upload material media (returns URL)",
         description:
           "Requires **teacher** JWT. Send `multipart/form-data` with field **`file`** (single file). Query **`kind`**: `cover` or `detail` accepts JPEG/PNG/GIF/WebP (max 10MB); `demo` accepts MP4/WebM (max 80MB). Response `{ url, filename }` — store `url` in `cover_image_url`, `detail_images[].image_url`, or `demo_video_url`. Files are publicly readable at GET `/uploads/material-media/<filename>` (set **PUBLIC_BACKEND_URL** in production so `url` matches your public API host).",
@@ -1059,9 +1076,9 @@ const openApiSpec = {
     },
     "/teacher/sales/summary": {
       get: {
-        tags: ["Teacher"],
-        summary: "教師銷售摘要 / Teacher sales summary",
-        description: "取得教師教材銷售總覽與每日趨勢。Get teacher sales KPI and daily trend.",
+        tags: ["Creator"],
+        summary: "創作者銷售摘要 / Creator sales summary",
+        description: "取得創作者教材銷售總覽與每日趨勢。Get creator sales KPI and daily trend.",
         security: bearerSecurity,
         parameters: [
           { in: "query", name: "status", required: false, schema: { type: "string" } },
@@ -1081,8 +1098,8 @@ const openApiSpec = {
     },
     "/teacher/sales/materials": {
       get: {
-        tags: ["Teacher"],
-        summary: "教師教材銷售彙總 / Sales by material",
+        tags: ["Creator"],
+        summary: "創作者教材銷售彙總 / Sales by material",
         description: "依教材聚合賣出份數與營收，支援分頁與篩選。Aggregated teacher sales per material.",
         security: bearerSecurity,
         parameters: [
@@ -1116,9 +1133,9 @@ const openApiSpec = {
     },
     "/teacher/sales/records": {
       get: {
-        tags: ["Teacher"],
-        summary: "教師成交明細 / Sales records",
-        description: "取得教師教材成交紀錄，支援分頁與條件篩選。List teacher sales transaction records.",
+        tags: ["Creator"],
+        summary: "創作者成交明細 / Sales records",
+        description: "取得創作者教材成交紀錄，支援分頁與條件篩選。List creator sales transaction records.",
         security: bearerSecurity,
         parameters: [
           { in: "query", name: "status", required: false, schema: { type: "string" } },

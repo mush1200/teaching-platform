@@ -82,7 +82,7 @@ export default function LoginPage() {
         router.push("/dashboard");
         return;
       }
-      const defaultByRole = payload.user.role === "teacher" ? "/teacher/materials" : "/admin";
+      const defaultByRole = payload.user.role === "teacher" || payload.user.role === "creator" ? "/creator/materials" : "/admin";
       router.push(redirect || defaultByRole);
     } catch {
       setMessage(mapStatusMessage(500));
@@ -243,7 +243,7 @@ export default function LoginPage() {
             <div className="mt-7 grid grid-cols-4 gap-3">
               {[
                 { icon: "📘", label: "豐富教材" },
-                { icon: "⭐", label: "優質評價" },
+                { icon: "⭐", label: "優質教學回饋" },
                 { icon: "🙂", label: "適齡分類" },
                 { icon: "🛡️", label: "安心選擇" },
               ].map((item) => (
@@ -270,10 +270,10 @@ export default function LoginPage() {
 
               <div className="ml-6 flex w-[260px] flex-col gap-4">
                 <article className="rounded-3xl border border-white/65 bg-white/90 p-4 shadow-[0_18px_40px_rgba(79,70,229,0.18)]">
-                  <p className="text-sm font-semibold text-[#334155]">使用者評價</p>
+                  <p className="text-sm font-semibold text-[#334155]">使用者教學回饋</p>
                   <p className="mt-2 text-5xl font-bold text-[#0F172A]">4.8</p>
                   <p className="mt-1 text-base text-amber-500">★★★★★</p>
-                  <p className="mt-1 text-xs text-[#64748B]">128 則評價</p>
+                  <p className="mt-1 text-xs text-[#64748B]">128 則教學回饋</p>
                 </article>
                 <article className="rounded-3xl border border-white/65 bg-white/90 p-4 shadow-[0_18px_40px_rgba(79,70,229,0.18)]">
                   <p className="text-sm font-semibold text-[#334155]">適合年齡</p>

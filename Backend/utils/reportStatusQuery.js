@@ -1,6 +1,6 @@
 /**
  * Optional `status` query for report list endpoints (pending | reviewed).
- * Matches docs/teaching-platform-mvp-spec-v1.3.md §9.
+ * Matches docs/teaching-platform-mvp-spec-v1.4.md §9.
  */
 function parseOptionalReportStatusQuery(req, res) {
   const raw = req.query.status;

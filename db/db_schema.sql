@@ -1,9 +1,9 @@
 -- Canonical schema snapshot aligned with Backend/models/bootstrapModel.js
 -- (ensureCoreTables + runIdempotentMigrations).
 -- Deployed DBs may include extra indexes/constraints from Backend/migrations/*.sql.
--- Spec: docs/teaching-platform-mvp-spec-v1.3.md
+-- Spec: docs/teaching-platform-mvp-spec-v1.4.md
 -- Product rules & HTTP semantics (e.g. material lifecycle, audit action names, POST /materials body):
---   docs/teaching-platform-mvp-spec-v1.3.md, docs/mvp_rules.md
+--   docs/teaching-platform-mvp-spec-v1.4.md, docs/mvp_rules.md
 -- This file describes DDL only; no schema migration is required for those rules.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'parent',
+  role TEXT NOT NULL DEFAULT 'buyer',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS materials (
   activity_steps TEXT,
   extension_value TEXT,
   short_description TEXT,
+  material_features TEXT[] DEFAULT '{}',
   cover_image_url TEXT,
   demo_video_url TEXT,
   teacher_id TEXT NOT NULL,
@@ -158,6 +159,14 @@ CREATE TABLE IF NOT EXISTS reports (
   UNIQUE (material_id, reporter_id)
 );
 
+CREATE TABLE IF NOT EXISTS user_favorites (
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, material_id)
+);
+
 CREATE TABLE IF NOT EXISTS activity_logs (
   id BIGSERIAL PRIMARY KEY,
   actor_id TEXT,
@@ -178,6 +187,8 @@ CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
 CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
 CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_material_id ON user_favorites(material_id);
 
 CREATE INDEX IF NOT EXISTS idx_activity_logs_actor_id ON activity_logs(actor_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action);

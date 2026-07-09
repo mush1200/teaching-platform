@@ -184,4 +184,57 @@ router.get("/reviews", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/favorites", requireAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT m.id, f.material_id, f.created_at,
+              m.title, m.description, m.price, m.category, m.age_range, m.status, m.teacher_id,
+              m.teaching_objective, m.teaching_methods, m.usage_duration, m.activity_steps,
+              m.extension_value, m.short_description, m.material_features, m.cover_image_url,
+              m.demo_video_url, m.created_at AS material_created_at
+       FROM user_favorites f
+       INNER JOIN materials m ON m.id = f.material_id
+       WHERE f.user_id = $1
+       ORDER BY f.created_at DESC`,
+      [req.user.userId]
+    );
+    return res.json({ items: result.rows });
+  } catch (err) {
+    console.error("list favorites failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+router.post("/favorites/:materialId", requireAuth, async (req, res) => {
+  try {
+    const materialId = String(req.params.materialId);
+    const materialRes = await db.query(`SELECT id, status FROM materials WHERE id = $1 LIMIT 1`, [materialId]);
+    if (materialRes.rows.length === 0) return res.status(404).json({ message: "material not found" });
+    if (materialRes.rows[0].status !== "published") return res.status(400).json({ message: "only published material can be favorited" });
+    const result = await db.query(
+      `INSERT INTO user_favorites(user_id, material_id)
+       VALUES($1, $2)
+       ON CONFLICT (user_id, material_id) DO NOTHING
+       RETURNING id, user_id, material_id, created_at`,
+      [req.user.userId, materialId]
+    );
+    if (result.rows.length > 0) return res.status(201).json(result.rows[0]);
+    return res.json({ message: "already favorited" });
+  } catch (err) {
+    console.error("add favorite failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+router.delete("/favorites/:materialId", requireAuth, async (req, res) => {
+  try {
+    const materialId = String(req.params.materialId);
+    await db.query(`DELETE FROM user_favorites WHERE user_id = $1 AND material_id = $2`, [req.user.userId, materialId]);
+    return res.json({ message: "removed" });
+  } catch (err) {
+    console.error("remove favorite failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 module.exports = router;

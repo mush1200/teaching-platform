@@ -1,5 +1,9 @@
 const { verifyToken } = require("../utils/jwt");
 
+function normalizeRoleForCompatibility(role) {
+  return role === "buyer" ? "parent" : role;
+}
+
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -11,7 +15,7 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = verifyToken(token);
-    req.user = decoded; // { userId, role, iat, exp }
+    req.user = { ...decoded, role: normalizeRoleForCompatibility(decoded?.role) }; // { userId, role, iat, exp }
     next();
   } catch {
     return res.status(401).json({ message: "Unauthorized" });
@@ -33,7 +37,7 @@ function optionalAuth(req, res, next) {
 
   try {
     const decoded = verifyToken(token);
-    req.user = decoded;
+    req.user = { ...decoded, role: normalizeRoleForCompatibility(decoded?.role) };
   } catch {
     // 匿名讀取：略過無效／過期 token，與未帶 token 行為一致
   }
@@ -51,7 +55,9 @@ function requireRole(role) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (req.user.role !== role) {
+    const requiredRole = normalizeRoleForCompatibility(role);
+    const userRole = normalizeRoleForCompatibility(req.user.role);
+    if (userRole !== requiredRole) {
       return res.status(403).json({ message: "Forbidden: insufficient role" });
     }
 
@@ -63,7 +69,8 @@ function requireParent(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  if (req.user.role !== "parent") {
+  const userRole = normalizeRoleForCompatibility(req.user.role);
+  if (userRole !== "parent") {
     return res.status(403).json({ message: "Only parent can create order" });
   }
   next();

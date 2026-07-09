@@ -7,6 +7,12 @@ import Link from "next/link";
 import type { Material } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
 import { MaterialMediaFields } from "../../../../../components/teacher/MaterialMediaFields";
+import { MaterialFeaturesSelector } from "../../../../../components/materials/MaterialFeaturesSelector";
+import {
+  flattenSelectedMaterialFeatures,
+  groupMaterialFeatures,
+  type MaterialFeatureGroupKey,
+} from "@/src/constants/materialFeatures";
 
 type FormValue = {
   title: string;
@@ -25,6 +31,7 @@ type FormValue = {
   detailImagesText: string;
   demoVideoUrl: string;
   contentsText: string;
+  selectedFeatures: Partial<Record<MaterialFeatureGroupKey, string[]>>;
 };
 
 function parseTeachingMethods(raw: string): string[] {
@@ -74,7 +81,7 @@ function isValidUrl(value: string): boolean {
   }
 }
 
-export default function TeacherMaterialEditPage() {
+export default function CreatorMaterialEditPage() {
   const params = useParams<{ id: string }>();
   const materialId = decodeURIComponent(params.id);
 
@@ -116,6 +123,7 @@ export default function TeacherMaterialEditPage() {
         contentsText: (data.contents ?? [])
           .map((c) => [c.type ?? "", c.name ?? "", c.count ?? "", c.description ?? ""].join("|"))
           .join("\n"),
+        selectedFeatures: groupMaterialFeatures(data.material_features),
       });
     } catch {
       setError("無法連線至伺服器，請稍後再試。");
@@ -131,6 +139,21 @@ export default function TeacherMaterialEditPage() {
 
   function update<K extends keyof FormValue>(key: K, value: FormValue[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  function toggleFeature(group: MaterialFeatureGroupKey, value: string) {
+    setForm((prev) => {
+      if (!prev) return prev;
+      const current = prev.selectedFeatures[group] ?? [];
+      const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+      return {
+        ...prev,
+        selectedFeatures: {
+          ...prev.selectedFeatures,
+          [group]: next,
+        },
+      };
+    });
   }
 
   async function handleSave() {
@@ -196,6 +219,11 @@ export default function TeacherMaterialEditPage() {
       setMessage("細節照片每筆都必須是合法 URL，可用格式：image_url|alt_text");
       return;
     }
+    const materialFeatures = flattenSelectedMaterialFeatures(form.selectedFeatures);
+    if (materialFeatures.length < 1) {
+      setMessage("請至少選擇 1 個教材特色。");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -217,6 +245,7 @@ export default function TeacherMaterialEditPage() {
           cover_image_url: form.coverImageUrl.trim(),
           detail_images: detailImages,
           demo_video_url: form.demoVideoUrl.trim() || undefined,
+          material_features: materialFeatures,
           contents,
         }),
       });
@@ -236,7 +265,7 @@ export default function TeacherMaterialEditPage() {
   return (
     <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">編輯教材</h1>
+        <h1 className="text-2xl font-bold text-slate-900">編輯教材（Creator）</h1>
         <p className="text-sm text-slate-600">調整教材內容後可重新送審或維持既有狀態。</p>
       </div>
 
@@ -288,12 +317,13 @@ export default function TeacherMaterialEditPage() {
               disabled={saving}
               onNotify={(msg) => setMessage(msg)}
             />
+            <MaterialFeaturesSelector selected={form.selectedFeatures} onToggle={toggleFeature} disabled={saving} />
 
             <div className="flex flex-wrap gap-2">
               <Button onPress={() => void handleSave()} disabled={saving} loading={saving}>
                 {saving ? "儲存中…" : "儲存變更"}
               </Button>
-              <Link href="/teacher/materials">
+              <Link href="/creator/materials">
                 <Button variant="secondary" disabled={saving}>
                   返回列表
                 </Button>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@teaching-platform/ui";
 import { ReviewItem } from "../../../components/reviews/ReviewItem";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
-import type { MockReview } from "../../../lib/mock-data";
+import type { MockReview } from "../../../lib/view-models";
 
 type Row = {
   review: MockReview;
@@ -22,12 +22,13 @@ function toMockReview(
     id: api.id,
     materialId,
     userName: "家長",
+    audienceRole: "parent",
     avatarAccent: accents[idx % accents.length] ?? "violet",
     rating: Number(api.rating) || 0,
     date: api.created_at
       ? new Date(api.created_at).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })
       : "",
-    content: (api.comment ?? "").trim() ? String(api.comment).trim() : "（無文字評論）",
+    content: (api.comment ?? "").trim() ? String(api.comment).trim() : "（無文字教學回饋）",
     likes: 0,
   };
 }
@@ -89,16 +90,16 @@ export default function AdminReviewsHubPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
       <div>
-        <h1 className="text-xl font-bold text-[#1F2937]">評論總覽</h1>
+        <h1 className="text-xl font-bold text-[#1F2937]">教學回饋總覽</h1>
         <p className="mt-1 text-sm text-[#6B7280]">
-          依教材彙總公開評論（較新在上）；教材數量多時僅載入前 60 筆教材以避免過度請求。
+          依教材彙總公開教學回饋（較新在上）；教材數量多時僅載入前 60 筆教材以避免過度請求。
         </p>
       </div>
 
-      {loading ? <LoadingState title="載入評論中…" /> : null}
+      {loading ? <LoadingState title="載入教學回饋中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && rows.length === 0 ? (
-        <EmptyState title="尚無評論資料" description="平台上尚未有使用者提交的評價，或尚未載入到任何教材。" />
+        <EmptyState title="尚無教學回饋資料" description="平台上尚未有使用者提交的教學回饋，或尚未載入到任何教材。" />
       ) : null}
 
       {!loading && !error && rows.length > 0 ? (

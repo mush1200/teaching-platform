@@ -2,6 +2,9 @@
 
 This mapping defines how semantic tokens (`intent`, `level`, `status`, `feedback`) are applied on key pages.
 
+**Architecture & card primitive choice:** `docs/frontend-ui-architecture.md`  
+**Token definitions (`ds`, `intent`, status):** `docs/design-tokens-v1.1.md`
+
 ## Scope
 
 - `frontend/apps/web/app/teacher/materials/page.tsx`

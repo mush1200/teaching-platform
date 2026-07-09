@@ -5,6 +5,7 @@ const { writeActivityLog } = require("../utils/activityLog");
 const reviewService = require("../services/review.service");
 const reportRepository = require("../repositories/report.repository");
 const { parseOptionalReportStatusQuery } = require("../utils/reportStatusQuery");
+const { MATERIAL_FEATURE_SET, normalizeMaterialFeatures } = require("../constants/materialFeatures");
 
 const router = express.Router();
 
@@ -22,6 +23,17 @@ function normalizeTeachingMethods(value) {
   if (!Array.isArray(value)) return null;
   const methods = value.map((v) => String(v || "").trim()).filter(Boolean);
   return methods.length > 0 ? methods : null;
+}
+
+function validateMaterialFeatures(rawFeatures) {
+  const features = normalizeMaterialFeatures(rawFeatures);
+  if (features === null) return { normalized: null, error: null };
+  for (const feature of features) {
+    if (!MATERIAL_FEATURE_SET.has(feature)) {
+      return { normalized: null, error: `invalid material feature: ${feature}` };
+    }
+  }
+  return { normalized: features, error: null };
 }
 
 function normalizeContents(value) {
@@ -74,6 +86,8 @@ function validatePayload(body, { isCreate }) {
   const coverImageUrl = cleanText(body?.cover_image_url ?? body?.coverImageUrl);
   const detailImages = normalizeDetailImages(body?.detail_images ?? body?.detailImages);
   const demoVideoUrl = cleanText(body?.demo_video_url ?? body?.demoVideoUrl);
+  const materialFeaturesResult = validateMaterialFeatures(body?.material_features ?? body?.materialFeatures);
+  const materialFeatures = materialFeaturesResult.normalized;
 
   if (isCreate) {
     if (!title) return "title is required";
@@ -86,6 +100,7 @@ function validatePayload(body, { isCreate }) {
     if (!activitySteps) return "activity_steps is required";
     if (!contents || contents.length < 1) return "contents must include at least one item";
     if (!coverImageUrl) return "cover_image_url is required";
+    if (!materialFeatures || materialFeatures.length < 1) return "material_features must include at least one item";
   }
 
   if (!isCreate && price !== null && (!Number.isFinite(price) || price <= 0)) {
@@ -108,6 +123,7 @@ function validatePayload(body, { isCreate }) {
     }
   }
   if (demoVideoUrl && !isValidUrl(demoVideoUrl)) return "demo_video_url must be a valid URL";
+  if (materialFeaturesResult.error) return materialFeaturesResult.error;
 
   return null;
 }
@@ -146,7 +162,7 @@ router.get("/", optionalAuth, async (req, res) => {
     const result = await db.query(
       `SELECT id, title, description, price, created_at, updated_at, category, age_range, teacher_id, status, file_key, ip_declaration_accepted, ip_declaration_at,
               teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
-              cover_image_url, demo_video_url
+              cover_image_url, demo_video_url, material_features
        FROM materials
        WHERE ($1::boolean = true)
           OR ($2::boolean = true AND teacher_id = $3)
@@ -197,6 +213,38 @@ router.get("/:id/rating", async (req, res) => {
   }
 });
 
+router.get("/:id/rating-distribution", async (req, res) => {
+  try {
+    const materialId = String(req.params.id);
+    const distResult = await db.query(
+      `SELECT rating, COUNT(*)::int AS c
+       FROM review
+       WHERE material_id = $1
+       GROUP BY rating`,
+      [materialId]
+    );
+    const countsByStar = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let total = 0;
+    for (const row of distResult.rows) {
+      const star = Number(row.rating);
+      const c = Number(row.c) || 0;
+      if (star >= 1 && star <= 5) {
+        countsByStar[star] = c;
+        total += c;
+      }
+    }
+    const items = [5, 4, 3, 2, 1].map((star) => ({
+      star,
+      count: countsByStar[star],
+      percent: total > 0 ? Number((countsByStar[star] / total).toFixed(4)) : 0,
+    }));
+    return res.json({ total, items });
+  } catch (err) {
+    console.error("material rating distribution failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
 /** Admin：某教材之檢舉列表（與 GET /admin/materials/:materialId/reports 同欄位／同 optional status）。 */
 router.get("/:id/reports", requireAuth, requireRole("admin"), async (req, res) => {
   try {
@@ -218,7 +266,7 @@ router.get("/:id", optionalAuth, async (req, res) => {
     const result = await db.query(
       `SELECT id, title, description, price, created_at, updated_at, category, age_range, teacher_id, status, file_key, ip_declaration_accepted, ip_declaration_at,
               teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
-              cover_image_url, demo_video_url
+              cover_image_url, demo_video_url, material_features
        FROM materials WHERE id = $1 LIMIT 1`,
       [String(req.params.id)]
     );
@@ -267,6 +315,7 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
     const shortDescription = req.body?.shortDescription ?? req.body?.short_description;
     const coverImageUrl = cleanText(req.body?.coverImageUrl ?? req.body?.cover_image_url);
     const demoVideoUrl = cleanText(req.body?.demoVideoUrl ?? req.body?.demo_video_url);
+    const materialFeatures = validateMaterialFeatures(req.body?.material_features ?? req.body?.materialFeatures).normalized || [];
     const contents = normalizeContents(req.body?.contents) || [];
     const detailImages = normalizeDetailImages(req.body?.detailImages ?? req.body?.detail_images) || [];
 
@@ -286,8 +335,8 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
          id, title, description, price, category, age_range, teacher_id, status, file_key,
          ip_declaration_accepted, ip_declaration_at,
          teaching_objective, teaching_methods, usage_duration, activity_steps, extension_value, short_description,
-         cover_image_url, demo_video_url
-       ) VALUES($1, $2, $3, $4, $5, $6, $7, 'pending_review', $8, true, NOW(), $9, $10::jsonb, $11, $12, $13, $14, $15, $16)
+         cover_image_url, demo_video_url, material_features
+       ) VALUES($1, $2, $3, $4, $5, $6, $7, 'pending_review', $8, true, NOW(), $9, $10::jsonb, $11, $12, $13, $14, $15, $16, $17::text[])
        RETURNING *`,
       [
         id,
@@ -306,6 +355,7 @@ router.post("/", requireAuth, requireRole("teacher"), async (req, res) => {
         cleanText(shortDescription),
         coverImageUrl,
         demoVideoUrl,
+        materialFeatures,
       ]
     );
     await replaceMaterialContents(id, contents);
@@ -365,6 +415,7 @@ async function updateMaterialHandler(req, res) {
            short_description = COALESCE($14, short_description),
            cover_image_url = COALESCE($15, cover_image_url),
            demo_video_url = COALESCE($16, demo_video_url),
+           material_features = COALESCE($17::text[], material_features),
            updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
@@ -388,6 +439,10 @@ async function updateMaterialHandler(req, res) {
         cleanText(req.body?.shortDescription ?? req.body?.short_description),
         cleanText(req.body?.coverImageUrl ?? req.body?.cover_image_url),
         cleanText(req.body?.demoVideoUrl ?? req.body?.demo_video_url),
+        (() => {
+          const features = validateMaterialFeatures(req.body?.material_features ?? req.body?.materialFeatures).normalized;
+          return features ? features : null;
+        })(),
       ]
     );
     const row = updated.rows[0];

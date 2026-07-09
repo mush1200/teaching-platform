@@ -11,9 +11,29 @@ Supersedes v1.3. Aligned with `Backend/models/bootstrapModel.js` (ensureCoreTabl
 - payment-proof page layout finalized as two-column desktop: left (`order info + payment proof upload`), right (`order status timeline`)
 - timeline icons finalized with Lucide icon system (no emoji)
 
+**Document note (2026-05-08):** Materials feedback UX and E2E artifact policy aligned with current frontend:
+- materials detail page is product-focused and only **displays** teaching feedback
+- `/materials/:id/reviews` is read-only list view (no submit form)
+- feedback submission entry moved to **`/me/materials`** via "分享教學回饋" (current page: `/me/materials/:id/feedback`)
+- UI naming uses **「教學回饋」** consistently
+- Playwright default output is terminal-only (`reporter: list`); `screenshot/trace/video` are all `off` (no automatic `playwright-report` / `test-results` artifacts)
+
+**Document note (2026-05-08):** Frontend page data is now backend-driven:
+- Removed frontend mock-data/localStorage fallback as page content source.
+- Detail/Explore/Home/Favorites/Cart/Checkout/Admin dashboard now render from backend APIs.
+- API additions: `GET /materials/:id/rating-distribution`, `GET /admin/dashboard/summary`, `GET|POST|DELETE /me/favorites`.
+
+**Document note (2026-05-09):** Buyer desktop sidebar UX documented and aligned with implementation:
+- Expanded `240px` / collapsed `72px` icon rail (`ParentAppShell` + `Sidebar.tsx`)
+- Single header toggle (expand: logo hover/click; collapse: chevron-left); no footer `...` expand
+- Auto-collapse on `/materials/:id`; preference `localStorage` key `tp-sidebar-collapsed`
+- Spec: `docs/buyer-sidebar-ui-spec.md`
+
 **Document note (2026-05-03):** §11 `GET /materials` row and routing note updated to match implemented **list quality score** ordering and **ignored query string**; see `docs/materials-detail-spec.md` §10.
 
 Supplemental feature spec for materials domain: `docs/materials-detail-spec.md`.
+
+**Frontend UI (engineering, non-API):** Component layering, `ds` vs `edu` tokens, `Card` / `SurfaceCard` usage, and `Button` intent conventions are defined in `docs/frontend-ui-architecture.md`. Token values: `docs/design-tokens-v1.1.md`. Per-page intent mapping: `docs/page-token-usage-mapping-v1.1.md`. Buyer desktop sidebar (expand/collapse): `docs/buyer-sidebar-ui-spec.md`.
 
 Architecture: Backend-first  
 Database: PostgreSQL  
@@ -28,6 +48,7 @@ Identifiers: primary keys are **TEXT** (e.g. `mat_*`, `ord_*`, user ids); amount
 material = sellable teaching content (includes `file_key`, `cover_image_url`, optional `demo_video_url`, `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, optional `category` / `age_range` / `extension_value` / `short_description`, IP declaration flags)  
 material_image = detail image row for one material (`image_url`, optional `alt_text`, `sort_order`; does not store cover image)  
 material_content = itemized teaching assets of one material (`type`, `name`, optional `count`, `description`, with `sort_order`)  
+user_favorite = parent/admin/teacher self-owned favorite relation (`user_id`, `material_id`, unique per pair)  
 order = transaction container (`status`, `payment_mode`, `total_amount`, `promo_code`, `discount_amount`, `invoice_type`, `invoice_carrier`, timestamps)  
 order_item = line item with snapshots (`title_snapshot`, `price_snapshot`, `quantity`, `seller_id`, `subtotal`)  
 manual_payment_proof = uploaded payment evidence image per order (`proof_url`, `proof_mime_type`, `proof_size_bytes`, `original_filename`, `review_status`: pending | approved | rejected)  
@@ -134,9 +155,14 @@ Allowed only if:
 
 ---
 
-# 8. Material reviews (`review`)
+# 8. Material teaching feedback (`review`)
 
 At most **one** review row per `(material_id, parent_id)` (`UNIQUE` constraint). The MVP backend exposes **POST** `/reviews` to **create** only; a second create for the same pair returns **409** (`already reviewed`). There is **no** separate update-review endpoint in this MVP.
+
+Frontend UX policy:
+- Detail page (`/materials/:id`) shows **"教師與家長回饋"** section as social proof only.
+- Full list page (`/materials/:id/reviews`) is display-only.
+- Submission UI is moved to purchased-library flow (`/me/materials/:id/feedback`).
 
 Authorization (enforced in service/repository): **`EXISTS` at least one `approved` order for that parent** whose `order_items` include the requested `material_id` (this is **not** tied to “the” active cart/checkout order—another concurrent order may remain `pending_payment`).
 
@@ -220,6 +246,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials` | Optional JWT | List: anonymous sees **published** only; **teacher** sees own + published; **admin** sees all. Response `{ "items": [...] }` (no pagination). **Server ignores query string** (filters/sort params are not applied). **Order:** **quality score** per `docs/materials-detail-spec.md` §10 **DESC**, then **`created_at` DESC**. |
 | GET | `/materials/:id/reviews` | — | Public list of reviews for material. |
 | GET | `/materials/:id/rating` | — | Aggregate rating stats for material. |
+| GET | `/materials/:id/rating-distribution` | — | Rating distribution for 5→1 stars (`total`, `items[{star,count,percent}]`). |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
 | GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. Response includes `contents[]` ordered by `sort_order`. |
 | POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `cover_image_url`/`coverImageUrl`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `ipDeclarationAccepted: true`. Optional: `detail_images`, `demo_video_url`. **Must not** send `status` (**400**). |
@@ -233,6 +260,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 |--------|------|------|---------|
 | GET | `/cart` | JWT | List current user’s cart rows (joins material title/price/status). |
 | POST | `/cart/items` | JWT | Body: `materialId`, optional `quantity`. Material must be **published**. Upserts quantity; emits `cart.added` on insert and on quantity upsert (see §10). |
+| PATCH | `/cart/items/:id` | JWT | Update one cart line quantity (`quantity > 0`). |
 | DELETE | `/cart/items/:id` | JWT | Deletes row if it belongs to the user. **404** if not found. |
 
 ### Orders (`/orders`)
@@ -256,11 +284,11 @@ All routes below: **JWT + teacher**. Non-teacher **403**.
 | GET | `/teacher/sales/materials` | Aggregated sales by material. Query: `status`, `from`, `to`, `search`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
 | GET | `/teacher/sales/records` | Transaction-level sales records. Query: `status`, `materialId`, `from`, `to`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
 
-### Reviews (`/reviews`)
+### Teaching feedback (`/reviews`)
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| POST | `/reviews` | JWT (**parent**) | Body: `material_id` or `materialId`, `rating` (1–5), optional `comment`. Purchase entitlement enforced in service. Duplicate per material → **409** (see §8). |
+| POST | `/reviews` | JWT (**parent**) | Body: `material_id` or `materialId`, `rating` (1–5), optional `comment`. Purchase entitlement enforced in service. Duplicate per material → **409** (see §8). Current frontend submission entry is `/me/materials/:id/feedback`. |
 
 ### Me (`/me`)
 
@@ -270,6 +298,9 @@ All routes below: **JWT + teacher**. Non-teacher **403**.
 | GET | `/me/orders/:orderId` | JWT | Canonical user order detail endpoint (alias of `/orders/:id` for owner). Returns `order`, `items`, and `payment_proof_rejected_note` / `order_progress_state` for timeline UI. |
 | GET | `/me/reviews` | JWT | Lists reviews authored by current user (service-shaped rows). |
 | GET | `/me/materials` | JWT | 已購買且訂單已核准（`orders.status = approved`）之教材清單，供「我的教材」頁顯示。回傳 `{ items: [{ materialId, title, coverImageUrl, materialUpdatedAt, purchasedAt, authorName }] }`。 |
+| GET | `/me/favorites` | JWT | Current user favorites list, newest first. |
+| POST | `/me/favorites/:materialId` | JWT | Add one favorite (idempotent). |
+| DELETE | `/me/favorites/:materialId` | JWT | Remove one favorite. |
 
 ### Reports (`/reports`)
 
@@ -291,6 +322,7 @@ All routes below: **JWT + admin**. Non-admin **403**.
 |--------|------|---------|
 | GET | `/admin/materials` | All materials (admin list columns). |
 | GET | `/admin/orders` | All orders; optional query `status` (e.g. `pending_payment`, `approved`). |
+| GET | `/admin/dashboard/summary` | KPI summary (`materialsCount`, `ordersCount`, `revenueAmount`, `reviewsCount`, `usersCount`, pending counters, WoW review delta). |
 | POST | `/admin/payment-proofs/:id/approve` | Approve pending proof; may set order `approved`; supersede other pending proofs. Body optional `note`. |
 | POST | `/admin/payment-proofs/:id/reject` | Reject pending proof; body `note` optional (stored as empty string if omitted). Order status unchanged (`pending_payment`). |
 | GET | `/admin/reports` | Array of reports; optional `status=pending` or `reviewed` (invalid → **400**). |
@@ -367,6 +399,12 @@ Besides legacy MVP tables, current materials domain includes:
   - `alt_text TEXT`
   - `sort_order INTEGER DEFAULT 0`
   - timestamps: `created_at`, `updated_at`
+- `user_favorites` table:
+  - `id TEXT PK`
+  - `user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+  - `material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE`
+  - `created_at TIMESTAMP NOT NULL DEFAULT NOW()`
+  - `UNIQUE (user_id, material_id)`
 
 ---
 

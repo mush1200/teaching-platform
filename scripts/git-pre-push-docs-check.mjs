@@ -23,7 +23,7 @@ const FUNCTIONAL_FILES = new Set(["Backend/index.js", "Backend/config/db.js"]);
 
 const CANONICAL_DOCS = new Set([
   "docs/mvp_rules.md",
-  "docs/teaching-platform-mvp-spec-v1.3.md",
+  "docs/teaching-platform-mvp-spec-v1.4.md",
   "db/db_schema.sql",
 ]);
 
@@ -130,7 +130,7 @@ async function main() {
 
 Include at least one of in this push (aligned with current behavior):
   - docs/mvp_rules.md
-  - docs/teaching-platform-mvp-spec-v1.3.md
+  - docs/teaching-platform-mvp-spec-v1.4.md
   - db/db_schema.sql
 
 Override (not recommended): SKIP_CANONICAL_DOC_CHECK=1 git push

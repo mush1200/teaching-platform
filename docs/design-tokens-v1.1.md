@@ -42,6 +42,32 @@ Source aligned with:
 | `surface.card` | `#FFFFFF` | Card background |
 | `surface.border` | `#E5E7EB` | Standard border color |
 
+### 2.6 DS (Account / Commerce) — `--ds-*`
+
+Used on cart, checkout, orders, downloads, library, creator/teacher management, and admin list surfaces.  
+Tailwind prefix: `ds` (e.g. `bg-ds-page`, `text-ds-heading`, `rounded-ds-card`).
+
+| Token | CSS variable | Value | Usage |
+| --- | --- | --- | --- |
+| `ds.page` | `--ds-page-bg` | `#F4F5FA` | Page background (commerce flows) |
+| `ds.surface` | `--ds-surface` | `#FFFFFF` | Card / panel background |
+| `ds.surface-muted` | `--ds-surface-muted` | `#FAFAFC` | Subtle panels |
+| `ds.surface-subtle` | `--ds-surface-subtle` | `#F7F7FB` | Flat card level (`Card` `flat`) |
+| `ds.border` | `--ds-border-default` | `#E8E8F0` | Standard border |
+| `ds.border-muted` | `--ds-border-muted` | `#ECECF2` | Low-emphasis divider |
+| `ds.border-strong` | `--ds-border-strong` | `#DCDCE8` | Hover / emphasis border |
+| `ds.text.heading` | `--ds-text-heading` | `#111827` | Section / card titles |
+| `ds.text.body` | `--ds-text-body` | `#374151` | Body copy |
+| `ds.text.muted` | `--ds-text-muted` | `#6B7280` | Secondary labels |
+| `ds.text.subtle` | `--ds-text-subtle` | `#9CA3AF` | Meta / helper text |
+| `ds.focus` | `--ds-focus-ring` | `#6C63FF` | Focus ring (same as brand primary) |
+| `ds.radius.card` | `--ds-radius-card` | `20px` | **Canonical** card radius for `Card` / `SurfaceCard` |
+| `ds.shadow.card` | `--ds-shadow-card` | see `globals.css` | Default card shadow |
+| `ds.shadow.card-soft` | `--ds-shadow-card-soft` | see `globals.css` | Flat / soft elevation |
+| `ds.shadow.card-hover` | `--ds-shadow-card-hover` | see `globals.css` | Interactive list cards |
+
+**When to use `ds` vs `edu`:** See `docs/frontend-ui-architecture.md` §3.
+
 ### 2.4 Status
 
 | State | BG | Text |
@@ -74,7 +100,8 @@ Source aligned with:
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `layout.sidebar-width` | `240px` | Desktop sidebar width |
+| `layout.sidebar-width` | `240px` | Desktop buyer sidebar **expanded** width |
+| `layout.sidebar-width-collapsed` | `72px` | Desktop buyer sidebar **collapsed** (icon rail) width |
 | `layout.content-max.narrow` | `768px` | Narrow content container |
 | `layout.content-max.normal` | `1024px` | Default content container |
 | `layout.content-max.wide` | `1280px` | Wide content container |
@@ -148,11 +175,41 @@ Font stack:
   - `neutral`: white background, border `surface.border`, dark text
   - `danger`: background `intent.danger`, text white
 
-### 7.2 Card
+### 7.2 Card surfaces (two primitives)
 
-- `elevated`: radius `32`, shadow `card-elevated`
-- `default`: radius `28`, shadow `card-default`
-- `flat`: radius `24`, no shadow, border only
+Implementation guide: `docs/frontend-ui-architecture.md` §4.
+
+#### A. `Card` (`components/ui/Card.tsx`) — **preferred for commerce / account**
+
+Uses **`ds`** tokens only:
+
+| `level` | Radius | Shadow / surface |
+| --- | --- | --- |
+| `elevated` | `ds.radius.card` (`rounded-ds-card`) | Stronger custom shadow on `ds.surface` |
+| `default` | `ds.radius.card` | `shadow-ds-card` |
+| `flat` | `ds.radius.card` | `bg-ds-surface-subtle`, `shadow-ds-card-soft` |
+
+Padding variants: `none` | `sm` (`p-4`) | `md` (`p-5`) | `lg` (`p-6 md:p-8`).
+
+#### B. `SurfaceCard` (`components/ds/SurfaceCard.tsx`)
+
+Same **`ds`** radius and borders; no built-in padding. Use `elevation`:
+
+| `elevation` | Usage |
+| --- | --- |
+| `flat` | Toolbars, muted panels |
+| `raised` | Static list containers |
+| `interactive` | Hoverable row/card (`hover:shadow-ds-card-hover`) |
+
+#### C. Legacy marketing radius (`edu` / `--radius-card-*`)
+
+| Token | Value | Usage |
+| --- | --- | --- |
+| `radius.card-elevated` | `32px` | Explore / hero product cards only |
+| `radius.card-default` | `28px` | Legacy marketing blocks |
+| `radius.card-flat` | `24px` | Legacy flat blocks |
+
+**Do not** use §C tokens on new cart, checkout, order, or admin surfaces.
 
 ### 7.3 Table
 
@@ -184,8 +241,18 @@ Recommended variable naming:
 
 - Keep existing `edu.*` tokens for backward compatibility.
 - New work should use semantic groups: `intent`, `status`, `feedback`, `layout`.
+- **Commerce / account / admin:** use `ds.*` + `Card` / `SurfaceCard` (§2.6, §7.2A–B).
+- **Explore / home merchandising:** may keep `edu.*` and legacy `--radius-card-*` (§7.2C).
 - Refactor priority:
-  1. Button intents
+  1. Button intents (`intent` prop over legacy `variant`)
   2. Badge status mapping
   3. Empty/Loading/Error visuals
-  4. Card level hierarchy
+  4. Replace ad-hoc card classes with `Card` / `SurfaceCard`
+  5. Primitives (`Input`, etc.): replace hardcoded hex with `ds` / semantic tokens
+
+## 10. Related documents
+
+- `docs/frontend-ui-architecture.md` — component layering, token choice, PR checklist
+- `docs/page-token-usage-mapping-v1.1.md` — per-page intent and card level
+- `docs/cart-ui-guidelines.md` — cart page pixel spec
+- `docs/buyer-sidebar-ui-spec.md` — buyer desktop sidebar expand/collapse spec

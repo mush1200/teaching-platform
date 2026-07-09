@@ -1,4 +1,5 @@
-export type UserRole = "parent" | "teacher" | "admin";
+/** Keep `teacher` for backend compatibility; prefer `creator` in UI naming. */
+export type UserRole = "parent" | "teacher" | "creator" | "admin";
 
 export type LoginResponse = {
   token: string;

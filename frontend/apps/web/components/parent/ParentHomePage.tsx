@@ -8,13 +8,13 @@ import {
   listRecommendedForHome,
   resolveMaterialsByIds,
 } from "../../lib/materials-query";
-import type { MockMaterial } from "../../lib/mock-data";
+import type { MockMaterial } from "../../lib/view-models";
 import { Hero } from "./Hero";
 import { MaterialCarousel } from "./MaterialCarousel";
 import { MaterialGrid } from "./MaterialGrid";
 import { Section } from "./Section";
 
-/** 每個區塊（為你推薦、熱門、新上架、高評價等）顯示 8 張卡片（桌機 2 排 × 4 欄） */
+/** 每個區塊（為你推薦、熱門、新上架、高回饋等）顯示 8 張卡片（桌機 2 排 × 4 欄） */
 const SECTION_LIMIT = 8;
 
 export function ParentHomePage() {
@@ -96,7 +96,7 @@ export function ParentHomePage() {
         ) : null}
 
         {!loading && topRated.length > 0 ? (
-          <Section title="高評價" icon="⭐" subtitle="家長與老師評價最高的教材" actionLabel="查看更多教材 >">
+          <Section title="高回饋" icon="⭐" subtitle="家長與老師教學回饋最高的教材" actionLabel="查看更多教材 >">
             <MaterialGrid materials={topRated} trackRecent />
           </Section>
         ) : null}

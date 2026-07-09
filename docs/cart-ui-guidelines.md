@@ -2,6 +2,8 @@
 
 本文件定義 `frontend/apps/web/app/cart/page.tsx` 與 `frontend/apps/web/components/cart/CartItem.tsx` 的視覺與互動基準，用於避免後續改版造成層級走樣或對齊漂移。
 
+**通用約定（token、Card、Button intent）：** `docs/frontend-ui-architecture.md`、`docs/design-tokens-v1.1.md`
+
 ## 1. 頁面目標
 
 - 主目標：提升結帳轉換率，降低分心與跳出。

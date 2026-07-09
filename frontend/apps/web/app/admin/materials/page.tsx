@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingState, StatusBadge } from "@teaching-pla
 import Link from "next/link";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
+import { groupMaterialFeatures } from "@/src/constants/materialFeatures";
 
 function getStatusLabel(status?: string): string {
   if (status === "pending_review") return "審核中";
@@ -86,6 +87,26 @@ export default function AdminMaterialsPage() {
                 <Link href={`/admin/materials/${encodeURIComponent(m.id)}/activity-logs`}>
                   <span className="font-medium text-indigo-600 underline">此教材活動紀錄</span>
                 </Link>
+              </div>
+              <div className="space-y-2">
+                {Object.values(groupMaterialFeatures(m.material_features))
+                  .flat()
+                  .length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {Object.values(groupMaterialFeatures(m.material_features))
+                      .flat()
+                      .map((feature) => (
+                        <span
+                          key={`${m.id}-${feature}`}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700"
+                        >
+                          {feature}
+                        </span>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">尚未設定教材特色</p>
+                )}
               </div>
             </article>
           ))}

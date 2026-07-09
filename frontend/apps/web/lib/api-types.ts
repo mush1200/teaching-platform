@@ -1,6 +1,7 @@
 /** Aligned with Backend/swagger.js components.schemas */
 
-export type UserRole = "parent" | "teacher" | "admin";
+/** Keep `teacher` for backend compatibility; prefer `creator` in UI naming. */
+export type UserRole = "parent" | "teacher" | "creator" | "admin";
 
 export type Material = {
   id: string;
@@ -18,6 +19,7 @@ export type Material = {
   activity_steps?: string;
   extension_value?: string;
   short_description?: string;
+  material_features?: string[];
   cover_image_url?: string;
   demo_video_url?: string;
   detail_images?: MaterialImage[];
@@ -59,6 +61,9 @@ export type CartItem = {
   title?: string;
   price?: number;
   status?: string;
+  age_range?: string;
+  cover_image_url?: string | null;
+  material_features?: string[] | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -207,7 +212,27 @@ export type MaterialRatingStats = {
   count: number;
 };
 
-export type TeacherSalesSummary = {
+export type MaterialRatingDistribution = {
+  total: number;
+  items: Array<{
+    star: number;
+    count: number;
+    percent: number;
+  }>;
+};
+
+export type AdminDashboardSummary = {
+  materialsCount: number;
+  ordersCount: number;
+  revenueAmount: number;
+  reviewsCount: number;
+  usersCount: number;
+  pendingProofsCount: number;
+  pendingReportsCount: number;
+  wowReviewDeltaPercent: number;
+};
+
+export type CreatorSalesSummary = {
   totalSoldUnits: number;
   totalRevenue: number;
   totalOrders: number;
@@ -219,7 +244,7 @@ export type TeacherSalesSummary = {
   }>;
 };
 
-export type TeacherSalesByMaterial = {
+export type CreatorSalesByMaterial = {
   materialId: string;
   title: string;
   soldUnits: number;
@@ -227,7 +252,7 @@ export type TeacherSalesByMaterial = {
   lastSoldAt?: string | null;
 };
 
-export type TeacherSalesRecord = {
+export type CreatorSalesRecord = {
   orderId: string;
   orderItemId: string;
   materialId: string;
@@ -241,7 +266,13 @@ export type TeacherSalesRecord = {
   paidAt?: string | null;
 };
 
-export type TeacherSalesListResponse<T> = {
+export type CreatorSalesListResponse<T> = {
   items: T[];
   pagination?: PaginationMeta;
 };
+
+/** Backward-compatible aliases */
+export type TeacherSalesSummary = CreatorSalesSummary;
+export type TeacherSalesByMaterial = CreatorSalesByMaterial;
+export type TeacherSalesRecord = CreatorSalesRecord;
+export type TeacherSalesListResponse<T> = CreatorSalesListResponse<T>;

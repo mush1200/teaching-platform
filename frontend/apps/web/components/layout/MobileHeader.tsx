@@ -11,7 +11,7 @@ type Props = {
   /** Hide leading nav affordance for conversion-focused pages */
   leading?: "auto" | "none";
   right?: "search-cart" | "edit" | "none";
-  /** Extra actions on the right (e.g. 寫評論) */
+  /** Extra actions on the right (e.g. 分享教學回饋) */
   trailing?: ReactNode;
   onMenuClick?: () => void;
 };

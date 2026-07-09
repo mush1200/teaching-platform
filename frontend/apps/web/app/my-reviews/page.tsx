@@ -49,15 +49,15 @@ export default function MyReviewsPage() {
 
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">我的評價</h1>
+      <h1 className="text-2xl font-bold text-slate-900">我的教學回饋</h1>
       <p className="text-sm text-slate-600">
-        以下為您在平台上提交的評價紀錄（與教材詳情頁的評論為同一資料來源）。
+        以下為您在平台上提交的教學回饋紀錄（與教材詳情頁回饋為同一資料來源）。
       </p>
 
-      {loading ? <LoadingState title="載入評價中…" /> : null}
+      {loading ? <LoadingState title="載入教學回饋中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && items.length === 0 ? (
-        <EmptyState title="尚無評價" description="前往教材詳情頁即可為已購買的教材留下星等與評論。" />
+        <EmptyState title="尚無教學回饋" description="前往我的教材即可為已購買的教材分享教學回饋。" />
       ) : null}
 
       {!loading && !error && items.length > 0 ? (

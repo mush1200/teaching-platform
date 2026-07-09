@@ -1,5 +1,18 @@
 # MVP Rules
 
+# A. Frontend data source policy
+
+**UI 工程約定（非 API）：** `docs/frontend-ui-architecture.md` · **Design tokens：** `docs/design-tokens-v1.1.md`
+
+所有「頁面資料內容」必須以後端 API 為唯一資料來源：
+
+- 可渲染為卡片/清單/統計/詳情的資料，不得由前端 hardcode 或 localStorage mock 直接供應。
+- 前端可保留純展示文案（標題、提示語、按鈕文案），但不得保留可被誤認為業務資料的假內容。
+- API 失敗時應顯示錯誤或空狀態，不得退回前端假資料。
+- 收藏、購物車、回饋摘要、後台 KPI 等使用者/交易資料必須走後端儲存與查詢。
+
+---
+
 # 0. 資料庫連線
 
 本機開發時以環境變數設定（例如 `Backend` 目錄的 `.env` 或 `DATABASE_URL` / `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE`），**不要**在版控文件內寫入實際密碼。
@@ -197,11 +210,11 @@ duplicate review for same material (unique constraint; a second **POST** returns
 
 # 10. HTTP API 一覽
 
-完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.3.md` 第 11 節**（HTTP API reference）。
+完整 HTTP 路由表（方法、路徑、認證／角色與簡述）見 **`docs/teaching-platform-mvp-spec-v1.4.md` 第 11 節**（HTTP API reference）。
 
 教材上架與商品 Detail 實作細節（欄位語意、內容結構、Detail 顯示順序、MVP 排序機制）見 **`docs/materials-detail-spec.md`**。
 
-**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.3.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**
+**實作須與本檔、`docs/teaching-platform-mvp-spec-v1.4.md`、`db/db_schema.sql` 對齊；三者為準，程式應修正至一致（更新 canonical 段落須依專案同意流程）。**
 
 ---
 

@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
-import { mockMaterials } from "../../../lib/mock-data";
 import { MaterialDetailPage } from "../../../components/materials/MaterialDetailPage";
+import type { Material } from "../../../lib/api-types";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const m = mockMaterials.find((x) => x.id === id);
+  let m: Material | null = null;
+  try {
+    const baseUrl = process.env.API_BASE_URL ?? "http://localhost:3000";
+    const res = await fetch(`${baseUrl}/materials/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (res.ok) {
+      m = (await res.json()) as Material;
+    }
+  } catch {
+    m = null;
+  }
   return {
     title: m ? `${m.title} | EduMarket` : "教材 | EduMarket",
     description: m?.description?.slice(0, 160) ?? "教材詳情",

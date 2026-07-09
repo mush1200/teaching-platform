@@ -5,6 +5,15 @@ let readyPromise = null;
 async function runIdempotentMigrations() {
   await db.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
 
+  await db.query(`
+    UPDATE users
+    SET role = 'buyer'
+    WHERE role = 'parent';
+  `).catch(() => {});
+  await db.query(`
+    ALTER TABLE users ALTER COLUMN role SET DEFAULT 'buyer';
+  `).catch(() => {});
+
   // Legacy Day13–14 tables; MVP v1.2 uses materials + manual_payment_proofs only.
   await db.query(`DROP TABLE IF EXISTS payment_proofs CASCADE;`);
   await db.query(`DROP TABLE IF EXISTS products CASCADE;`);
@@ -168,6 +177,8 @@ async function runIdempotentMigrations() {
   await db.query(`
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS demo_video_url TEXT;
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS material_features TEXT[] DEFAULT '{}';
+    ALTER TABLE materials ALTER COLUMN material_features SET DEFAULT '{}';
   `);
 
   await db.query(`
@@ -182,6 +193,17 @@ async function runIdempotentMigrations() {
     );
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_favorites (
+      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, material_id)
+    );
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_user_favorites_material_id ON user_favorites(material_id);`);
 
   await db.query(`ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'pending';`);
   await db.query(`
@@ -572,7 +594,7 @@ function ensureCoreTables() {
           id TEXT PRIMARY KEY,
           email TEXT NOT NULL UNIQUE,
           password_hash TEXT NOT NULL,
-          role TEXT NOT NULL DEFAULT 'parent',
+          role TEXT NOT NULL DEFAULT 'buyer',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
@@ -590,6 +612,7 @@ function ensureCoreTables() {
           activity_steps TEXT,
           extension_value TEXT,
           short_description TEXT,
+          material_features TEXT[] DEFAULT '{}',
           cover_image_url TEXT,
           demo_video_url TEXT,
           teacher_id TEXT NOT NULL,
@@ -631,6 +654,17 @@ function ensureCoreTables() {
       await db.query(`
         CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);
       `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS user_favorites (
+          id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE (user_id, material_id)
+        );
+      `);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_user_favorites_material_id ON user_favorites(material_id);`);
 
       await db.query(`
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS teaching_objective TEXT;
@@ -639,6 +673,8 @@ function ensureCoreTables() {
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS activity_steps TEXT;
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS extension_value TEXT;
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS short_description TEXT;
+        ALTER TABLE materials ADD COLUMN IF NOT EXISTS material_features TEXT[] DEFAULT '{}';
+        ALTER TABLE materials ALTER COLUMN material_features SET DEFAULT '{}';
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS cover_image_url TEXT;
         ALTER TABLE materials ADD COLUMN IF NOT EXISTS demo_video_url TEXT;
       `);

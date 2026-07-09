@@ -1,6 +1,6 @@
 "use client";
 
-import type { MockCartItem } from "../../lib/mock-data";
+import type { MockCartItem } from "../../lib/view-models";
 import { IconTrash } from "../ui/icons";
 
 type Props = {

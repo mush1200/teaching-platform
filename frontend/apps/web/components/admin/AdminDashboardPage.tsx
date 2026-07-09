@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ActivityLog, ActivityLogsResponse, AdminPaymentProof, AdminPaymentProofsResponse, Material, Order, OrdersListResponse, Report } from "../../lib/api-types";
+import type { ActivityLog, ActivityLogsResponse, AdminDashboardSummary, AdminPaymentProof, AdminPaymentProofsResponse, Material, Order, OrdersListResponse, Report } from "../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
-import { mockReviews } from "../../lib/mock-data";
 import { AdminKpiCard } from "./AdminKpiCard";
 import { AdminQuickActions } from "./AdminQuickActions";
 import { AdminTaskCard } from "./AdminTaskCard";
@@ -17,8 +16,9 @@ type DashboardState = {
   reports: Report[];
   proofs: AdminPaymentProof[];
   activities: ActivityLog[];
+  summary: AdminDashboardSummary | null;
   loading: boolean;
-  errors: Partial<Record<"materials" | "orders" | "reports" | "proofs" | "activities", string>>;
+  errors: Partial<Record<"materials" | "orders" | "reports" | "proofs" | "activities" | "summary", string>>;
 };
 
 function toDateInput(raw?: Date): string {
@@ -41,18 +41,20 @@ export function AdminDashboardPage() {
     reports: [],
     proofs: [],
     activities: [],
+    summary: null,
     loading: true,
     errors: {},
   });
 
   const load = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, errors: {} }));
-    const [materialsRes, ordersRes, reportsRes, proofsRes, activitiesRes] = await Promise.allSettled([
+    const [materialsRes, ordersRes, reportsRes, proofsRes, activitiesRes, summaryRes] = await Promise.allSettled([
       apiFetch("admin/materials"),
       apiFetch("admin/orders"),
       apiFetch("admin/reports"),
       apiFetch("admin/payment-proofs?status=pending&page=1&limit=200"),
       apiFetch("admin/activity-logs?page=1&limit=8"),
+      apiFetch("admin/dashboard/summary"),
     ]);
 
     const next: DashboardState = {
@@ -61,6 +63,7 @@ export function AdminDashboardPage() {
       reports: [],
       proofs: [],
       activities: [],
+      summary: null,
       loading: false,
       errors: {},
     };
@@ -109,6 +112,7 @@ export function AdminDashboardPage() {
     next.reports = await resolveReportsList(reportsRes);
     next.proofs = await resolveList<AdminPaymentProofsResponse, AdminPaymentProof>(proofsRes, "proofs", (p) => p.items ?? []);
     next.activities = await resolveList<ActivityLogsResponse, ActivityLog>(activitiesRes, "activities", (p) => p.items ?? []);
+    next.summary = (await resolveList<AdminDashboardSummary, AdminDashboardSummary>(summaryRes, "summary", (p) => [p]))[0] ?? null;
     setState(next);
   }, []);
 
@@ -136,13 +140,13 @@ export function AdminDashboardPage() {
   }, [rangeEnd, rangeStart, state.activities]);
 
   const pendingMaterials = state.materials.filter((m) => m.status === "pending_review").length;
-  const pendingProofs = state.proofs.filter((p) => p.review_status === "pending").length;
-  const pendingReports = state.reports.filter((r) => r.status === "pending").length;
+  const pendingProofs = state.summary?.pendingProofsCount ?? state.proofs.filter((p) => p.review_status === "pending").length;
+  const pendingReports = state.summary?.pendingReportsCount ?? state.reports.filter((r) => r.status === "pending").length;
   const abnormalOrders = filteredOrders.filter((o) => o.status === "cancelled" || o.status === "rejected").length;
 
   const publishedMaterials = state.materials.filter((m) => m.status === "published").length;
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + Math.floor(Number(o.total_amount ?? o.total_price ?? 0)), 0);
-  const usersCount = new Set([
+  const totalRevenue = state.summary?.revenueAmount ?? filteredOrders.reduce((sum, o) => sum + Math.floor(Number(o.total_amount ?? o.total_price ?? 0)), 0);
+  const usersCount = state.summary?.usersCount ?? new Set([
     ...filteredOrders.map((o) => o.user_id).filter(Boolean),
     ...state.reports.map((r) => r.reporter_id).filter(Boolean),
     ...state.proofs.map((p) => p.user_id).filter(Boolean),
@@ -170,12 +174,16 @@ export function AdminDashboardPage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <AdminKpiCard label="教材總數" value={state.materials.length.toLocaleString("zh-TW")} subtext="本期累計" />
+        <AdminKpiCard label="教材總數" value={(state.summary?.materialsCount ?? state.materials.length).toLocaleString("zh-TW")} subtext="本期累計" />
         <AdminKpiCard label="已發布教材" value={publishedMaterials.toLocaleString("zh-TW")} subtext="可銷售數量" />
-        <AdminKpiCard label="訂單總數" value={filteredOrders.length.toLocaleString("zh-TW")} subtext="本期累計" />
+        <AdminKpiCard label="訂單總數" value={(state.summary?.ordersCount ?? filteredOrders.length).toLocaleString("zh-TW")} subtext="本期累計" />
         <AdminKpiCard label="成交金額" value={`NT$ ${totalRevenue.toLocaleString("zh-TW")}`} subtext="本期累計" />
         <AdminKpiCard label="用戶總數" value={usersCount.toLocaleString("zh-TW")} subtext="去重統計" />
-        <AdminKpiCard label="評論總數" value={mockReviews.length.toLocaleString("zh-TW")} subtext="較上週 +12%" />
+        <AdminKpiCard
+          label="教學回饋總數"
+          value={(state.summary?.reviewsCount ?? 0).toLocaleString("zh-TW")}
+          subtext={`較上週 ${state.summary && state.summary.wowReviewDeltaPercent >= 0 ? "+" : ""}${state.summary?.wowReviewDeltaPercent ?? 0}%`}
+        />
       </section>
 
       <section className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">

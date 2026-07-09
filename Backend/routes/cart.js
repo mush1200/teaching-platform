@@ -9,7 +9,7 @@ async function listCart(req, res) {
   try {
     const result = await db.query(
       `SELECT c.id, c.user_id, c.material_id, c.quantity, c.created_at, c.updated_at,
-              m.title, m.price, m.status
+              m.title, m.price, m.status, m.age_range, m.cover_image_url, m.material_features
        FROM cart_items c
        JOIN materials m ON m.id = c.material_id
        WHERE c.user_id = $1
@@ -79,6 +79,29 @@ router.post("/items", requireAuth, async (req, res) => {
     return res.status(201).json(created.rows[0]);
   } catch (err) {
     console.error("add cart item failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+router.patch("/items/:id", requireAuth, async (req, res) => {
+  try {
+    const qty = Number(req.body?.quantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      return res.status(400).json({ message: "quantity must be a positive integer" });
+    }
+    const updated = await db.query(
+      `UPDATE cart_items
+       SET quantity = $3, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [String(req.params.id), req.user.userId, qty]
+    );
+    if (updated.rows.length === 0) {
+      return res.status(404).json({ message: "cart item not found" });
+    }
+    return res.json(updated.rows[0]);
+  } catch (err) {
+    console.error("update cart item failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });

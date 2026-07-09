@@ -14,9 +14,9 @@ const pad: Record<NonNullable<CardProps["padding"]>, string> = {
 };
 
 const levelStyle: Record<NonNullable<CardProps["level"]>, string> = {
-  elevated: "rounded-[var(--radius-card-elevated)] border border-[#E5E7EB]/80 bg-white shadow-[var(--shadow-card-elevated)]",
-  default: "rounded-[var(--radius-card-default)] border border-[#E5E7EB]/80 bg-white shadow-[var(--shadow-card-default)]",
-  flat: "rounded-[var(--radius-card-flat)] border border-[#E5E7EB] bg-[#FAF8FF] shadow-none",
+  elevated: "rounded-ds-card border border-ds-border bg-ds-surface shadow-[0_12px_36px_rgba(15,23,42,0.10)]",
+  default: "rounded-ds-card border border-ds-border bg-ds-surface shadow-ds-card",
+  flat: "rounded-ds-card border border-ds-border bg-ds-surfaceSubtle shadow-ds-card-soft",
 };
 
 export function Card({ children, className = "", padding = "md", level = "default", ...rest }: CardProps) {

@@ -33,13 +33,13 @@ function getStatusTone(status?: string): "info" | "success" | "warning" | "error
   return "error";
 }
 
-function TeacherMaterialsPageContent() {
+function CreatorMaterialsPageContent() {
   const searchParams = useSearchParams();
   const [items, setItems] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
-  const [role, setRole] = useState<"parent" | "teacher" | "admin" | null>(null);
+  const [role, setRole] = useState<"parent" | "teacher" | "creator" | "admin" | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const view = searchParams.get("view") ?? "workbench";
@@ -54,11 +54,11 @@ function TeacherMaterialsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      let currentRole: "parent" | "teacher" | "admin" | null = role;
+      let currentRole: "parent" | "teacher" | "creator" | "admin" | null = role;
       let currentMeId: string | null = meId;
       const meRes = await apiFetch("auth/me");
       if (meRes.ok) {
-        const mePayload = (await meRes.json()) as { user?: { id?: string; role?: "parent" | "teacher" | "admin" } };
+        const mePayload = (await meRes.json()) as { user?: { id?: string; role?: "parent" | "teacher" | "creator" | "admin" } };
         currentMeId = mePayload.user?.id ?? null;
         currentRole = mePayload.user?.role ?? null;
         setMeId(currentMeId);
@@ -72,7 +72,10 @@ function TeacherMaterialsPageContent() {
       }
       const data = (await res.json()) as MaterialsListResponse;
       const all = data.items ?? [];
-      const next = currentRole === "teacher" && currentMeId ? all.filter((m) => m.teacher_id === currentMeId) : all;
+      const next =
+        (currentRole === "teacher" || currentRole === "creator") && currentMeId
+          ? all.filter((m) => m.teacher_id === currentMeId)
+          : all;
       setItems(next);
     } catch {
       setItems([]);
@@ -120,10 +123,10 @@ function TeacherMaterialsPageContent() {
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">{view === "workbench" ? "你的教材工作台" : "我的教材管理"}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{view === "workbench" ? "你的創作者工作台" : "我的教材管理"}</h1>
         <p className="text-sm text-slate-600">
           {view === "workbench"
-            ? "快速掌握教材狀態，並前往新增教材、審核追蹤與評論處理。"
+            ? "快速掌握教材狀態，並前往新增教材、審核追蹤與教學回饋處理。"
             : "管理你的教材內容，並追蹤目前上架與審核狀態。（僅顯示你建立的教材）"}
         </p>
       </div>
@@ -134,10 +137,10 @@ function TeacherMaterialsPageContent() {
             <SelectField id="teacher-material-status" label="狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/teacher/sales?tab=records">
+            <Link href="/creator/sales?tab=records">
               <Button intent="action">銷售紀錄</Button>
             </Link>
-            <Link href="/teacher/materials/new">
+            <Link href="/creator/materials/new">
               <Button intent="flow">新增教材</Button>
             </Link>
           </div>
@@ -168,13 +171,13 @@ function TeacherMaterialsPageContent() {
       ) : null}
 
       {view === "reviews" && !loading && !error ? (
-        <SurfaceCard title="教材評論捷徑" description="從這裡快速進入各教材評論頁。" level="default">
+        <SurfaceCard title="教材教學回饋捷徑" description="從這裡快速進入各教材教學回饋頁。" level="default">
           {items.length === 0 ? (
-            <EmptyState title="目前尚無教材可查看評論" description="新增教材後即可查看使用者評論。" />
+            <EmptyState title="目前尚無教材可查看教學回饋" description="新增教材後即可查看使用者教學回饋。" />
           ) : (
             <div className="flex flex-wrap gap-2">
               {items.map((m) => (
-                <Link key={`review-${m.id}`} href={`/teacher/materials/${encodeURIComponent(m.id)}/reviews`}>
+                <Link key={`review-${m.id}`} href={`/creator/materials/${encodeURIComponent(m.id)}/reviews`}>
                   <Button size="sm" intent="action">
                     {m.title}
                   </Button>
@@ -206,12 +209,12 @@ function TeacherMaterialsPageContent() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
-                      <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/reviews`}>
+                      <Link href={`/creator/materials/${encodeURIComponent(m.id)}/reviews`}>
                         <Button size="sm" intent="action">
-                          教材評論
+                          教材教學回饋
                         </Button>
                       </Link>
-                      <Link href={`/teacher/materials/${encodeURIComponent(m.id)}/edit`}>
+                      <Link href={`/creator/materials/${encodeURIComponent(m.id)}/edit`}>
                         <Button size="sm" intent="action">
                           編輯
                         </Button>
@@ -228,7 +231,7 @@ function TeacherMaterialsPageContent() {
   );
 }
 
-function TeacherMaterialsPageFallback() {
+function CreatorMaterialsPageFallback() {
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
       <h1 className="text-2xl font-bold text-slate-900">我的教材管理</h1>
@@ -237,10 +240,10 @@ function TeacherMaterialsPageFallback() {
   );
 }
 
-export default function TeacherMaterialsPage() {
+export default function CreatorMaterialsPage() {
   return (
-    <Suspense fallback={<TeacherMaterialsPageFallback />}>
-      <TeacherMaterialsPageContent />
+    <Suspense fallback={<CreatorMaterialsPageFallback />}>
+      <CreatorMaterialsPageContent />
     </Suspense>
   );
 }

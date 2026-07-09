@@ -10,8 +10,9 @@ import { CartItem } from "../../components/cart/CartItem";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { IconArrowRight } from "../../components/ui/icons";
-import { getCartItems, replaceCartItems } from "../../lib/edu-api-mock";
-import type { MockCartItem } from "../../lib/mock-data";
+import { getCartItems } from "../../lib/api-repository";
+import { apiFetch } from "../../lib/api-client";
+import type { MockCartItem } from "../../lib/view-models";
 
 export default function CartPage() {
   const router = useRouter();
@@ -35,20 +36,19 @@ export default function CartPage() {
     setSelected((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  function qty(id: string, q: number) {
-    setItems((prev) => {
-      const next = prev.map((it) => (it.id === id ? { ...it, quantity: q } : it));
-      void replaceCartItems(next);
-      return next;
+  async function qty(id: string, q: number) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, quantity: q } : it)));
+    await apiFetch(`cart/items/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ quantity: q }),
     });
   }
 
-  function removeItem(id: string) {
+  async function removeItem(id: string) {
     setItems((prev) => {
-      const next = prev.filter((it) => it.id !== id);
-      void replaceCartItems(next);
-      return next;
+      return prev.filter((it) => it.id !== id);
     });
+    await apiFetch(`cart/items/${encodeURIComponent(id)}`, { method: "DELETE" });
     setSelected((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -124,8 +124,12 @@ export default function CartPage() {
                   item={it}
                   selected={Boolean(selected[it.id])}
                   onToggle={toggle}
-                  onQtyChange={qty}
-                  onRemove={removeItem}
+                  onQtyChange={(id, q) => {
+                    void qty(id, q);
+                  }}
+                  onRemove={(id) => {
+                    void removeItem(id);
+                  }}
                 />
               ))}
             </div>

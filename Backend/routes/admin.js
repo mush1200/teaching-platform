@@ -13,7 +13,7 @@ router.use(requireAuth, requireRole("admin"));
 router.get("/materials", async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, title, teacher_id, status, created_at, updated_at
+      `SELECT id, title, teacher_id, status, created_at, updated_at, material_features
        FROM materials
        ORDER BY created_at DESC`
     );
@@ -37,6 +37,47 @@ router.get("/orders", async (req, res) => {
     return res.json({ items: result.rows });
   } catch (err) {
     console.error("admin list orders failed:", err);
+    return res.status(500).json({ message: "server error" });
+  }
+});
+
+router.get("/dashboard/summary", async (_req, res) => {
+  try {
+    const [materialsRes, ordersRes, reviewsRes, usersRes, pendingProofsRes, pendingReportsRes] = await Promise.all([
+      db.query(`SELECT COUNT(*)::int AS c FROM materials`),
+      db.query(`SELECT COUNT(*)::int AS c, COALESCE(SUM(COALESCE(total_amount, total_price, 0)), 0)::bigint AS revenue FROM orders`),
+      db.query(`SELECT COUNT(*)::int AS c FROM review`),
+      db.query(`SELECT COUNT(*)::int AS c FROM users`),
+      db.query(`SELECT COUNT(*)::int AS c FROM manual_payment_proofs WHERE review_status = 'pending'`),
+      db.query(`SELECT COUNT(*)::int AS c FROM reports WHERE status = 'pending'`),
+    ]);
+    const currentWeekRes = await db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM review
+       WHERE created_at >= NOW() - INTERVAL '7 days'`
+    );
+    const previousWeekRes = await db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM review
+       WHERE created_at >= NOW() - INTERVAL '14 days'
+         AND created_at < NOW() - INTERVAL '7 days'`
+    );
+    const currentWeek = Number(currentWeekRes.rows[0]?.c || 0);
+    const previousWeek = Number(previousWeekRes.rows[0]?.c || 0);
+    const wowReviewDeltaPercent = previousWeek > 0 ? Math.round(((currentWeek - previousWeek) / previousWeek) * 100) : (currentWeek > 0 ? 100 : 0);
+
+    return res.json({
+      materialsCount: Number(materialsRes.rows[0]?.c || 0),
+      ordersCount: Number(ordersRes.rows[0]?.c || 0),
+      revenueAmount: Number(ordersRes.rows[0]?.revenue || 0),
+      reviewsCount: Number(reviewsRes.rows[0]?.c || 0),
+      usersCount: Number(usersRes.rows[0]?.c || 0),
+      pendingProofsCount: Number(pendingProofsRes.rows[0]?.c || 0),
+      pendingReportsCount: Number(pendingReportsRes.rows[0]?.c || 0),
+      wowReviewDeltaPercent,
+    });
+  } catch (err) {
+    console.error("admin dashboard summary failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });

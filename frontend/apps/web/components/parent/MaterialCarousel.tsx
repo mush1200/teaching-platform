@@ -1,4 +1,4 @@
-import type { MockMaterial } from "../../lib/mock-data";
+import type { MockMaterial } from "../../lib/view-models";
 import { MaterialCard } from "../materials/MaterialCard";
 
 type Props = {

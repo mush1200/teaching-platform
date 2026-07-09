@@ -7,6 +7,12 @@ import Link from "next/link";
 import type { Material } from "../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../lib/api-client";
 import { MaterialMediaFields } from "../../../../components/teacher/MaterialMediaFields";
+import { MaterialFeaturesSelector } from "../../../../components/materials/MaterialFeaturesSelector";
+import {
+  flattenSelectedMaterialFeatures,
+  groupMaterialFeatures,
+  type MaterialFeatureGroupKey,
+} from "@/src/constants/materialFeatures";
 
 type FormValue = {
   title: string;
@@ -26,6 +32,7 @@ type FormValue = {
   demoVideoUrl: string;
   contentsText: string;
   ipDeclarationAccepted: boolean;
+  selectedFeatures: Partial<Record<MaterialFeatureGroupKey, string[]>>;
 };
 
 const INITIAL_FORM: FormValue = {
@@ -46,6 +53,7 @@ const INITIAL_FORM: FormValue = {
   demoVideoUrl: "",
   contentsText: "",
   ipDeclarationAccepted: false,
+  selectedFeatures: groupMaterialFeatures([]),
 };
 
 function parseTeachingMethods(raw: string): string[] {
@@ -95,7 +103,7 @@ function isValidUrl(value: string): boolean {
   }
 }
 
-export default function TeacherMaterialNewPage() {
+export default function CreatorMaterialNewPage() {
   const router = useRouter();
   const [form, setForm] = useState<FormValue>(INITIAL_FORM);
   const [message, setMessage] = useState<string | null>(null);
@@ -103,6 +111,20 @@ export default function TeacherMaterialNewPage() {
 
   function update<K extends keyof FormValue>(key: K, value: FormValue[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleFeature(group: MaterialFeatureGroupKey, value: string) {
+    setForm((prev) => {
+      const current = prev.selectedFeatures[group] ?? [];
+      const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+      return {
+        ...prev,
+        selectedFeatures: {
+          ...prev.selectedFeatures,
+          [group]: next,
+        },
+      };
+    });
   }
 
   async function handleCreate() {
@@ -171,6 +193,11 @@ export default function TeacherMaterialNewPage() {
       setMessage("請先確認著作權聲明。");
       return;
     }
+    const materialFeatures = flattenSelectedMaterialFeatures(form.selectedFeatures);
+    if (materialFeatures.length < 1) {
+      setMessage("請至少選擇 1 個教材特色。");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -192,6 +219,7 @@ export default function TeacherMaterialNewPage() {
           cover_image_url: form.coverImageUrl.trim(),
           detail_images: detailImages.length > 0 ? detailImages : undefined,
           demo_video_url: form.demoVideoUrl.trim() || undefined,
+          material_features: materialFeatures,
           contents,
           ipDeclarationAccepted: true,
         }),
@@ -203,7 +231,7 @@ export default function TeacherMaterialNewPage() {
 
       const created = (await res.json()) as Material;
       setMessage("教材建立成功，正在導向編輯頁…");
-      router.push(`/teacher/materials/${encodeURIComponent(created.id)}/edit`);
+      router.push(`/creator/materials/${encodeURIComponent(created.id)}/edit`);
     } catch {
       setMessage("建立失敗，請稍後再試。");
     } finally {
@@ -214,7 +242,7 @@ export default function TeacherMaterialNewPage() {
   return (
     <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">新增教材</h1>
+        <h1 className="text-2xl font-bold text-slate-900">新增教材（Creator）</h1>
         <p className="text-sm text-slate-600">建立新教材後，預設會進入審核流程。</p>
       </div>
 
@@ -284,6 +312,7 @@ export default function TeacherMaterialNewPage() {
             disabled={saving}
             onNotify={(msg) => setMessage(msg)}
           />
+          <MaterialFeaturesSelector selected={form.selectedFeatures} onToggle={toggleFeature} disabled={saving} />
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant={form.ipDeclarationAccepted ? "primary" : "secondary"} onPress={() => update("ipDeclarationAccepted", !form.ipDeclarationAccepted)} disabled={saving}>
@@ -296,7 +325,7 @@ export default function TeacherMaterialNewPage() {
             <Button onPress={() => void handleCreate()} disabled={saving} loading={saving}>
               {saving ? "建立中…" : "建立教材"}
             </Button>
-            <Link href="/teacher/materials">
+            <Link href="/creator/materials">
               <Button variant="secondary" disabled={saving}>
                 返回列表
               </Button>

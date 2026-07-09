@@ -5,10 +5,10 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams } from "next/navigation";
 import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, SurfaceCard } from "@teaching-platform/ui";
 import type {
-  TeacherSalesByMaterial,
-  TeacherSalesListResponse,
-  TeacherSalesRecord,
-  TeacherSalesSummary,
+  CreatorSalesByMaterial,
+  CreatorSalesListResponse,
+  CreatorSalesRecord,
+  CreatorSalesSummary,
 } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 
@@ -75,13 +75,13 @@ function buildSalesQuery(params: {
   return q.toString();
 }
 
-function TeacherSalesPageContent() {
+function CreatorSalesPageContent() {
   const searchParams = useSearchParams();
   const recordsSectionRef = useRef<HTMLDivElement | null>(null);
   const tab = searchParams.get("tab");
-  const [summary, setSummary] = useState<TeacherSalesSummary | null>(null);
-  const [materials, setMaterials] = useState<TeacherSalesByMaterial[]>([]);
-  const [records, setRecords] = useState<TeacherSalesRecord[]>([]);
+  const [summary, setSummary] = useState<CreatorSalesSummary | null>(null);
+  const [materials, setMaterials] = useState<CreatorSalesByMaterial[]>([]);
+  const [records, setRecords] = useState<CreatorSalesRecord[]>([]);
   const [recordsTotalPages, setRecordsTotalPages] = useState(1);
   const [recordsTotalItems, setRecordsTotalItems] = useState(0);
   const [recordsPage, setRecordsPage] = useState(1);
@@ -209,9 +209,9 @@ function TeacherSalesPageContent() {
         return;
       }
 
-      const summaryPayload = (await summaryRes.json()) as TeacherSalesSummary;
-      const materialsPayload = (await materialsRes.json()) as TeacherSalesListResponse<TeacherSalesByMaterial>;
-      const recordsPayload = (await recordsRes.json()) as TeacherSalesListResponse<TeacherSalesRecord>;
+      const summaryPayload = (await summaryRes.json()) as CreatorSalesSummary;
+      const materialsPayload = (await materialsRes.json()) as CreatorSalesListResponse<CreatorSalesByMaterial>;
+      const recordsPayload = (await recordsRes.json()) as CreatorSalesListResponse<CreatorSalesRecord>;
 
       setSummary(summaryPayload);
       setMaterials(Array.isArray(materialsPayload.items) ? materialsPayload.items : []);
@@ -278,7 +278,7 @@ function TeacherSalesPageContent() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `teacher-sales-records-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `creator-sales-records-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -307,7 +307,7 @@ function TeacherSalesPageContent() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `teacher-top-materials-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `creator-top-materials-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -325,7 +325,7 @@ function TeacherSalesPageContent() {
           <Button intent="action" onPress={exportCsv} disabled={records.length === 0}>
             匯出 CSV
           </Button>
-          <Link href="/teacher/materials">
+          <Link href="/creator/materials">
             <Button intent="neutral">返回教材管理</Button>
           </Link>
         </div>
@@ -490,12 +490,12 @@ function TeacherSalesPageContent() {
                     <p className="text-sm text-slate-600">賣出 {item.soldUnits} 份</p>
                     <p className="text-sm font-semibold text-slate-900">{formatMoney(item.revenue)}</p>
                     <div className="flex gap-2">
-                      <Link href={`/teacher/materials/${encodeURIComponent(item.materialId)}/reviews`}>
+                      <Link href={`/creator/materials/${encodeURIComponent(item.materialId)}/reviews`}>
                         <Button size="sm" intent="action">
-                          評論
+                          教學回饋
                         </Button>
                       </Link>
-                      <Link href={`/teacher/materials/${encodeURIComponent(item.materialId)}/edit`}>
+                      <Link href={`/creator/materials/${encodeURIComponent(item.materialId)}/edit`}>
                         <Button size="sm" intent="action">
                           編輯
                         </Button>
@@ -593,7 +593,7 @@ function TeacherSalesPageContent() {
   );
 }
 
-function TeacherSalesPageFallback() {
+function CreatorSalesPageFallback() {
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
       <h1 className="text-2xl font-bold text-slate-900">教材銷售中心</h1>
@@ -602,10 +602,10 @@ function TeacherSalesPageFallback() {
   );
 }
 
-export default function TeacherSalesPage() {
+export default function CreatorSalesPage() {
   return (
-    <Suspense fallback={<TeacherSalesPageFallback />}>
-      <TeacherSalesPageContent />
+    <Suspense fallback={<CreatorSalesPageFallback />}>
+      <CreatorSalesPageContent />
     </Suspense>
   );
 }

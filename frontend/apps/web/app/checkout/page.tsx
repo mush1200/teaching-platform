@@ -7,12 +7,10 @@ import { AppShell } from "../../components/layout/AppShell";
 import { MobileHeader } from "../../components/layout/MobileHeader";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { getCartItems, replaceCartItems } from "../../lib/edu-api-mock";
-import type { MockCartItem } from "../../lib/mock-data";
 import { apiFetch, getStoredRole, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
 import { trackEvent } from "../../lib/analytics";
 import { pushNotification } from "../../lib/notifications";
-import type { CartResponse, CreateOrderResponse, MaterialsListResponse } from "../../lib/api-types";
+import type { CartResponse, CreateOrderResponse } from "../../lib/api-types";
 
 type Step = 1 | 2 | 3;
 type InvoiceType = "none" | "carrier";
@@ -27,7 +25,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [cartItems, setCartItems] = useState<MockCartItem[]>([]);
+  const [cartItems, setCartItems] = useState<CartResponse["items"]>([]);
   const [cartLoading, setCartLoading] = useState(true);
   const [step, setStep] = useState<Step>(1);
   const [billing, setBilling] = useState({ name: "", email: "", phone: "" });
@@ -48,8 +46,9 @@ export default function CheckoutPage() {
     (async () => {
       setCartLoading(true);
       try {
-        const rows = await getCartItems();
-        if (!cancelled) setCartItems(rows);
+        const res = await apiFetch("cart");
+        const payload = res.ok ? ((await res.json()) as CartResponse) : { items: [] };
+        if (!cancelled) setCartItems(Array.isArray(payload.items) ? payload.items : []);
       } finally {
         if (!cancelled) setCartLoading(false);
       }
@@ -60,7 +59,7 @@ export default function CheckoutPage() {
   }, []);
 
   const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    () => cartItems.reduce((sum, item) => sum + Number(item.price ?? 0) * item.quantity, 0),
     [cartItems],
   );
   const discount = promoApplied?.discountAmount ?? 0;
@@ -84,23 +83,6 @@ export default function CheckoutPage() {
     const t = window.setTimeout(() => setAmountAnimating(false), 350);
     return () => window.clearTimeout(t);
   }, [discount]);
-
-  function inferMaterialType(title: string): string {
-    if (title.includes("數學")) return "數學教材";
-    if (title.includes("語")) return "語言教材";
-    if (title.includes("科")) return "科學教材";
-    if (title.includes("美術") || title.includes("繪")) return "藝術教材";
-    return "綜合教材";
-  }
-
-  function inferTags(title: string): string[] {
-    const tags: string[] = [];
-    if (title.includes("數學")) tags.push("圖卡", "配對");
-    if (title.includes("閱讀") || title.includes("語")) tags.push("朗讀", "剪貼");
-    if (title.includes("科學")) tags.push("實驗", "觀察");
-    if (tags.length === 0) tags.push("桌遊", "任務");
-    return tags.slice(0, 4);
-  }
 
   function normalizeOrderError(message: string): string {
     const text = String(message || "").trim();
@@ -189,44 +171,6 @@ export default function CheckoutPage() {
         setMsg("購物車目前是空的。");
         return;
       }
-      // Sync mock cart UI items into backend cart_items before creating order.
-      let materialsCache: MaterialsListResponse | null = null;
-      for (const item of cartItems) {
-        let upsertRes = await apiFetch("cart/items", {
-          method: "POST",
-          body: JSON.stringify({ materialId: item.materialId, quantity: item.quantity }),
-        });
-        if (!upsertRes.ok) {
-          const syncErr = await parseApiErrorMessage(upsertRes);
-          // Fallback: some old mock items use stale materialId; recover by title match.
-          if (syncErr.includes("material not found")) {
-            if (!materialsCache) {
-              const materialsRes = await apiFetch("materials");
-              if (materialsRes.ok) {
-                materialsCache = (await materialsRes.json()) as MaterialsListResponse;
-              }
-            }
-            const candidate = (materialsCache?.items || []).find(
-              (m) =>
-                String(m.title || "").trim() === String(item.title || "").trim() &&
-                String(m.status || "") === "published"
-            );
-            if (candidate?.id) {
-              upsertRes = await apiFetch("cart/items", {
-                method: "POST",
-                body: JSON.stringify({ materialId: candidate.id, quantity: item.quantity }),
-              });
-              if (upsertRes.ok) {
-                continue;
-              }
-            }
-          }
-          setMsg(`無法同步購物車商品「${item.title}」，請回到購物車移除後重新加入。`);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          return;
-        }
-      }
-
       const cartRes = await apiFetch("cart");
       if (!cartRes.ok) {
         setMsg("無法讀取後端購物車，請稍後再試。");
@@ -262,7 +206,7 @@ export default function CheckoutPage() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
-      await replaceCartItems([]);
+      setCartItems([]);
       pushNotification({
         tone: "info",
         title: "訂單已建立",
@@ -406,20 +350,21 @@ export default function CheckoutPage() {
                 {cartItems.map((item) => (
                   <li key={item.id} className="rounded-2xl border border-[#ececf2] bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
                     <div className="flex gap-3">
-                      <div className={`h-[72px] w-[72px] shrink-0 rounded-xl bg-gradient-to-br ${item.coverGradient}`} aria-hidden />
+                      <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-violet-100 to-indigo-50" aria-hidden>
+                        {item.cover_image_url ? <img src={item.cover_image_url} alt="" className="h-full w-full object-cover" /> : null}
+                      </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-[#1F2937]">{item.title}</p>
-                        <p className="mt-0.5 text-xs text-[#6B7280]">{item.ageLabel}</p>
-                        <p className="mt-0.5 text-xs text-[#6B7280]">{inferMaterialType(item.title)}</p>
+                        <p className="text-sm font-semibold text-[#1F2937]">{item.title || "教材"}</p>
+                        <p className="mt-0.5 text-xs text-[#6B7280]">{item.age_range ? `適合 ${String(item.age_range).replace(/^適合\s*/, "")}` : "適合全年齡"}</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {inferTags(item.title).map((tag) => (
+                          {(Array.isArray(item.material_features) ? item.material_features : []).slice(0, 4).map((tag) => (
                             <span key={`${item.id}-${tag}`} className="rounded-full bg-[#F4F1FF] px-2 py-0.5 text-[11px] font-medium text-[#6C63FF]">
                               {tag}
                             </span>
                           ))}
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-[#1F2937]">NT${(item.price * item.quantity).toLocaleString()}</p>
+                      <p className="text-sm font-bold text-[#1F2937]">NT${(Number(item.price ?? 0) * item.quantity).toLocaleString()}</p>
                     </div>
                   </li>
                 ))}

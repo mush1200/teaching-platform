@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@teaching-platform/ui";
-import { getMaterialById } from "../../lib/edu-api-mock";
-import { FAVORITES_UPDATED_EVENT, readFavoriteMaterialIds } from "../../lib/favorites-storage";
-import type { MockMaterial } from "../../lib/mock-data";
+import { apiFetch } from "../../lib/api-client";
+import { FAVORITES_UPDATED_EVENT } from "../../lib/favorites-storage";
+import type { MockMaterial } from "../../lib/view-models";
 import { MaterialGrid } from "../../components/parent/MaterialGrid";
+import { materialToMock } from "../../lib/material-mapper";
+import type { Material, MaterialRatingStats } from "../../lib/api-types";
 
 export default function FavoritesPage() {
   const [loading, setLoading] = useState(true);
@@ -14,17 +16,31 @@ export default function FavoritesPage() {
 
   const loadFavorites = useCallback(async () => {
     setLoading(true);
-    const ids = readFavoriteMaterialIds();
-    if (ids.length === 0) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
     try {
-      const rows = await Promise.all(ids.map((id) => getMaterialById(id)));
-      const sorted = rows.filter((row): row is MockMaterial => row !== null);
-      setItems(sorted);
+      const res = await apiFetch("me/favorites");
+      if (!res.ok) {
+        setItems([]);
+        return;
+      }
+      const payload = (await res.json()) as { items?: Material[] };
+      const materials = Array.isArray(payload.items) ? payload.items : [];
+      const rows = await Promise.all(
+        materials.map(async (material) => {
+          const mapped = materialToMock(material);
+          try {
+            const ratingRes = await apiFetch(`materials/${encodeURIComponent(material.id)}/rating`);
+            if (ratingRes.ok) {
+              const stats = (await ratingRes.json()) as MaterialRatingStats;
+              mapped.rating = stats.average ?? 0;
+              mapped.reviewCount = stats.count ?? 0;
+            }
+          } catch {
+            /* ignore */
+          }
+          return mapped;
+        }),
+      );
+      setItems(rows);
     } catch {
       setItems([]);
     } finally {

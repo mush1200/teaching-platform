@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { MockMaterial } from "../../lib/mock-data";
-import { readFavoriteMaterialIds, writeFavoriteMaterialIds } from "../../lib/favorites-storage";
+import type { MockMaterial } from "../../lib/view-models";
+import { apiFetch } from "../../lib/api-client";
+import { emitFavoritesUpdated } from "../../lib/favorites-storage";
 import { recordMaterialView } from "../../lib/recent-materials";
 import { IconHeart, IconStar } from "../ui/icons";
 
@@ -42,14 +43,27 @@ export function MaterialCard({ material, trackRecent }: Props) {
     );
 
   useEffect(() => {
-    try {
-      setIsFavorite(readFavoriteMaterialIds().includes(material.id));
-    } catch {
-      setIsFavorite(false);
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("me/favorites");
+        if (!res.ok) {
+          if (!cancelled) setIsFavorite(false);
+          return;
+        }
+        const payload = (await res.json()) as { items?: Array<{ material_id?: string }> };
+        const ids = (payload.items ?? []).map((row) => String(row.material_id ?? ""));
+        if (!cancelled) setIsFavorite(ids.includes(material.id));
+      } catch {
+        if (!cancelled) setIsFavorite(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [material.id]);
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = async () => {
     const next = !isFavorite;
     setIsFavorite(next);
     favoriteBtnRef.current?.animate(
@@ -63,11 +77,17 @@ export function MaterialCard({ material, trackRecent }: Props) {
     );
 
     try {
-      const ids = readFavoriteMaterialIds();
-      const nextIds = next ? Array.from(new Set([...ids, material.id])) : ids.filter((id) => id !== material.id);
-      writeFavoriteMaterialIds(nextIds);
+      const res = await apiFetch(`me/favorites/${encodeURIComponent(material.id)}`, {
+        method: next ? "POST" : "DELETE",
+      });
+      if (!res.ok) {
+        setIsFavorite(!next);
+        return;
+      }
+      emitFavoritesUpdated();
     } catch {
-      // Ignore storage failures; keep UI responsive.
+      setIsFavorite(!next);
+      return;
     }
 
     window.dispatchEvent(
@@ -109,7 +129,7 @@ export function MaterialCard({ material, trackRecent }: Props) {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            handleToggleFavorite();
+            void handleToggleFavorite();
           }}
         >
           <IconHeart filled={isFavorite} className="size-5" />

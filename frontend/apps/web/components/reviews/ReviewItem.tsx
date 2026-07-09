@@ -1,5 +1,5 @@
-import type { MockReview } from "../../lib/mock-data";
-import { IconStar, IconThumbsUp } from "../ui/icons";
+import type { MockReview } from "../../lib/view-models";
+import { IconStar } from "../ui/icons";
 
 const accentMap: Record<MockReview["avatarAccent"], string> = {
   violet: "bg-[#E8E4FF] text-[#6C63FF]",
@@ -12,42 +12,53 @@ type Props = {
   review: MockReview;
   /** Shown under the author row when listing reviews in mixed contexts */
   materialTitle?: string;
+  compact?: boolean;
+  showRoleBadge?: boolean;
+  showAuthorName?: boolean;
 };
 
-export function ReviewItem({ review, materialTitle }: Props) {
+const roleBadgeMap: Record<MockReview["audienceRole"], string> = {
+  parent: "bg-sky-50 text-sky-700 border-sky-100",
+  teacher: "bg-violet-50 text-violet-700 border-violet-100",
+};
+
+const roleLabelMap: Record<MockReview["audienceRole"], string> = {
+  parent: "家長",
+  teacher: "創作者",
+};
+
+export function ReviewItem({ review, materialTitle, compact = false, showRoleBadge = true, showAuthorName = true }: Props) {
   return (
-    <article className="rounded-3xl border border-[#E5E7EB]/80 bg-white p-4 shadow-sm">
-      <div className="flex gap-3">
+    <article className={`border border-[#E5E7EB] bg-white ${compact ? "rounded-2xl p-5" : "rounded-[16px] p-5"} shadow-sm`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex text-amber-400" aria-label={`${review.rating} 星`}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <IconStar key={i} className={`size-3.5 ${i < review.rating ? "opacity-100" : "opacity-20"}`} />
+          ))}
+        </span>
+        {showRoleBadge ? (
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${roleBadgeMap[review.audienceRole]}`}>
+            {roleLabelMap[review.audienceRole]}
+          </span>
+        ) : null}
+        {materialTitle ? (
+          <span className="text-xs font-medium text-[#6C63FF]">《{materialTitle}》</span>
+        ) : null}
+        {!compact && review.date ? (
+          <time className="ml-auto text-xs text-[#9CA3AF]" dateTime={review.date}>
+            {review.date}
+          </time>
+        ) : null}
+      </div>
+      <p className={`${compact ? "mt-2 line-clamp-3 text-sm" : "mt-3 text-sm"} leading-relaxed text-[#4B5563]`}>{review.content}</p>
+      <div className="mt-3 flex items-center gap-2">
         <div
-          className={`flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${accentMap[review.avatarAccent]}`}
+          className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${accentMap[review.avatarAccent]}`}
           aria-hidden
         >
-          {review.userName.slice(0, 1)}
+          {showAuthorName ? review.userName.slice(0, 1) : "匿"}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-[#1F2937]">{review.userName}</span>
-            {materialTitle ? (
-              <span className="text-xs font-medium text-[#6C63FF]">《{materialTitle}》</span>
-            ) : null}
-            <span className="flex text-amber-400">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <IconStar key={i} className={`size-3.5 ${i < review.rating ? "opacity-100" : "opacity-20"}`} />
-              ))}
-            </span>
-            <time className="text-xs text-[#9CA3AF]" dateTime={review.date}>
-              {review.date}
-            </time>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-[#4B5563]">{review.content}</p>
-          <button
-            type="button"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#E5E7EB] px-3 py-1 text-xs font-medium text-[#6B7280] hover:border-[#6C63FF]/30 hover:text-[#6C63FF]"
-          >
-            <IconThumbsUp className="size-3.5" />
-            {review.likes}
-          </button>
-        </div>
+        {showAuthorName ? <span className="text-xs font-medium text-[#6B7280]">— {review.userName}</span> : null}
       </div>
     </article>
   );
