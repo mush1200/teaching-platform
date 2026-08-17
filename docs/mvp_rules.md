@@ -23,6 +23,19 @@
 
 JWT required for protected routes.
 
+**`JWT_SECRET` 為必要環境變數（無 fallback）。** Backend 於載入 `Backend/utils/jwt.js` 時驗證，
+不符即拋錯、啟動失敗（fail fast），拒絕條件：
+
+- 未設定、為空白
+- 屬已知佔位值（例如 `dev-secret-change-me`）
+- 長度短於 32 字元
+
+必須是**高熵、隨機產生**的值（例如 `openssl rand -base64 48`）；長度本身不代表安全，
+可猜測的長密語同樣不合格。設定範本見 `Backend/.env.example`；實際值只放在 git-ignored 的
+`Backend/.env` 或部署環境，**不得寫入版控**。
+
+輪換此值會使所有已簽發之 JWT 失效（預設 `JWT_EXPIRES_IN=7d`），全體使用者需重新登入。
+
 ---
 
 # 2. Role boundaries
