@@ -5,14 +5,29 @@ let readyPromise = null;
 async function runIdempotentMigrations() {
   await db.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
 
-  await db.query(`
-    UPDATE users
-    SET role = 'buyer'
-    WHERE role = 'parent';
-  `).catch(() => {});
-  await db.query(`
-    ALTER TABLE users ALTER COLUMN role SET DEFAULT 'buyer';
-  `).catch(() => {});
+  // Canonical role is `buyer`; `parent` is legacy-compatibility only.
+  // These two statements must NOT fail silently: a swallowed error here leaves the DB in a
+  // split state (DEFAULT 'buyer' while users_role_check still rejects 'buyer'), which makes
+  // buyer registration fail at runtime with no trace. Fail fast instead — index.js exits 1.
+  try {
+    await db.query(`
+      UPDATE users
+      SET role = 'buyer'
+      WHERE role = 'parent';
+    `);
+    await db.query(`
+      ALTER TABLE users ALTER COLUMN role SET DEFAULT 'buyer';
+    `);
+  } catch (err) {
+    console.error(
+      "[bootstrap] role migration (parent -> buyer) failed:",
+      err.message
+    );
+    console.error(
+      "[bootstrap] hint: users_role_check must allow 'buyer' before this migration can run."
+    );
+    throw err;
+  }
 
   // Legacy Day13–14 tables; MVP v1.2 uses materials + manual_payment_proofs only.
   await db.query(`DROP TABLE IF EXISTS payment_proofs CASCADE;`);
@@ -595,7 +610,8 @@ function ensureCoreTables() {
           email TEXT NOT NULL UNIQUE,
           password_hash TEXT NOT NULL,
           role TEXT NOT NULL DEFAULT 'buyer',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT users_role_check CHECK (role IN ('teacher', 'parent', 'buyer', 'admin'))
         );
       `);
       await db.query(`

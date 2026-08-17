@@ -13,12 +13,14 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Exception: activity_logs.id is BIGSERIAL (§10 audit table).
 -- ---------------------------------------------------------------------------
 
+-- Canonical role is `buyer`; `parent` is kept as a transitional legacy value only.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'buyer',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT users_role_check CHECK (role IN ('teacher', 'parent', 'buyer', 'admin'))
 );
 
 CREATE TABLE IF NOT EXISTS materials (
