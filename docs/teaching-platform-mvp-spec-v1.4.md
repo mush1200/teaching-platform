@@ -84,6 +84,7 @@ Only **admin** may set `status` on update; teacher edits other fields on own mat
 
 - required: `title`, `price` (`> 0`), `file_key` (alias `fileKey`), `teaching_objective`, `teaching_methods`, `usage_duration`, `activity_steps`, `contents`
 - required: `cover_image_url` (alias `coverImageUrl`) and it must be a valid URL
+- required: `material_features` (alias `materialFeatures`) — **array**, at least **1** item; every value must come from the material features allowlist (`Backend/constants/materialFeatures.js`, mirrored at `frontend/apps/web/src/constants/materialFeatures.ts`; see `docs/material-features-system-spec-mvp-v1.0.md`). Invalid value → **400** `invalid material feature: <value>`
 - `teaching_methods`: array length `1..4`, empty strings are rejected
 - `contents`: at least one row; each row requires `type` + `name`; `count` if provided must be `> 0`
 - optional: `detail_images` (alias `detailImages`), each `image_url` is required and must be valid URL
@@ -249,7 +250,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 | GET | `/materials/:id/rating-distribution` | — | Rating distribution for 5→1 stars (`total`, `items[{star,count,percent}]`). |
 | GET | `/materials/:id/reports` | JWT (**admin**) | Report rows for material `id`; optional `status=pending` or `reviewed` (invalid → **400**); same columns as **`GET /admin/reports`**. |
 | GET | `/materials/:id` | Optional JWT | Detail: **published** OR owner **teacher** OR **admin**; else **403**. Not found **404**. Response includes `contents[]` ordered by `sort_order`. |
-| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `cover_image_url`/`coverImageUrl`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `ipDeclarationAccepted: true`. Optional: `detail_images`, `demo_video_url`. **Must not** send `status` (**400**). |
+| POST | `/materials` | JWT (**teacher**) | Create material (starts `pending_review`). Required body: `title`, `price`, `file_key`/`fileKey`, `cover_image_url`/`coverImageUrl`, `teaching_objective`, `teaching_methods` (1..4), `usage_duration`, `activity_steps`, `contents` (>=1), `material_features`/`materialFeatures` (array, >=1, values from allowlist), `ipDeclarationAccepted: true`. Optional: `detail_images`, `demo_video_url`. **Must not** send `status` (**400**). |
 | PUT | `/materials/:id` | JWT (**teacher** owner or **admin**) | Full update fields; **only admin** may send `status`. If body includes `contents`, backend replaces existing `material_contents`; if body includes `detail_images`, backend replaces existing `material_images`. |
 | PATCH | `/materials/:id` | JWT (**teacher** owner or **admin**) | Partial update semantics, same field validation/authorization as PUT. |
 | POST | `/teacher/uploads/material-media` | JWT (**teacher**) | `multipart/form-data` with field **`file`**; query **`kind`**: `cover` / `detail` (images, max 10MB) or `demo` (MP4/WebM, max 80MB). **201** `{ url, filename }` — use **`url`** when creating/updating material media fields. Files served at `GET /uploads/material-media/<filename>`. |

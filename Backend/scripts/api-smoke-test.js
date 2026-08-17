@@ -6,6 +6,13 @@
  *      ⚠️ 若在 shell 先設了 PGDATABASE／PGHOST 等，會覆蓋 .env；請勿與 .env 不一致。
  *   2) 終端 B：`npm run smoke` 或 `API_SMOKE_BASE=http://localhost:3000 node scripts/api-smoke-test.js`
  *
+ * 必要環境變數（admin 流程）：
+ *   TEST_ADMIN_EMAIL     既有 admin 帳號的 email
+ *   TEST_ADMIN_PASSWORD  該帳號的密碼
+ *   ⚠️ 公開註冊已禁止建立 admin（POST /auth/register + role:"admin" → 403）。
+ *      smoke 只會「登入」既有 admin，不會、也不能自行建立。請先以
+ *      `npm run create-admin` 建好帳號，再於環境變數提供憑證（勿寫入版控）。
+ *
  * 選項環境變數：
  *   API_SMOKE_BASE  預設 http://127.0.0.1:3000
  *
@@ -50,6 +57,24 @@ function expect(name, cond, detail) {
   }
 }
 
+/**
+ * Admin credentials must be supplied by the environment. There is deliberately no
+ * fallback: creating an admin over HTTP is blocked (403), and a hard-coded or default
+ * admin password would be exactly the weakness P0-2 removed. The value is never logged.
+ */
+function requireEnv(name) {
+  const raw = process.env[name];
+  if (raw === undefined || String(raw).trim() === "") {
+    fail(
+      `${name} is not set. Admin smoke coverage signs in as an existing admin account; ` +
+        "it never creates one. Create the account once with `npm run create-admin`, then " +
+        "export TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD (do not commit them)."
+    );
+    throw new Error(`missing environment variable: ${name}`);
+  }
+  return String(raw);
+}
+
 /** 符合目前 POST /materials 必填欄位之最小 body（教學商品欄位）。 */
 function smokeMaterialBody({ title, fileKey, price = 100 }) {
   return {
@@ -62,6 +87,9 @@ function smokeMaterialBody({ title, fileKey, price = 100 }) {
     usage_duration: "約 1 小時",
     activity_steps: "1. 說明\n2. 練習",
     contents: [{ type: "worksheet", name: "練習", count: 1 }],
+    // Required by POST /materials (>= 1 value from the material features allowlist).
+    // Fixture value only — not a product default.
+    material_features: ["PDF教材"],
     ipDeclarationAccepted: true,
   };
 }
@@ -76,13 +104,17 @@ function makeProofFormData(filename = "proof.png", mimetype = "image/png") {
 async function main() {
   const stamp = Date.now();
   const emails = {
-    admin: `smoke_admin_${stamp}@test.local`,
     teacher: `smoke_teacher_${stamp}@test.local`,
     parent: `smoke_parent_${stamp}@test.local`,
   };
   const password = "SmokeTest1!";
 
+  // Fail before any HTTP call so a missing variable is obvious.
+  const testAdminEmail = requireEnv("TEST_ADMIN_EMAIL");
+  const testAdminPassword = requireEnv("TEST_ADMIN_PASSWORD");
+
   console.log("Base URL:", BASE);
+  console.log("Admin account:", testAdminEmail);
 
   // Health
   {
@@ -91,18 +123,38 @@ async function main() {
     console.log("OK  GET /health");
   }
 
-  // Register ×3
+  // Public registration must never mint an admin (P0-2 guard).
+  {
+    const blocked = await http("POST", "/auth/register", {
+      body: { email: `smoke_admin_attempt_${stamp}@test.local`, password, role: "admin" },
+    });
+    expect(
+      "POST /auth/register role=admin (must be blocked)",
+      blocked.status === 403,
+      `expected 403, got ${blocked.status}: ${JSON.stringify(blocked.data)}`
+    );
+    console.log("OK  POST /auth/register role=admin → 403 (public admin registration blocked)");
+  }
+
+  // Admin: sign in to a pre-existing account. Register ×2 for teacher/parent.
   let adminToken;
   let teacherToken;
   let parentToken;
   let teacherId;
   let parentId;
   {
-    const rA = await http("POST", "/auth/register", {
-      body: { email: emails.admin, password, role: "admin" },
+    const rA = await http("POST", "/auth/login", {
+      body: { email: testAdminEmail, password: testAdminPassword },
     });
-    expect("POST /auth/register admin", rA.status === 201 && rA.data?.token, JSON.stringify(rA.data));
+    expect(
+      "POST /auth/login admin",
+      rA.status === 200 && rA.data?.token && rA.data?.user?.role === "admin",
+      rA.status === 200
+        ? `logged in but role is "${rA.data?.user?.role}" (TEST_ADMIN_EMAIL must be an admin account)`
+        : `expected 200, got ${rA.status} (check TEST_ADMIN_EMAIL / TEST_ADMIN_PASSWORD)`
+    );
     adminToken = rA.data.token;
+    console.log("OK  POST /auth/login (admin)");
 
     const rT = await http("POST", "/auth/register", {
       body: { email: emails.teacher, password, role: "teacher" },
@@ -118,7 +170,7 @@ async function main() {
     parentToken = rP.data.token;
     parentId = rP.data.user.id;
 
-    console.log("OK  POST /auth/register (admin, teacher, parent)");
+    console.log("OK  POST /auth/register (teacher, parent)");
   }
 
   // GET /auth/me
