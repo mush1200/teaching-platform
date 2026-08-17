@@ -235,7 +235,7 @@ Below matches `Backend/index.js` and route modules. **Auth** abbreviations: **�
 
 | Method | Path | Auth | Summary |
 |--------|------|------|---------|
-| POST | `/auth/register` | — | Body: `email`, `password`, `role` (`teacher` \| `parent` \| `admin`). **201** → `{ token, user }`. Duplicate email **409**. |
+| POST | `/auth/register` | — | Body: `email`, `password`, `role` (`teacher` \| `parent` \| `buyer`). **201** → `{ token, user }`. Duplicate email **409**. `role: "admin"` → **403** (admin 不可經公開註冊建立；見 `docs/mvp_rules.md` §2)。其他非法 role → **400**. |
 | POST | `/auth/login` | — | Body: `email`, `password`. **200** → `{ token, user }`. Bad creds **401**. |
 | GET | `/auth/me` | JWT | Current user profile. |
 

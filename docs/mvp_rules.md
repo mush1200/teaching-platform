@@ -81,6 +81,19 @@ list and act on payment proofs (approve / reject proof)
 view reports; mark report as reviewed
 view activity logs
 
+**Admin 帳號建立方式（強制）**
+
+- 公開註冊 **永遠不能** 建立 admin：`POST /auth/register` 收到 `role: "admin"` 一律回 **403**，
+  公開可註冊角色僅 `teacher` / `parent`（legacy）/ `buyer`（canonical）。
+- 平台**不提供**任何 admin registration HTTP endpoint。
+- admin 一律以維運 CLI 建立：`Backend/scripts/create-admin.js`（`npm run create-admin --prefix Backend`），
+  需具備資料庫連線權限，role 固定為 `admin`，呼叫端不得指定其他角色。
+- 密碼優先以環境變數 `ADMIN_PASSWORD` 提供（CLI 參數會出現在 process list 與 shell history）。
+- **admin CLI 密碼最短長度 = 16 字元**（以 trim 後長度計算，不足即拒絕建立並以 exit code 1 結束）。
+  此規則刻意嚴於公開註冊 —— 公開註冊目前無密碼強度規則，屬另行追蹤之既有技術債，
+  不因此讓最高權限維運帳號接受弱密碼。CLI 不另外要求大小寫／符號等複雜度。
+- **不得**將 admin 密碼、密碼雜湊或任何真實憑證寫入版控（含 `.env.example`、文件、測試腳本）。
+
 ---
 
 # 3. Material visibility rules
