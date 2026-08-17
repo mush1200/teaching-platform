@@ -75,7 +75,7 @@ export function flattenSelectedMaterialFeatures(
   const result: string[] = [];
   const seen = new Set<string>();
   for (const key of Object.keys(MATERIAL_FEATURE_GROUPS) as MaterialFeatureGroupKey[]) {
-    const options = new Set(MATERIAL_FEATURE_GROUPS[key]);
+    const options = new Set<string>(MATERIAL_FEATURE_GROUPS[key]);
     for (const item of selectedByGroup[key] ?? []) {
       if (!options.has(item) || seen.has(item)) continue;
       seen.add(item);
