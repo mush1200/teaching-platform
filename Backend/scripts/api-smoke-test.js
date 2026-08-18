@@ -20,6 +20,11 @@
  *       download、reviews、reports、admin 列表（含 payment-proofs）、DELETE cart（預期 404）。
  */
 
+const path = require("path");
+// Load Backend/.env explicitly, resolved from this file rather than process.cwd(),
+// so the script behaves identically from the repo root and from Backend/.
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
+
 const BASE = process.env.API_SMOKE_BASE || "http://127.0.0.1:3000";
 
 function fail(msg) {

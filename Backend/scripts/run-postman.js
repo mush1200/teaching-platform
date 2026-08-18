@@ -13,6 +13,9 @@
  * processes can read it. Values here stay in memory and are never logged.
  */
 const path = require("path");
+// Load Backend/.env explicitly, resolved from this file rather than process.cwd(),
+// so the script behaves identically from the repo root and from Backend/.
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const newman = require("newman");
 
 const POSTMAN_DIR = path.join(__dirname, "..", "..", "docs", "postman");
