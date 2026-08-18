@@ -3,6 +3,13 @@ import { mapStatusMessage } from "./auth";
 
 const STORAGE_TOKEN = "tp_token";
 
+/**
+ * Authorization source of truth is the JWT below, sent as `Authorization: Bearer` and
+ * verified by the Backend. The `tp_role` cookie/localStorage value is only a UX hint used
+ * by middleware.ts and the shells to pick which chrome to render — it is client-writable
+ * and must never be treated as a permission.
+ */
+
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(STORAGE_TOKEN);

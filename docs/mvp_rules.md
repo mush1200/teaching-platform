@@ -36,6 +36,20 @@ JWT required for protected routes.
 
 輪換此值會使所有已簽發之 JWT 失效（預設 `JWT_EXPIRES_IN=7d`），全體使用者需重新登入。
 
+**授權邊界（前後端分工，勿混淆）**
+
+| 層 | 實作 | 作用 |
+| --- | --- | --- |
+| **Backend authorization**（唯一真正的授權） | `Backend/middlewares/auth.js` 驗簽 JWT + `requireRole` | 所有資料存取的權限判斷 |
+| **Frontend UX guard**（非授權） | `frontend/apps/web/middleware.ts` 讀 `tp_token` / `tp_role` cookie | 只決定要不要渲染某個頁面外殼、導向 `/login` 或 `/403` |
+
+`tp_token` / `tp_role` 由瀏覽器於登入後以 `document.cookie` 寫入（非 HttpOnly），
+使用者可自行竄改，因此**只能視為 UX hint，不得作為授權來源**。前端 middleware
+不讀取、不解碼、不驗證 JWT。竄改 `tp_role=admin` 只會看到空的管理外殼，
+其所有 API 請求仍由後端回 403，不會取得任何資料。
+
+改為 server-set HttpOnly + Secure cookie 與伺服端 session 驗證屬 Phase 2，尚未實作。
+
 ---
 
 # 2. Role boundaries
