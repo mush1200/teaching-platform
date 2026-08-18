@@ -17,6 +17,8 @@
 
 本機開發時以環境變數設定（例如 `Backend` 目錄的 `.env` 或 `DATABASE_URL` / `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE`），**不要**在版控文件內寫入實際密碼。
 
+啟動指令、port、環境變數完整清單、回歸流程與維運操作見 **`docs/local-development-and-operations.md`**。
+
 ---
 
 # 1. Authentication
