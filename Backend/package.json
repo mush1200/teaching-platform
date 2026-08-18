@@ -6,8 +6,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "smoke": "node scripts/api-smoke-test.js",
+    "create-admin": "node scripts/create-admin.js",
     "smtp:check": "node scripts/smtp-smoke-test.js",
-    "postman:newman": "newman run ../docs/postman/teaching-platform-backend.postman_collection.json -e ../docs/postman/local.postman_environment.json --timeout-request 60000"
+    "postman:newman": "node scripts/run-postman.js"
   },
   "keywords": [],
   "author": "",

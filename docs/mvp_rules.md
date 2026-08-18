@@ -17,11 +17,40 @@
 
 本機開發時以環境變數設定（例如 `Backend` 目錄的 `.env` 或 `DATABASE_URL` / `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE`），**不要**在版控文件內寫入實際密碼。
 
+啟動指令、port、環境變數完整清單、回歸流程與維運操作見 **`docs/local-development-and-operations.md`**。
+
 ---
 
 # 1. Authentication
 
 JWT required for protected routes.
+
+**`JWT_SECRET` 為必要環境變數（無 fallback）。** Backend 於載入 `Backend/utils/jwt.js` 時驗證，
+不符即拋錯、啟動失敗（fail fast），拒絕條件：
+
+- 未設定、為空白
+- 屬已知佔位值（例如 `dev-secret-change-me`）
+- 長度短於 32 字元
+
+必須是**高熵、隨機產生**的值（例如 `openssl rand -base64 48`）；長度本身不代表安全，
+可猜測的長密語同樣不合格。設定範本見 `Backend/.env.example`；實際值只放在 git-ignored 的
+`Backend/.env` 或部署環境，**不得寫入版控**。
+
+輪換此值會使所有已簽發之 JWT 失效（預設 `JWT_EXPIRES_IN=7d`），全體使用者需重新登入。
+
+**授權邊界（前後端分工，勿混淆）**
+
+| 層 | 實作 | 作用 |
+| --- | --- | --- |
+| **Backend authorization**（唯一真正的授權） | `Backend/middlewares/auth.js` 驗簽 JWT + `requireRole` | 所有資料存取的權限判斷 |
+| **Frontend UX guard**（非授權） | `frontend/apps/web/middleware.ts` 讀 `tp_token` / `tp_role` cookie | 只決定要不要渲染某個頁面外殼、導向 `/login` 或 `/403` |
+
+`tp_token` / `tp_role` 由瀏覽器於登入後以 `document.cookie` 寫入（非 HttpOnly），
+使用者可自行竄改，因此**只能視為 UX hint，不得作為授權來源**。前端 middleware
+不讀取、不解碼、不驗證 JWT。竄改 `tp_role=admin` 只會看到空的管理外殼，
+其所有 API 請求仍由後端回 403，不會取得任何資料。
+
+改為 server-set HttpOnly + Secure cookie 與伺服端 session 驗證屬 Phase 2，尚未實作。
 
 ---
 
@@ -67,6 +96,19 @@ change material status (publish / unpublish)
 list and act on payment proofs (approve / reject proof)
 view reports; mark report as reviewed
 view activity logs
+
+**Admin 帳號建立方式（強制）**
+
+- 公開註冊 **永遠不能** 建立 admin：`POST /auth/register` 收到 `role: "admin"` 一律回 **403**，
+  公開可註冊角色僅 `teacher` / `parent`（legacy）/ `buyer`（canonical）。
+- 平台**不提供**任何 admin registration HTTP endpoint。
+- admin 一律以維運 CLI 建立：`Backend/scripts/create-admin.js`（`npm run create-admin --prefix Backend`），
+  需具備資料庫連線權限，role 固定為 `admin`，呼叫端不得指定其他角色。
+- 密碼優先以環境變數 `ADMIN_PASSWORD` 提供（CLI 參數會出現在 process list 與 shell history）。
+- **admin CLI 密碼最短長度 = 16 字元**（以 trim 後長度計算，不足即拒絕建立並以 exit code 1 結束）。
+  此規則刻意嚴於公開註冊 —— 公開註冊目前無密碼強度規則，屬另行追蹤之既有技術債，
+  不因此讓最高權限維運帳號接受弱密碼。CLI 不另外要求大小寫／符號等複雜度。
+- **不得**將 admin 密碼、密碼雜湊或任何真實憑證寫入版控（含 `.env.example`、文件、測試腳本）。
 
 ---
 

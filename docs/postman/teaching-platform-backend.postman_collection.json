@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Teaching Platform — Backend MVP",
-    "description": "對應 docs/teaching-platform-mvp-spec-v1.4.md、docs/mvp_rules.md、db/db_schema.sql。需先啟動後端（npm run start）。一鍵跑：npm run postman（專案根目錄）。\n\n---\n## Day24 MVP 端到端驗收（中文版）\n\n**資料庫：** materials domain 已含 `teaching_objective`、`teaching_methods`、`usage_duration`、`activity_steps`、`extension_value`、`short_description` 與 `material_contents`。若本機 DB 尚未跑過 bootstrap，請依 Backend/models/bootstrapModel.js 建立表結構。\n\n**建議 Collection 執行順序：** `00 Setup` → `01 Auth` → `02 Materials` → `03 Cart & Orders` → `04 Admin approve` → `05 Reject flow` → `06 Download reviews reports` → `07 Admin lists` → `08 Cart delete`。\n\n### 主流程（狀態／權限摘要）\n\n1. **Teacher `POST /materials`** — Request: `title`, `price`, `file_key`（或 `fileKey`）, `teaching_objective`, `teaching_methods(1..4)`, `usage_duration`, `activity_steps`, `contents(>=1)`, `ipDeclarationAccepted=true`。**不可**帶 `status`（400）。Response: `status=pending_review`。**Activity:** `material.created`。權限：teacher。\n2. **Admin `PUT /materials/:id`** — Body `{ \"status\":\"published\" }`。Response: published。**Activity:** `material.published`（僅當目標狀態為 published）。權限：admin 可改 status；teacher 不可帶 status（403）。\n3. **Parent `POST /cart/items`** — 僅 `published` 教材。**Activity:** `cart.added`（含重複加入時 upsert 更新數量）。\n4. **Parent `POST /orders`** — order.status=`pending_payment`，order_items 含 snapshot，cart 清空。**Activity:** `order_created`。\n5. **Parent `POST /orders/:id/upload-proof`** — 新增 `manual_payment_proofs` pending；**order 仍為** `pending_payment`。**Activity:** `payment_proof_uploaded`。\n6. **Admin `POST /admin/payment-proofs/:id/approve`** — proof approved，order→`approved`。**Activity:** `payment_proof.approved`。\n7. **Parent `GET /download/:materialId`** — 需 approved 訂單含該 material。**Activity:** `download.attempted` / `denied` 或 `allowed`。\n8. **Parent `POST /reviews`** — 需已購買（approved order + order_item）。**Activity:** `review_created`。\n9. **Parent `POST /reports`** — 同一 material 同一 parent 僅一筆（409）。**Activity:** `report_created`（target_type=material）。\n10. **Admin `PATCH /admin/reports/:id`** — `{ \"status\":\"reviewed\" }`，僅 pending→reviewed。**Activity:** `report_reviewed`（target_type=report）。\n11. **Admin `GET /admin/activity-logs`** — `{ items, pagination }`，`id` 為字串；`GET /admin/activity-logs/:id` 與列表 id 一致。\n\n### 各請求之狀態驗證要點\n\n- 教材列表：匿名／parent 僅見 `published`；teacher 見自己非 published + 全部 published；admin 見全部。\n- 訂單：`orders.status` **無** `proof_uploaded`；付款憑證以 `manual_payment_proofs` 為準。\n- Reject proof：僅更新 proof 列，**order.status 不變**。\n\n### Postman Tests 欄位\n\n各資料夾內請求已附 `Tests` 腳本（狀態碼／JSON 形狀）。變數：`baseUrl`、`adminToken`、`teacherToken`、`parentToken`、`materialId`、`orderId`、`proofId`、`reportId` 等依序由註冊與流程寫入。",
+    "description": "對應 docs/teaching-platform-mvp-spec-v1.4.md、docs/mvp_rules.md、db/db_schema.sql。需先啟動後端（npm run start）。一鍵跑：npm run postman（專案根目錄）。\n\n---\n## Day24 MVP 端到端驗收（中文版）\n\n**資料庫：** materials domain 已含 `teaching_objective`、`teaching_methods`、`usage_duration`、`activity_steps`、`extension_value`、`short_description` 與 `material_contents`。若本機 DB 尚未跑過 bootstrap，請依 Backend/models/bootstrapModel.js 建立表結構。\n\n**建議 Collection 執行順序：** `00 Setup` → `01 Auth` → `02 Materials` → `03 Cart & Orders` → `04 Admin approve` → `05 Reject flow` → `06 Download reviews reports` → `07 Admin lists` → `08 Cart delete`。\n\n### 主流程（狀態／權限摘要）\n\n1. **Teacher `POST /materials`** — Request: `title`, `price`, `file_key`（或 `fileKey`）, `teaching_objective`, `teaching_methods(1..4)`, `usage_duration`, `activity_steps`, `contents(>=1)`, `ipDeclarationAccepted=true`。**不可**帶 `status`（400）。Response: `status=pending_review`。**Activity:** `material.created`。權限：teacher。\n2. **Admin `PUT /materials/:id`** — Body `{ \"status\":\"published\" }`。Response: published。**Activity:** `material.published`（僅當目標狀態為 published）。權限：admin 可改 status；teacher 不可帶 status（403）。\n3. **Parent `POST /cart/items`** — 僅 `published` 教材。**Activity:** `cart.added`（含重複加入時 upsert 更新數量）。\n4. **Parent `POST /orders`** — order.status=`pending_payment`，order_items 含 snapshot，cart 清空。**Activity:** `order_created`。\n5. **Parent `POST /orders/:id/upload-proof`** — 新增 `manual_payment_proofs` pending；**order 仍為** `pending_payment`。**Activity:** `payment_proof_uploaded`。\n6. **Admin `POST /admin/payment-proofs/:id/approve`** — proof approved，order→`approved`。**Activity:** `payment_proof.approved`。\n7. **Parent `GET /download/:materialId`** — 需 approved 訂單含該 material。**Activity:** `download.attempted` / `denied` 或 `allowed`。\n8. **Parent `POST /reviews`** — 需已購買（approved order + order_item）。**Activity:** `review_created`。\n9. **Parent `POST /reports`** — 同一 material 同一 parent 僅一筆（409）。**Activity:** `report_created`（target_type=material）。\n10. **Admin `PATCH /admin/reports/:id`** — `{ \"status\":\"reviewed\" }`，僅 pending→reviewed。**Activity:** `report_reviewed`（target_type=report）。\n11. **Admin `GET /admin/activity-logs`** — `{ items, pagination }`，`id` 為字串；`GET /admin/activity-logs/:id` 與列表 id 一致。\n\n### 各請求之狀態驗證要點\n\n- 教材列表：匿名／parent 僅見 `published`；teacher 見自己非 published + 全部 published；admin 見全部。\n- 訂單：`orders.status` **無** `proof_uploaded`；付款憑證以 `manual_payment_proofs` 為準。\n- Reject proof：僅更新 proof 列，**order.status 不變**。\n\n### Postman Tests 欄位\n\n各資料夾內請求已附 `Tests` 腳本（狀態碼／JSON 形狀）。變數：`baseUrl`、`adminToken`、`teacherToken`、`parentToken`、`materialId`、`orderId`、`proofId`、`reportId` 等依序由登入／註冊與流程寫入。\n\n**Admin 憑證：** 公開註冊已禁止建立 admin（`POST /auth/register` + `role:\"admin\"` → 403）。`01 Auth` 之 `POST login admin` 會登入既有 admin，帳密來自環境變數 `testAdminEmail` / `testAdminPassword`（由 `npm run postman` 以 `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` 注入）。**請勿**將真實憑證寫入本 collection 或 environment 檔。",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [],
@@ -44,14 +44,27 @@
       "name": "01 Auth",
       "item": [
         {
-          "name": "POST register admin",
+          "name": "POST login admin",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const email = pm.environment.get('testAdminEmail') || pm.collectionVariables.get('testAdminEmail');",
+                  "const password = pm.environment.get('testAdminPassword') || pm.collectionVariables.get('testAdminPassword');",
+                  "if (!email) { throw new Error('testAdminEmail is not set. Public admin registration is blocked (403); this collection signs in to an existing admin. Supply TEST_ADMIN_EMAIL — see docs/postman/README.md'); }",
+                  "if (!password) { throw new Error('testAdminPassword is not set. Supply TEST_ADMIN_PASSWORD — see docs/postman/README.md'); }"
+                ],
+                "type": "text/javascript"
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
                   "const j = pm.response.json();",
+                  "pm.test('role is admin', function () { pm.expect(j.user.role).to.eql('admin'); });",
                   "pm.collectionVariables.set('adminToken', j.token);"
                 ],
                 "type": "text/javascript"
@@ -63,9 +76,9 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"smoke_admin_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"admin\"\n}"
+              "raw": "{\n  \"email\": \"{{testAdminEmail}}\",\n  \"password\": \"{{testAdminPassword}}\"\n}"
             },
-            "url": "{{baseUrl}}/auth/register"
+            "url": "{{baseUrl}}/auth/login"
           }
         },
         {
@@ -221,7 +234,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Postman material A\",\n  \"price\": 100,\n  \"file_key\": \"files/postman-a.pdf\",\n  \"teaching_objective\": \"幫助學生認識地點與物品並完成配對\",\n  \"teaching_methods\": [\"配對遊戲\", \"搶答遊戲\"],\n  \"usage_duration\": \"約 2 堂課，每堂 30 分鐘\",\n  \"activity_steps\": \"1. 展示圖卡\\n2. 學生配對\\n3. 口語表達\",\n  \"short_description\": \"透過配對遊戲學習地點與物品\",\n  \"contents\": [\n    { \"type\": \"flashcard\", \"name\": \"地點圖卡\", \"count\": 4 },\n    { \"type\": \"flashcard\", \"name\": \"物品圖卡\", \"count\": 24 }\n  ],\n  \"ipDeclarationAccepted\": true\n}"
+              "raw": "{\n  \"title\": \"Postman material A\",\n  \"price\": 100,\n  \"file_key\": \"files/postman-a.pdf\",\n  \"cover_image_url\": \"https://picsum.photos/seed/postman-cover/640/480\",\n  \"teaching_objective\": \"幫助學生認識地點與物品並完成配對\",\n  \"teaching_methods\": [\"配對遊戲\", \"搶答遊戲\"],\n  \"usage_duration\": \"約 2 堂課，每堂 30 分鐘\",\n  \"activity_steps\": \"1. 展示圖卡\\n2. 學生配對\\n3. 口語表達\",\n  \"short_description\": \"透過配對遊戲學習地點與物品\",\n  \"contents\": [\n    { \"type\": \"flashcard\", \"name\": \"地點圖卡\", \"count\": 4 },\n    { \"type\": \"flashcard\", \"name\": \"物品圖卡\", \"count\": 24 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
             },
             "url": "{{baseUrl}}/materials"
           }
@@ -508,7 +521,7 @@
                   "key": "proofs",
                   "type": "file",
                   "src": [
-                    "/path/to/proof-a.jpg"
+                    "fixtures/proof-a.jpg"
                   ]
                 }
               ]
@@ -603,7 +616,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Postman material B\",\n  \"price\": 50,\n  \"file_key\": \"files/postman-b.pdf\",\n  \"teaching_objective\": \"幫助學生建立分類能力\",\n  \"teaching_methods\": [\"分組競賽\"],\n  \"usage_duration\": \"約 1 堂課，每堂 40 分鐘\",\n  \"activity_steps\": \"1. 發下圖卡\\n2. 小組分類\\n3. 分享成果\",\n  \"contents\": [\n    { \"type\": \"worksheet\", \"name\": \"分類任務單\", \"count\": 1 }\n  ],\n  \"ipDeclarationAccepted\": true\n}"
+              "raw": "{\n  \"title\": \"Postman material B\",\n  \"price\": 50,\n  \"file_key\": \"files/postman-b.pdf\",\n  \"cover_image_url\": \"https://picsum.photos/seed/postman-cover/640/480\",\n  \"teaching_objective\": \"幫助學生建立分類能力\",\n  \"teaching_methods\": [\"分組競賽\"],\n  \"usage_duration\": \"約 1 堂課，每堂 40 分鐘\",\n  \"activity_steps\": \"1. 發下圖卡\\n2. 小組分類\\n3. 分享成果\",\n  \"contents\": [\n    { \"type\": \"worksheet\", \"name\": \"分類任務單\", \"count\": 1 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
             },
             "url": "{{baseUrl}}/materials"
           }
@@ -711,7 +724,7 @@
                   "key": "proofs",
                   "type": "file",
                   "src": [
-                    "/path/to/proof-b.png"
+                    "fixtures/proof-b.png"
                   ]
                 }
               ]

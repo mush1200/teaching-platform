@@ -5,7 +5,15 @@ const { requireAuth } = require("../middlewares/auth");
 const { signToken } = require("../utils/jwt");
 
 const router = express.Router();
-const ALLOWED_ROLES = new Set(["teacher", "parent", "buyer", "admin"]);
+
+/**
+ * Roles that may be created through PUBLIC registration.
+ *
+ * `admin` is deliberately absent: an anonymous request must never be able to mint a
+ * platform administrator. Admin accounts are created out-of-band with the maintenance
+ * CLI (`Backend/scripts/create-admin.js`); there is intentionally no HTTP endpoint for it.
+ */
+const PUBLIC_REGISTRATION_ROLES = new Set(["teacher", "parent", "buyer"]);
 
 function normalizeRoleForStorage(role) {
   // Compatibility period: accept parent/buyer input but store canonical buyer.
@@ -27,8 +35,13 @@ router.post("/register", async (req, res) => {
     if (!email || !password || !role) {
       return res.status(400).json({ message: "email, password, role are required" });
     }
-    if (!ALLOWED_ROLES.has(role)) {
-      return res.status(400).json({ message: "role must be teacher|parent|buyer|admin" });
+    if (String(role) === "admin") {
+      return res.status(403).json({
+        message: "admin accounts cannot be created through public registration",
+      });
+    }
+    if (!PUBLIC_REGISTRATION_ROLES.has(role)) {
+      return res.status(400).json({ message: "role must be teacher|parent|buyer" });
     }
 
     const exists = await db.query(`SELECT id FROM users WHERE email = $1 LIMIT 1`, [String(email).trim()]);
