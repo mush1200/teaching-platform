@@ -1,5 +1,9 @@
 # Frontend UI Architecture & Engineering Guide
 
+> **入口文件已改為 `docs/ui-design-system.md`。**
+> 該文件是所有 Web UI 任務的 canonical 入口（canonical stack、component 現況盤點、工作規則、Visual QA / DoD、Tamagui legacy 邊界）。
+> **本文件保留為細節文件**，負責 `ds` vs `edu` token 家族選用決策、`Card` / `SurfaceCard` 分工、`Button` intent 對照。兩者衝突時以 `docs/ui-design-system.md` 為準。
+
 本文件定義 **Next.js App Router** 前端的元件分層、設計 token 選用、卡片／按鈕約定與實作原則。  
 **產品可驗收行為**仍以 `docs/teaching-platform-mvp-spec-v1.4.md` 與各功能 spec 為準；本文件不取代 API 契約。
 
@@ -12,6 +16,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
+| `docs/ui-design-system.md` | **UI 入口文件**：canonical stack、component 現況、工作規則、Visual QA / DoD、Tamagui 邊界 |
 | `docs/design-tokens-v1.1.md` | 色票、radius、shadow、typography、Button/Card token 規格 |
 | `docs/page-token-usage-mapping-v1.1.md` | 關鍵頁面的 intent / card level / feedback 對照 |
 | `docs/cart-ui-guidelines.md` | 購物車頁像素級規範（易漂移頁面範例） |

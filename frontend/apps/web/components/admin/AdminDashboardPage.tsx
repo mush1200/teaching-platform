@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActivityLog, ActivityLogsResponse, AdminDashboardSummary, AdminPaymentProof, AdminPaymentProofsResponse, Material, Order, OrdersListResponse, Report } from "../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
 import { AdminKpiCard } from "./AdminKpiCard";
-import { AdminQuickActions } from "./AdminQuickActions";
 import { AdminTaskCard } from "./AdminTaskCard";
 import { RecentActivityList } from "./RecentActivityList";
 import { RecentOrdersTable } from "./RecentOrdersTable";
@@ -153,11 +151,13 @@ export function AdminDashboardPage() {
   ]).size;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-7">
+    // 區塊節奏用 canonical layout token（--layout-section-gap-md = 24px），不用任意值
+    <div className="mx-auto max-w-7xl space-y-section-md">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-[#1F2937]">歡迎回來，管理員！</h1>
-          <p className="mt-1 text-sm text-[#6B7280]">今天需要處理的事項與平台概況</p>
+          {/* Mobile 縮小標題並隱藏副標：副標與下方待處理卡資訊重疊，且標題區在矮視窗會吃掉近三成高度 */}
+          <h1 className="text-2xl font-bold text-[#1F2937] sm:text-3xl">歡迎回來，管理員！</h1>
+          <p className="mt-1 hidden text-sm text-[#6B7280] sm:block">今天需要處理的事項與平台概況</p>
         </div>
         <div className="flex items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm shadow-sm">
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-lg border border-[#E5E7EB] px-2 py-1" />
@@ -166,13 +166,26 @@ export function AdminDashboardPage() {
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Mobile 也維持 2 欄（原本 <640 是單欄，四張卡疊成 660px，首屏只看得到第 1 張） */}
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <AdminTaskCard icon="📚" title="待審核教材" count={pendingMaterials} description="等待管理員確認上架資格。" href="/admin/materials?status=pending_review" />
         <AdminTaskCard icon="🧾" title="待審核付款憑證" count={pendingProofs} description="使用者上傳付款證明待核准。" href="/admin/payment-proofs?status=pending" />
         <AdminTaskCard icon="🚩" title="待處理檢舉" count={pendingReports} description="請盡快判斷是否違反平台規範。" href="/admin/reports?status=pending" />
         <AdminTaskCard icon="⚠️" title="異常訂單" count={abnormalOrders} description="取消或異常狀態訂單需要追蹤。" href="/admin/orders?status=cancelled" />
       </section>
 
+      {/*
+        Operational awareness 緊接在待處理工作之後（IA proposal B）。
+        訂單在左／活動在右：訂單牽涉金額與狀態、可直接處理，活動紀錄偏稽核軌跡。
+        JSX 順序同時決定 breakpoint 以下的堆疊順序（訂單先、活動後）。
+        items-start：兩張卡各自取自然高度，避免較短的一張被 stretch 出大片空白。
+      */}
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        <RecentOrdersTable orders={filteredOrders.slice(0, 8)} loading={state.loading} error={state.errors.orders ?? null} />
+        <RecentActivityList items={filteredActivities.slice(0, 8)} loading={state.loading} error={state.errors.activities ?? null} />
+      </div>
+
+      {/* Platform summary：非即時可操作資訊，排在 operational awareness 之後 */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <AdminKpiCard label="教材總數" value={(state.summary?.materialsCount ?? state.materials.length).toLocaleString("zh-TW")} subtext="本期累計" />
         <AdminKpiCard label="已發布教材" value={publishedMaterials.toLocaleString("zh-TW")} subtext="可銷售數量" />
@@ -185,16 +198,6 @@ export function AdminDashboardPage() {
           subtext={`較上週 ${state.summary && state.summary.wowReviewDeltaPercent >= 0 ? "+" : ""}${state.summary?.wowReviewDeltaPercent ?? 0}%`}
         />
       </section>
-
-      <section className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-        <h2 className="mb-3 text-base font-bold text-[#1F2937]">快速操作</h2>
-        <AdminQuickActions />
-      </section>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <RecentActivityList items={filteredActivities.slice(0, 8)} loading={state.loading} error={state.errors.activities ?? null} />
-        <RecentOrdersTable orders={filteredOrders.slice(0, 5)} loading={state.loading} error={state.errors.orders ?? null} />
-      </div>
 
       {!state.loading && Object.keys(state.errors).length > 0 ? (
         <p className="text-sm text-[#B91C1C]">
@@ -209,12 +212,6 @@ export function AdminDashboardPage() {
           。
         </p>
       ) : null}
-
-      <div className="flex justify-end">
-        <Link href="/admin/activity-logs" className="text-sm font-semibold text-[#6C63FF] hover:underline">
-          查看活動紀錄
-        </Link>
-      </div>
     </div>
   );
 }

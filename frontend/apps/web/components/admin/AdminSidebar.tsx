@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -32,7 +33,28 @@ function navPath(href: string) {
   return href.split("?")[0] ?? href;
 }
 
-export function AdminSidebar() {
+type Props = {
+  /**
+   * `desktop`（預設）：`lg` 以下隱藏，`lg` 以上維持原本的固定側欄。
+   * `drawer`：在 `AdminShell` 的 mobile drawer 容器內渲染，永遠可見並填滿容器。
+   *
+   * 兩種型態共用同一份 `sections`，不另外維護一組 mobile navigation。
+   */
+  variant?: "desktop" | "drawer";
+  /** 點擊導覽項或登出後呼叫；drawer 用它自動關閉。 */
+  onNavigate?: () => void;
+  /** 只在 `drawer` 使用：放進 compact 標頭列右側（關閉鈕）。 */
+  headerAction?: ReactNode;
+};
+
+const rootByVariant: Record<NonNullable<Props["variant"]>, string> = {
+  // `hidden … lg:flex`：`lg` 以下完全不佔文件流（原本是 `w-full` 區塊，會把主內容整條推到下面）。
+  desktop:
+    "hidden w-full flex-col border-r border-[#E5E7EB]/80 bg-white lg:fixed lg:inset-y-0 lg:flex lg:w-60 lg:max-w-[240px]",
+  drawer: "flex min-h-0 w-full flex-1 flex-col bg-white",
+};
+
+export function AdminSidebar({ variant = "desktop", onNavigate, headerAction }: Props = {}) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -51,21 +73,37 @@ export function AdminSidebar() {
       document.cookie = "tp_token=; path=/; max-age=0; samesite=lax";
       document.cookie = "tp_role=; path=/; max-age=0; samesite=lax";
     }
+    onNavigate?.();
     router.push("/login");
   }
 
   return (
-    <aside className="flex w-full flex-col border-r border-[#E5E7EB]/80 bg-white lg:fixed lg:inset-y-0 lg:w-60 lg:max-w-[240px]">
-      <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
-        <div className="mt-3 rounded-3xl bg-[#F4F1FF] p-4">
-          <p className="text-xl leading-none" aria-hidden>
-            🛡️
-          </p>
-          <p className="mt-2 text-lg font-bold text-[#1F2937]">Hi, Admin 👋</p>
-          <p className="mt-1 text-xs text-[#6B7280]">平台營運總控台</p>
+    <aside className={rootByVariant[variant]}>
+      {variant === "drawer" ? (
+        /*
+         * Drawer 專用 compact 標頭：只保留品牌／區域 context 與關閉鈕，直接進入 navigation。
+         * 不放個人問候卡 —— 那在抽屜裡與 top bar 重複，且吃掉大量垂直空間。
+         * 帳號 context 由底部的登出列承擔。Desktop 版本維持原本的大卡片。
+         */
+        <div className="flex shrink-0 items-center gap-3 border-b border-ds-borderMuted px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-caption font-semibold uppercase tracking-wider text-edu-primary">EDUMARKET</p>
+            <p className="truncate text-sm font-bold text-ds-heading">管理後台</p>
+          </div>
+          {headerAction}
         </div>
-      </div>
+      ) : (
+        <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
+          <div className="mt-3 rounded-3xl bg-[#F4F1FF] p-4">
+            <p className="text-xl leading-none" aria-hidden>
+              🛡️
+            </p>
+            <p className="mt-2 text-lg font-bold text-[#1F2937]">Hi, Admin 👋</p>
+            <p className="mt-1 text-xs text-[#6B7280]">平台營運總控台</p>
+          </div>
+        </div>
+      )}
       <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="後台選單">
         {sections.map((section) => (
           <div key={section.label}>
@@ -77,6 +115,8 @@ export function AdminSidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onNavigate}
+                      aria-current={active ? "page" : undefined}
                       className={`flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-sm transition-colors ${
                         active
                           ? "border-[#6C63FF] bg-[#EDE9FE] font-semibold text-[#6C63FF]"
