@@ -94,6 +94,8 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
 
 ## 6. Frontend / UI
 
+> **動 Web UI 前先讀 `docs/ui-design-system.md`**（UI 入口文件：canonical stack、component 現況盤點、工作規則、Visual QA / DoD、Tamagui legacy 邊界）。
+
 ### Canonical stack
 
 **Tailwind + `components/ui`（primitives）+ `components/ds`（設計系統複合件）。**
@@ -163,7 +165,8 @@ Backend **3000**（`npm run dev`，專案根目錄）／Frontend **3010**（`npm
 | `docs/teaching-platform-mvp-spec-v1.4.md` | 產品／API 契約 |
 | `docs/mvp_rules.md` | 規則、角色邊界、授權邊界 |
 | `db/db_schema.sql` | Schema 參考 |
-| `docs/frontend-ui-architecture.md` | 元件分層、token 選用 |
+| `docs/ui-design-system.md` | **Web UI 入口**：canonical stack、component 狀態、UI 工作規則、Visual QA / DoD |
+| `docs/frontend-ui-architecture.md` | 元件分層、token 選用（細節文件） |
 | `docs/design-tokens-v1.1.md` | Token 數值 |
 | `docs/db-backup-and-migration.md` | 備份／還原步驟 |
 | `docs/postman/README.md` | Postman / Newman 與 fixtures |

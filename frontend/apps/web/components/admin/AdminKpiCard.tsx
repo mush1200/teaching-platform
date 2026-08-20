@@ -6,12 +6,17 @@ type Props = {
   subtext: string;
 };
 
+/**
+ * 核心統計卡 — 定位是「可快速掃描的 summary strip」，不是第二組大型 KPI。
+ * 數值降到 `text-xl`：除了降低卡片高度，也讓 `NT$ 10,550` 這類較長的值在
+ * 1280px 的六欄版面下不再換行（換行會讓整排從 110px 撐到 142px）。
+ */
 export function AdminKpiCard({ label, value, subtext }: Props) {
   return (
-    <article className="rounded-3xl border border-[#E5E7EB] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-      <p className="text-xs font-medium text-[#6B7280]">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-[#1F2937]">{value}</p>
-      <p className="mt-1 text-xs text-[#6B7280]">{subtext}</p>
+    <article className="rounded-ds-card border border-ds-border bg-ds-surface p-3 shadow-ds-card-soft">
+      <p className="text-meta text-ds-textMuted">{label}</p>
+      <p className="mt-1 text-xl font-bold leading-tight text-ds-heading">{value}</p>
+      <p className="mt-0.5 text-caption text-ds-textSubtle">{subtext}</p>
     </article>
   );
 }
