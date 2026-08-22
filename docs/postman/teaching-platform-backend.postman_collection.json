@@ -733,15 +733,16 @@
           }
         },
         {
-          "name": "POST admin payment-proofs reject",
+          "name": "POST admin payment-proofs reject (missing reason -> 400)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200 rejected', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json().proof.review_status).to.eql('rejected');",
+                  "pm.test('400 when rejection_reason is missing', function () {",
+                  "  // The old contract accepted a bare note, so an API caller could record a",
+                  "  // rejection with no reason at all and the buyer saw a blank explanation.",
+                  "  pm.response.to.have.status(400);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -756,9 +757,95 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"note\": \"postman smoke reject\"\n}"
+              "raw": "{\n  \"note\": \"no reason given\"\n}"
             },
             "url": "{{baseUrl}}/admin/payment-proofs/{{proofIdB}}/reject"
+          }
+        },
+        {
+          "name": "POST admin payment-proofs reject",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 rejected with a structured reason', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const proof = pm.response.json().proof;",
+                  "  pm.expect(proof.review_status).to.eql('rejected');",
+                  "  // rejection_reason is what the buyer actually sees; a free-text note alone is not enough.",
+                  "  pm.expect(proof.rejection_reason).to.eql('unreadable');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejection_reason\": \"unreadable\",\n  \"note\": \"postman smoke reject\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/payment-proofs/{{proofIdB}}/reject"
+          }
+        },
+        {
+          "name": "GET admin payment-proofs/:id (decision context)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 with order + buyer + items + sibling proofs', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.proof.order_id).to.be.a('string');",
+                  "  pm.expect(body.proof).to.have.property('buyer_email');",
+                  "  pm.expect(body.proof).to.have.property('order_total_amount');",
+                  "  pm.expect(body.proof).to.have.property('order_payment_due_at');",
+                  "  pm.expect(body.orderItems).to.be.an('array');",
+                  "  pm.expect(body.otherProofs).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/payment-proofs/{{proofIdB}}"
+          }
+        },
+        {
+          "name": "GET admin payment-proofs?q= (human-friendly lookup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('order id lookup finds the proof', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items.some((it) => it.id === pm.collectionVariables.get('proofIdB'))).to.be.true;",
+                  "  // statusCounts is a whole-table count, not the current page.",
+                  "  pm.expect(body.statusCounts).to.have.property('total');",
+                  "  pm.expect(body.pagination).to.have.property('totalPages');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/payment-proofs?q={{orderIdB}}"
           }
         }
       ]
@@ -974,7 +1061,16 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                  "pm.test('200 with pagination + whole-table statusCounts', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.be.an('array');",
+                  "  pm.expect(body.pagination.limit).to.eql(20);",
+                  "  pm.expect(body.pagination).to.have.property('totalPages');",
+                  "  // statusCounts must not be derived from the returned page.",
+                  "  pm.expect(body.statusCounts).to.have.property('total');",
+                  "  pm.expect(body.statusCounts).to.have.property('pending_review');",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -982,9 +1078,7 @@
           ],
           "request": {
             "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
-            ],
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": "{{baseUrl}}/admin/materials"
           }
         },
@@ -1010,7 +1104,56 @@
           }
         },
         {
-          "name": "GET admin/orders?status=pending_payment",
+          "name": "GET admin/orders?status=awaiting_payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('every row carries the derived operational_status', function () {",
+                  "  var items = pm.response.json().items || [];",
+                  "  items.forEach(function (it) { pm.expect(it.operational_status).to.eql('awaiting_payment'); });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/orders?status=awaiting_payment"
+          }
+        },
+        {
+          "name": "GET admin/orders?status=pending_review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('pending_review rows all have a pending proof', function () {",
+                  "  var items = pm.response.json().items || [];",
+                  "  items.forEach(function (it) {",
+                  "    pm.expect(it.operational_status).to.eql('pending_review');",
+                  "    pm.expect(it.payment_proof_pending_review_count).to.be.above(0);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/orders?status=pending_review"
+          }
+        },
+        {
+          "name": "GET admin/orders?status=payment_rejected",
           "event": [
             {
               "listen": "test",
@@ -1024,9 +1167,28 @@
           ],
           "request": {
             "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
-            ],
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/orders?status=payment_rejected"
+          }
+        },
+        {
+          "name": "GET admin/orders?status=pending_payment（legacy raw status → 400）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// `status` 篩的是 operational state，不是 orders.status 原始值。",
+                  "// legacy / dead token（pending_payment、paid、completed）一律 400，不得靜默回空集合。",
+                  "pm.test('400', function () { pm.response.to.have.status(400); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
             "url": "{{baseUrl}}/admin/orders?status=pending_payment"
           }
         },

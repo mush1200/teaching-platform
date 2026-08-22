@@ -352,12 +352,17 @@ db/db_schema.sql
 
 以下為**已知但不阻擋開發**的項目，列此避免重複發現。**不要在無關的變更中順手修**：
 
+> 本節只收**工程債**。需要產品決策才能開工的項目（新功能、新 schema、範圍未定）
+> 一律記在 `docs/pending-work-tracker.md`，不要在這裡開第二份清單。
+
 | 項目 | 優先序 | 說明 |
 | --- | --- | --- |
 | 401 / 403 protected-area opt-in UX helper | **P1** | 目前各頁自行處理 API 錯誤；admin / creator 區域收到 401/403 時未統一導向 `/login` 或 `/403`。建議做成 opt-in helper 而非全域攔截（全域攔截會破壞公開頁與 buyer 頁的頁內錯誤態） |
 | localStorage JWT → HttpOnly cookie migration | **Phase 2** | token 存於 localStorage，XSS 可竊取；另 cookie `max-age` 24h 與 `JWT_EXPIRES_IN` 7d 不一致，cookie 先過期會被登出 |
 | 7 個 `@next/next/no-img-element` warning | **P2** | 前端使用 `<img>` 而非 `next/image`。`verify:web` 仍為 0 error |
 | `manual_payment_proofs.reviewed_by` 重複 FK | **P2** | 同欄位上有 `manual_payment_proofs_reviewed_by_fkey` 與 `mpp_reviewed_by_fkey` 兩個功能相同的約束，為 bootstrap 重複建立所致，不影響行為 |
+| Buyer / public E2E 規格缺陷 | **P1** | Production build 上跑完整套件為 228 passed / 18 failed（exit 1）。18 個失敗全在 `public.spec.ts`、`parent.spec.ts` 與 `critical-acceptance.spec.ts` 的兩個 buyer check；Admin / Creator / shell 全綠。已用 `HEAD` baseline 實測確認為既有問題（同樣 4 passed / 14 failed）。`parent.spec.ts` 只設 localStorage 不設 cookie，被 `middleware.ts` 導向 `/login`。詳見 `docs/pending-work-tracker.md` §7.7 |
+| `/admin/reviews-hub` 的 60 筆 N+1 | **P2** | 先取 60 份教材再逐份取 reviews，最多 61 個請求。修它需要 admin 端彙總 API，而端點形狀取決於教學回饋管理的 MVP 範圍決策。詳見 `docs/pending-work-tracker.md` §7.4 F-4 |
 
 ---
 

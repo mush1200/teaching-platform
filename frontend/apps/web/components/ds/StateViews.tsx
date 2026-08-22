@@ -74,9 +74,40 @@ export type ErrorStateProps = {
   retryLabel?: string;
   onRetry?: () => void;
   className?: string;
+  /**
+   * `block`（預設）＝ 置中的整版錯誤區塊。
+   * `inline` ＝ 單一區塊（section）的錯誤：單行排版、較小內距、retry 為 secondary。
+   * 局部失敗不該長成比它取代的內容還大的卡片，也不該讓 retry 比頁面主要動作更醒目。
+   */
+  variant?: "block" | "inline";
 };
 
-export function ErrorState({ title, description, retryLabel = "重新整理", onRetry, className = "" }: ErrorStateProps) {
+export function ErrorState({
+  title,
+  description,
+  retryLabel = "重新整理",
+  onRetry,
+  className = "",
+  variant = "block",
+}: ErrorStateProps) {
+  if (variant === "inline") {
+    return (
+      <div
+        role="alert"
+        className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-ds-card border border-feedback-errorBorder bg-ds-surface px-4 py-3 ${className}`.trim()}
+      >
+        <CircleAlert aria-hidden className="size-4 shrink-0 text-feedback-errorText" />
+        <p className={`${titleBase} text-feedback-errorText`}>{title}</p>
+        {description ? <p className="text-caption text-ds-textMuted">{description}</p> : null}
+        {onRetry ? (
+          <Button intent="neutral" variant="outline" className="ml-auto min-h-10 px-3 py-1.5" onClick={onRetry}>
+            {retryLabel}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       role="alert"

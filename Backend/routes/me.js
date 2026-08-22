@@ -123,6 +123,13 @@ router.get("/orders/:orderId", requireAuth, async (req, res) => {
                WHERE m.order_id = o.id AND m.review_status = 'rejected'
                ORDER BY COALESCE(m.reviewed_at, m.uploaded_at, m.created_at) DESC, m.id DESC
                LIMIT 1) AS payment_proof_rejected_note,
+              -- 結構化的退件原因 code（見 utils/paymentProofReview.js）。
+              -- note 欄位是自由文字補充；買家 UI 以 code 決定主要文案，note 作為附註。
+              (SELECT m.rejection_reason
+               FROM manual_payment_proofs m
+               WHERE m.order_id = o.id AND m.review_status = 'rejected'
+               ORDER BY COALESCE(m.reviewed_at, m.uploaded_at, m.created_at) DESC, m.id DESC
+               LIMIT 1) AS payment_proof_rejected_reason,
               (SELECT COALESCE(m.uploaded_at, m.created_at)
                FROM manual_payment_proofs m
                WHERE m.order_id = o.id

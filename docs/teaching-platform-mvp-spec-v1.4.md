@@ -103,9 +103,11 @@ Concrete values used by the backend:
 - **pending_payment** — set when an order is created from the cart. Default for new orders.
 - **approved** — set when an admin **approves** a pending `manual_payment_proof` for that order.
 
-Compatibility note: some analytics/reporting queries may include legacy/deployed rows with `completed`. Canonical create/update flow uses `pending_payment` and `approved`.
+Compatibility note: `completed` is a **dead status** — no code path ever writes it and neither database contains a row with it. Analytics queries no longer reference it (creator sales was the last reader; removed in the revenue-semantics alignment). Canonical create/update flow uses `pending_payment` and `approved`.
 
 There is **no** `proof_uploaded` value on `orders`. Uploading proofs inserts rows into `manual_payment_proofs` with `review_status = 'pending'` while the order remains `pending_payment`.
+
+`cancelled` exists only as **legacy read-only rows** from the pre-v1.2 workflow: no route, service, or UI writes it, and `cancelled_at` has no writer at all. It is kept visible for historical lookup, not as a live lifecycle stage.
 
 For UI/state consistency, API now exposes **derived** `order_progress_state`:
 
@@ -117,7 +119,9 @@ For UI/state consistency, API now exposes **derived** `order_progress_state`:
 
 Rejecting a proof (**POST** admin reject) updates only `manual_payment_proofs.review_status` to `rejected`; the **order stays `pending_payment`** until a proof is approved.
 
-Legacy DB values may be normalized at startup (`paid` → `approved`).  
+Because of that, `orders.status` alone cannot answer *"what does an admin need to act on?"* — `pending_payment` covers "no proof yet", "proof awaiting review" and "proof rejected" at once. Admin surfaces therefore use a second **derived** view, `operational_status` (`awaiting_payment` | `pending_review` | `payment_rejected` | `approved` | `cancelled`), defined once in `Backend/services/adminOrders.service.js`. It is computed per query and **never stored**; see `docs/mvp_rules.md` §19 for the predicates, precedence, and the re-upload rule (older `rejected` + newer `pending` ⇒ `pending_review`).
+
+Legacy DB values may be normalized at startup (`paid` → `approved`). `paid` historically meant **approved**, not "awaiting review" — it must not be reintroduced, and neither must `completed`.  
 
 Download is allowed only when `orders.status = approved` and the material appears in `order_items` for that user.
 
@@ -173,9 +177,19 @@ Rating is integer **1–5**; optional `comment`.
 
 # 9. Reports (`reports`)
 
-- `material_id`, `reporter_id`, `reason`, `status` (`pending` | `reviewed`).
+- `material_id`, `reporter_id`, `reason`, `status`, `resolution`, `resolution_note`.
+- `status` is one of `pending`, `investigating`, `awaiting_creator`, `resolved`, `dismissed`, `reviewed` (**legacy**).
+  Canonical state machine and allowed transitions: `Backend/utils/reportWorkflow.js`, documented in `docs/mvp_rules.md` section 6.
+- `resolution` is one of `dismissed`, `warning`, `request_changes`, `unpublish_material` (null until the case is closed).
+  Only `unpublish_material` mutates platform data (`materials.status` becomes `unpublished`).
+  User suspension is **not** available — `users` has no status/suspension column, so it is not in the allowlist.
 - At most one report per `(material_id, reporter_id)`.
-- Admin may mark a report **reviewed** (`PATCH`), setting `reviewed_at` / `reviewed_by`. This marks admin acknowledgment only, not automatic material removal.
+- Admin may still mark a report **reviewed** (`PATCH`), setting `reviewed_at` / `reviewed_by`. That is the
+  **legacy** acknowledgment path, kept for existing callers; it does not imply material removal, and existing
+  `reviewed` rows are **not** backfilled to `resolved`.
+- `report_events` records the case history and the Admin/Creator thread (`status_changed`, `admin_note`,
+  `creator_response_requested`, `creator_response`, `resolution`). It is not a replacement for
+  `activity_logs`; both are written.
 
 **Parent HTTP (implemented):**
 
@@ -186,7 +200,23 @@ Rating is integer **1–5**; optional `comment`.
 - **GET** `/admin/reports` — JWT + `admin` only; response body is a JSON **array** of report rows. Optional query: `status=pending` or `status=reviewed` (invalid values → 400).
 - **GET** `/admin/materials/:materialId/reports` — JWT + `admin` only; JSON **array** of report rows for that material (same columns as `/admin/reports`). Optional query: `status=pending` or `status=reviewed` (invalid values → 400).
 - **GET** `/materials/:id/reports` — JWT + **admin** only; `:id` is material id. Same columns and optional `status` filter as **`GET /admin/materials/:materialId/reports`** (invalid `status` → **400**).
-- **PATCH** `/admin/reports/:id` — body must be `{"status":"reviewed"}`; only transition `pending` → `reviewed`; already reviewed → **409**; writes `activity_logs` with `action = report_reviewed`, `target_type = report`, `target_id` set to that report’s id, and `meta` containing `{"status":"reviewed"}`. (**POST** `/reports` emits **`report_created`** with `target_type = material` and the material id as `target_id`.)
+- **PATCH** `/admin/reports/:id` — body must be `{"status":"reviewed"}`; only transition `pending` → `reviewed`; already reviewed → **409**; writes `activity_logs` with `action = report_reviewed`, `target_type = report`, `target_id` set to that report’s id, and `meta` containing `{"status":"reviewed"}`. (**POST** `/reports` emits **`report_created`** with `target_type = material` and the material id as `target_id`.) **Legacy path** — new work should use the case endpoints below.
+- **GET** `/admin/report-cases` — paginated case queue. Query: `status=open|all|<comma-separated statuses>` (invalid values give **400**), `q` (material title / reason / reporter or creator email / case id), `page`, `limit`. Returns `{ items, pagination, statusCounts }`; each item is enriched with `material_title`, `creator_email`, `reporter_email`, `event_count`.
+- **GET** `/admin/report-cases/:id` — `{ report, events, availableResolutions, allowedTransitions }`. `events` includes Admin-only `admin_note` entries.
+- **POST** `/admin/report-cases/:id/investigate` — `pending` to `investigating`. Invalid transition gives **409**.
+- **POST** `/admin/report-cases/:id/request-response` — body `{ message }` (required; blank gives **400**); `pending`/`investigating` to `awaiting_creator`.
+- **POST** `/admin/report-cases/:id/notes` — body `{ message }`; appends an Admin-only note. Status unchanged.
+- **POST** `/admin/report-cases/:id/resolve` — body `{ resolution, note? }`. A `resolution` outside the allowlist gives **400**. Sets `status` to `dismissed` (when `resolution = dismissed`) or `resolved`, stamps `reviewed_at` / `reviewed_by`, writes a `resolution` event, and for `unpublish_material` also sets `materials.status = 'unpublished'` (only when currently `published`) plus a `material.unpublished` audit log. Emits `activity_logs` with `action = report.resolved`.
+
+Status change, event insert and material unpublish happen in **one transaction**; `activity_logs` is written after COMMIT (same convention as payment proof review). Every action takes `SELECT ... FOR UPDATE` on the report first, so a second concurrent Admin gets **409** rather than silently overwriting the first decision.
+
+**Creator HTTP (implemented):** mounted at both `/creator/cases` (canonical) and `/teacher/cases` (compatibility alias); JWT + `teacher`.
+
+- **GET** `/creator/cases` — cases on the caller's own materials only (authorised in SQL via `materials.teacher_id`). Query: `scope=action_required|open|all` (invalid gives **400**), `page`, `limit`. Returns `{ items, pagination, actionRequiredCount }`. Reporter identity is **not** returned.
+- **GET** `/creator/cases/:id` — `{ case, events, canRespond }`. `events` **excludes** `admin_note`. Not the caller's material gives **404** (not 403 — a 403 would leak that the case id exists).
+- **POST** `/creator/cases/:id/respond` — body `{ message }`; `awaiting_creator` to `investigating`. Wrong state gives **409**; blank message gives **400**.
+
+**Not implemented (needs a product decision):** report attachments (no attachment column, and no upload pipeline outside payment proofs) and push notifications (no notifications table; `emailService` covers order/payment events only). Creators poll `/creator/cases`; the Creator sidebar shows an outstanding-case badge.
 
 ---
 
@@ -281,9 +311,9 @@ All routes below: **JWT + teacher**. Non-teacher **403**.
 
 | Method | Path | Summary |
 |--------|------|---------|
-| GET | `/teacher/sales/summary` | Teacher KPI + daily trend. Query: `status`, `from`, `to` (optional). |
-| GET | `/teacher/sales/materials` | Aggregated sales by material. Query: `status`, `from`, `to`, `search`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
-| GET | `/teacher/sales/records` | Transaction-level sales records. Query: `status`, `materialId`, `from`, `to`, `page`, `limit` (optional). Returns `{ items, pagination }`. |
+| GET | `/teacher/sales/summary` | Creator **gross sales** KPI + trend. Shares the **identical** reporting-range contract as `/admin/dashboard/summary` (`range` / `from` / `to`, Asia/Taipei calendar days, half-open `[start, end)`, default last 30 days, invalid → **400** `{ error: "INVALID_DATE_RANGE" }`). Amount is `SUM(order_items.subtotal)` (**before discount**), restricted to `orders.status = 'approved' AND paid_at IS NOT NULL`, recognised at **`orders.paid_at`**. Returns period metadata, `granularity`, `totalSoldUnits`, `totalSalesAmount`, `totalOrders`, `materialsCount`, and a gap-filled `trend[]` of `{ key, salesAmount, soldUnits }`. `totalRevenue` and `trend[].day` / `trend[].revenue` are deprecated aliases. See `docs/mvp_rules.md` §18. |
+| GET | `/teacher/sales/materials` | Aggregated gross sales by material for the same period. Query: `range`, `from`, `to`, `search`, `page`, `limit` (optional). Returns period metadata + `{ items, pagination }`; each item has `salesAmount` (deprecated alias `revenue`) and `lastSoldAt` = `MAX(orders.paid_at)`. |
+| GET | `/teacher/sales/records` | Settled sales records for the same period, ordered by `paid_at DESC`. Query: `range`, `from`, `to`, `materialId`, `page`, `limit` (optional). Returns period metadata + `{ items, pagination }`. Only `approved` orders with a non-null `paid_at` appear — there is deliberately **no** `status` parameter. |
 
 ### Teaching feedback (`/reviews`)
 
@@ -321,14 +351,22 @@ All routes below: **JWT + admin**. Non-admin **403**.
 
 | Method | Path | Summary |
 |--------|------|---------|
-| GET | `/admin/materials` | All materials (admin list columns). |
-| GET | `/admin/orders` | All orders; optional query `status` (e.g. `pending_payment`, `approved`). |
-| GET | `/admin/dashboard/summary` | KPI summary (`materialsCount`, `ordersCount`, `revenueAmount`, `reviewsCount`, `usersCount`, pending counters, WoW review delta). |
+| GET | `/admin/materials` | Material review queue. Server-side filtering, search, sorting and pagination. Query: `status=pending_review\|published\|unpublished\|all` (invalid gives **400**), `q` (title / creator email / material id), `sort=created_desc\|created_asc\|updated_desc\|title_asc\|price_desc` (invalid gives **400**), `page`, `limit` (default 20, max 100). Returns `{ items, pagination, statusCounts }`. Each item adds `creator_email` and `open_report_count`. `statusCounts` is a **whole-table** count unaffected by `status` / `q` / pagination — callers needing totals (for example the dashboard material KPIs) must read it instead of counting a page of `items`. See `docs/mvp_rules.md` section 20. |
+| GET | `/admin/orders` | All orders, `created_at DESC`, no pagination. Optional query **`status`** — an **Admin operational state**, not a raw `orders.status`: `awaiting_payment` \| `pending_review` \| `payment_rejected` \| `approved` \| `cancelled`. Omitted → all orders; any other value (including the legacy raw tokens `pending_payment`, `paid`, `completed`) → **400** `{ message: "status must be one of awaiting_payment\|pending_review\|payment_rejected\|approved\|cancelled" }` — never a silent empty list. Each item adds `operational_status`, `payment_proof_pending_review_count` and `payment_proof_latest_status` to the order fields. The derivation lives only in `Backend/services/adminOrders.service.js`; clients must not re-derive it. See `docs/mvp_rules.md` §19. |
+| GET | `/admin/dashboard/summary` | KPI summary. Optional `range=today\|7d\|30d\|this_month\|custom` plus `from`/`to` (`YYYY-MM-DD`, inclusive calendar dates); invalid → **400** `{ error: "INVALID_DATE_RANGE" }`. Defaults to the last 30 days when omitted, and always echoes the resolved `periodFrom` / `periodTo` / `periodTimezone` / `periodPreset`. **Period** fields (`periodRevenueAmount`, `newOrdersCount`, `newUsersCount`, `newMaterialsCount`, `newReviewsCount`) cover only events inside the period; **snapshot/all-time** fields (`materialsCount`, `ordersCount`, `revenueAmount`, `reviewsCount`, `usersCount`, `pendingProofsCount`, `pendingReportsCount`, `wowReviewDeltaPercent`) ignore it entirely. `ordersCount` counts **all** orders regardless of status; `revenueAmount` (all-time) and `periodRevenueAmount` sum `total_amount` for **`status = 'approved'` only** — the period one keys off `orders.paid_at` (admin approval), not `created_at`. Also returns **comparison** against the previous period: `previousPeriodFrom` / `previousPeriodTo`, `previousPeriodRevenueAmount`, `previousNew*Count`, and `*DeltaPercent`. The previous period is the adjacent equal-length window (`this_month` uses last month's same elapsed-day window, clamped to that month's length). `*DeltaPercent` is `null` when the previous value is 0 and the current one is positive — the UI shows 「新增」, never 100%. See `docs/mvp_rules.md` §14–§15, §17 for Asia/Taipei half-open `[start, end)` semantics. |
+| GET | `/admin/dashboard/trends` | Revenue and new-order time series for the same reporting period. Accepts the **identical** `range` / `from` / `to` contract as `/admin/dashboard/summary`, including `400` `{ error: "INVALID_DATE_RANGE" }` — both endpoints share one resolver. Returns `granularity` (`hour` for a single day, `day` for 2–90 days, `month` for 91–365 days) plus `revenue[]` and `orders[]` as `{ key, value }` buckets. `revenue` keys off `orders.paid_at` with `status = 'approved'`; `orders` keys off `orders.created_at` regardless of status. Buckets are grouped by the **Asia/Taipei** calendar and gap-filled with `0`, so both arrays always cover every bucket in the period. See `docs/mvp_rules.md` §16. |
 | POST | `/admin/payment-proofs/:id/approve` | Approve pending proof; may set order `approved`; supersede other pending proofs. Body optional `note`. |
-| POST | `/admin/payment-proofs/:id/reject` | Reject pending proof; body `note` optional (stored as empty string if omitted). Order status unchanged (`pending_payment`). |
-| GET | `/admin/reports` | Array of reports; optional `status=pending` or `reviewed` (invalid → **400**). |
-| GET | `/admin/materials/:materialId/reports` | Same columns as **`GET /admin/reports`**; optional `status=pending` or `reviewed` (invalid → **400**). |
-| PATCH | `/admin/reports/:id` | Body `{ "status": "reviewed" }`; pending → reviewed only; duplicate transition **409**. |
+| POST | `/admin/payment-proofs/:id/reject` | Reject pending proof. Body **requires** `rejection_reason`, one of `amount_mismatch\|unreadable\|payment_not_found\|invalid_proof\|other` (missing or invalid gives **400**); `note` is optional except when `rejection_reason = other`, where it is required. Order status unchanged (`pending_payment`). The buyer sees both via `payment_proof_rejected_reason` / `payment_proof_rejected_note` on `GET /me/orders/:orderId`. See `docs/mvp_rules.md` section 12.2. |
+| GET | `/admin/payment-proofs/:id` | Full decision context for one proof: `{ proof, orderItems, otherProofs }`. `otherProofs` are the other proofs on the same order together with their rejection reasons — needed because buyers re-upload after a rejection. Unknown id gives **404**. |
+| GET | `/admin/reports` | **Legacy** — array of reports; optional `status=pending` or `reviewed` (invalid gives **400**). Shape unchanged. |
+| GET | `/admin/materials/:materialId/reports` | Same columns as **`GET /admin/reports`**; optional `status=pending` or `reviewed` (invalid gives **400**). |
+| PATCH | `/admin/reports/:id` | **Legacy** — body `{ "status": "reviewed" }`; pending to reviewed only; duplicate transition **409**. |
+| GET | `/admin/report-cases` | Case queue. `status=open\|all\|<csv>`, `q`, `page`, `limit`. Returns `{ items, pagination, statusCounts }`. See section 9. |
+| GET | `/admin/report-cases/:id` | `{ report, events, availableResolutions, allowedTransitions }`. |
+| POST | `/admin/report-cases/:id/investigate` | `pending` to `investigating`; invalid transition **409**. |
+| POST | `/admin/report-cases/:id/request-response` | Body `{ message }` (required); moves the case to `awaiting_creator`. |
+| POST | `/admin/report-cases/:id/notes` | Body `{ message }`; Admin-only note, status unchanged. |
+| POST | `/admin/report-cases/:id/resolve` | Body `{ resolution, note? }`; closes as `resolved` or `dismissed`. `unpublish_material` also unpublishes the material. |
 
 ### Admin — audit logs (`/admin`, `routes/adminActivityLogs.js`)
 
@@ -336,7 +374,8 @@ All routes below: **JWT + admin**.
 
 | Method | Path | Summary |
 |--------|------|---------|
-| GET | `/admin/activity-logs` | Paginated audit list; filters: `actor_id`, `actor_role`, `action`, `target_type`, `target_id`, `page`, `limit` (max 100). |
+| GET | `/admin/activity-logs` | Paginated audit list. Existing exact-match filters unchanged: `actor_id`, `actor_role`, `action`, `target_type`, `target_id`, `page`, `limit` (max 100). Added: **`q`** — human-readable search across actor email, material title, target email, order id and action; **`from`** / **`to`** — `YYYY-MM-DD`, inclusive of both days (malformed values are ignored, not rejected). Each row adds `actor_email` and `target_label`. `meta` and every technical id are still returned unchanged. See `docs/mvp_rules.md` section 21. |
+| GET | `/admin/activity-logs/filters` | `{ actions, actorRoles }` — the values that actually occur in `activity_logs`, with counts, for filter dropdowns. |
 | GET | `/admin/activity-logs/:id` | Single log row by id string (matches list item `id`). |
 | GET | `/admin/users/:userId/activity-logs` | Logs where `actor_id = userId`; `page`, `limit`. |
 | GET | `/admin/materials/:materialId/activity-logs` | Logs with `target_type = material` and `target_id = materialId`; `page`, `limit`. |

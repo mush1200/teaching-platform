@@ -191,13 +191,74 @@ const openApiSpec = {
       },
       Report: {
         type: "object",
+        description: "檢舉的基本列。狀態機見 Backend/utils/reportWorkflow.js 與 docs/mvp_rules.md §6。",
         properties: {
           id: { type: "string", example: "rep_lg8c5d8ke2" },
           material_id: { type: "string", example: "mat_lg8a1f6x9z2" },
           reporter_id: { type: "string", example: "usr_parent_001" },
           reason: { type: "string", example: "Suspected copyright issue." },
-          status: { type: "string", enum: ["pending", "reviewed"], example: "pending" },
+          status: {
+            type: "string",
+            enum: ["pending", "investigating", "awaiting_creator", "resolved", "dismissed", "reviewed"],
+            description: "`reviewed` 為 legacy 終態（舊的「標記已讀」），既有列不回填。",
+            example: "pending",
+          },
+          resolution: {
+            type: "string",
+            nullable: true,
+            enum: ["dismissed", "warning", "request_changes", "unpublish_material", null],
+            example: null,
+          },
+          resolution_note: { type: "string", nullable: true, example: null },
           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:45:00.000Z" },
+          updated_at: { type: "string", format: "date-time", nullable: true },
+          reviewed_at: { type: "string", format: "date-time", nullable: true },
+          reviewed_by: { type: "string", nullable: true },
+        },
+      },
+      ReportCase: {
+        allOf: [
+          { $ref: "#/components/schemas/Report" },
+          {
+            type: "object",
+            description: "案件佇列 / 詳情的 enriched 欄位；Backend JOIN，前端不再自行查 users / materials。",
+            properties: {
+              material_title: { type: "string", nullable: true, example: "注音符號練習本" },
+              material_status: { type: "string", nullable: true, example: "published" },
+              creator_id: { type: "string", nullable: true },
+              creator_email: { type: "string", nullable: true, example: "creator@example.com" },
+              reporter_email: { type: "string", nullable: true, example: "buyer@example.com" },
+              reviewed_by_email: { type: "string", nullable: true },
+              event_count: { type: "integer", example: 3 },
+              last_event_at: { type: "string", format: "date-time", nullable: true },
+            },
+          },
+        ],
+      },
+      ReportEvent: {
+        type: "object",
+        description:
+          "案件歷程 / Admin 與 Creator 的往來。與 activity_logs 分工：後者是全平台稽核軌跡，" +
+          "這裡是案件內容（會顯示給創作者看；`admin_note` 除外）。",
+        properties: {
+          id: { type: "string" },
+          report_id: { type: "string" },
+          actor_id: { type: "string", nullable: true },
+          actor_role: { type: "string", nullable: true, example: "admin" },
+          actor_email: { type: "string", nullable: true },
+          event_type: {
+            type: "string",
+            enum: [
+              "status_changed",
+              "admin_note",
+              "creator_response_requested",
+              "creator_response",
+              "resolution",
+            ],
+          },
+          message: { type: "string", nullable: true },
+          meta: { type: "object", additionalProperties: true },
+          created_at: { type: "string", format: "date-time" },
         },
       },
       ActivityLog: {
@@ -215,10 +276,14 @@ const openApiSpec = {
       },
       Pagination: {
         type: "object",
+        description:
+          "所有 Admin 清單共用同一份分頁契約（Backend/utils/adminQuery.js）：" +
+          "page 1 起算、limit 預設 20 上限 100、totalPages 至少為 1。",
         properties: {
           page: { type: "integer", example: 1 },
           limit: { type: "integer", example: 20 },
           total: { type: "integer", example: 152 },
+          totalPages: { type: "integer", example: 8 },
         },
       },
       TeacherSalesSummary: {
@@ -1169,11 +1234,85 @@ const openApiSpec = {
     "/admin/materials": {
       get: {
         tags: ["Admin"],
-        summary: "管理員教材列表 / Admin material list",
-        description: "列出所有教材。List all materials for admin.",
+        summary: "教材審核佇列 / Admin material review queue",
+        description:
+          "Server-side 篩選 / 搜尋 / 排序 / 分頁。`statusCounts` 為**全表**計數，不受 status / q / 分頁影響 —— " +
+          "需要總數的 caller（例如 Dashboard 教材 KPI）必須讀它，不得抓一頁再自行計數。" +
+          "Server-side filtered, searched, sorted and paginated. `statusCounts` is a whole-table count. " +
+          "See docs/mvp_rules.md §20.",
         security: bearerSecurity,
+        parameters: [
+          {
+            in: "query",
+            name: "status",
+            required: false,
+            description: "materials.status 只有這三個值；沒有 draft / rejected / needs_revision。",
+            schema: { type: "string", enum: ["pending_review", "published", "unpublished", "all"] },
+          },
+          {
+            in: "query",
+            name: "q",
+            required: false,
+            description: "教材標題 / 創作者 email / 教材 id。LIKE 萬用字元會被跳脫。",
+            schema: { type: "string" },
+          },
+          {
+            in: "query",
+            name: "sort",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["created_desc", "created_asc", "updated_desc", "title_asc", "price_desc"],
+              default: "created_desc",
+            },
+          },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
         responses: {
-          200: { description: "成功 / Success.", content: { "application/json": { schema: { type: "object", properties: { items: { type: "array", items: { $ref: "#/components/schemas/Material" } } } } } } },
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        allOf: [
+                          { $ref: "#/components/schemas/Material" },
+                          {
+                            type: "object",
+                            properties: {
+                              creator_email: { type: "string", nullable: true, example: "creator@example.com" },
+                              open_report_count: {
+                                type: "integer",
+                                description: "未結案檢舉數（pending + investigating + awaiting_creator）。",
+                                example: 0,
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                    statusCounts: {
+                      type: "object",
+                      description: "全表計數，不受 status / q / 分頁影響。",
+                      properties: {
+                        total: { type: "integer", example: 128 },
+                        pending_review: { type: "integer", example: 12 },
+                        published: { type: "integer", example: 110 },
+                        unpublished: { type: "integer", example: 6 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
           401: { $ref: "#/components/responses/Unauthorized" },
           403: { $ref: "#/components/responses/Forbidden" },
           500: { $ref: "#/components/responses/ServerError" },
@@ -1184,11 +1323,58 @@ const openApiSpec = {
       get: {
         tags: ["Admin"],
         summary: "管理員訂單列表 / Admin order list",
-        description: "可用 status 篩選。List orders with optional status filter.",
+        description:
+          "以 **operational state** 篩選（非 orders.status 原始值）。未帶則回全部；非法值回 400。" +
+          "Filter by derived operational state, not the raw orders.status. See docs/mvp_rules.md §19.",
         security: bearerSecurity,
-        parameters: [{ in: "query", name: "status", required: false, schema: { type: "string", example: "pending_payment" } }],
+        parameters: [
+          {
+            in: "query",
+            name: "status",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["awaiting_payment", "pending_review", "payment_rejected", "approved", "cancelled"],
+            },
+          },
+        ],
         responses: {
-          200: { description: "成功 / Success.", content: { "application/json": { schema: { type: "object", properties: { items: { type: "array", items: { $ref: "#/components/schemas/Order" } } } } } } },
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        allOf: [
+                          { $ref: "#/components/schemas/Order" },
+                          {
+                            type: "object",
+                            properties: {
+                              operational_status: {
+                                type: "string",
+                                enum: ["awaiting_payment", "pending_review", "payment_rejected", "approved", "cancelled"],
+                              },
+                              payment_proof_pending_review_count: { type: "integer", example: 0 },
+                              payment_proof_latest_status: {
+                                type: "string",
+                                nullable: true,
+                                enum: ["pending", "approved", "rejected", null],
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
           401: { $ref: "#/components/responses/Unauthorized" },
           403: { $ref: "#/components/responses/Forbidden" },
           500: { $ref: "#/components/responses/ServerError" },
@@ -1202,7 +1388,15 @@ const openApiSpec = {
         description: "可用 review_status 篩選，並支援分頁。List payment proofs with optional status filter and pagination.",
         security: bearerSecurity,
         parameters: [
-          { in: "query", name: "status", required: false, schema: { type: "string", enum: ["pending", "approved", "rejected"] } },
+          { in: "query", name: "status", required: false, schema: { type: "string", enum: ["pending", "approved", "rejected", "all"] } },
+          {
+            in: "query",
+            name: "q",
+            required: false,
+            description:
+              "Human-friendly lookup：訂單編號 / 買家 email / 憑證 id。Admin 不需要知道 internal id 才找得到案件。",
+            schema: { type: "string", example: "buyer@example.com" },
+          },
           { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
           { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
         ],
@@ -1232,17 +1426,41 @@ const openApiSpec = {
                           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:35:00.000Z" },
                           reviewed_at: { type: "string", format: "date-time", nullable: true, example: null },
                           reviewed_by: { type: "string", nullable: true, example: null },
+                          reviewed_by_email: { type: "string", nullable: true, example: null },
                           note: { type: "string", nullable: true, example: null },
+                          rejection_reason: {
+                            type: "string",
+                            nullable: true,
+                            enum: ["amount_mismatch", "unreadable", "payment_not_found", "invalid_proof", "other", null],
+                            example: null,
+                          },
+                          buyer_email: { type: "string", nullable: true, example: "buyer@example.com" },
+                          order_total_amount: { type: "integer", nullable: true, example: 450 },
+                          order_total_price: { type: "integer", nullable: true, example: 450 },
+                          order_discount_amount: { type: "integer", nullable: true, example: 0 },
+                          order_promo_code: { type: "string", nullable: true, example: null },
+                          order_payment_mode: { type: "string", nullable: true, example: "manual_transfer" },
+                          order_created_at: { type: "string", format: "date-time", nullable: true },
+                          order_paid_at: { type: "string", format: "date-time", nullable: true },
+                          order_payment_due_at: {
+                            type: "string",
+                            format: "date-time",
+                            nullable: true,
+                            description: "衍生值（orders.created_at + 3 天），不是資料庫欄位。UI 不得自行推算。",
+                          },
+                          order_proof_count: { type: "integer", nullable: true, example: 2 },
                         },
                       },
                     },
-                    pagination: {
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                    statusCounts: {
                       type: "object",
+                      description: "全表計數，不受 status / q / 分頁影響。",
                       properties: {
-                        page: { type: "integer", example: 1 },
-                        limit: { type: "integer", example: 20 },
                         total: { type: "integer", example: 37 },
-                        totalPages: { type: "integer", example: 2 },
+                        pending: { type: "integer", example: 4 },
+                        approved: { type: "integer", example: 30 },
+                        rejected: { type: "integer", example: 3 },
                       },
                     },
                   },
@@ -1308,7 +1526,25 @@ const openApiSpec = {
         requestBody: {
           required: true,
           content: {
-            "application/json": { schema: { type: "object", required: ["note"], properties: { note: { type: "string", example: "Image is not clear." } } } },
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["rejection_reason"],
+                properties: {
+                  rejection_reason: {
+                    type: "string",
+                    enum: ["amount_mismatch", "unreadable", "payment_not_found", "invalid_proof", "other"],
+                    description: "必填。買家會在訂單詳情看到對應文案。",
+                    example: "unreadable",
+                  },
+                  note: {
+                    type: "string",
+                    description: "補充說明。rejection_reason = other 時**必填**。",
+                    example: "Image is not clear.",
+                  },
+                },
+              },
+            },
           },
         },
         responses: {
@@ -1324,6 +1560,7 @@ const openApiSpec = {
                       properties: {
                         id: { type: "string", example: "9fe1273a-8a4b-4db8-b3f7-7bde0612a4a1" },
                         review_status: { type: "string", example: "rejected" },
+                        rejection_reason: { type: "string", example: "unreadable" },
                         note: { type: "string", example: "Image is not clear." },
                       },
                     },
@@ -1399,11 +1636,376 @@ const openApiSpec = {
         },
       },
     },
+    "/admin/payment-proofs/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "付款憑證審核 context / Payment proof decision context",
+        description:
+          "單筆審核所需的完整資訊：憑證 + 訂單 + 買家 + 訂單明細 + **同一張訂單的其他憑證**。" +
+          "最後一項是必要的：買家在被退回後會重新上傳，Admin 必須看得到上一次的退回理由。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    proof: { type: "object", description: "同 /admin/payment-proofs 的單列。" },
+                    orderItems: { type: "array", items: { type: "object" } },
+                    otherProofs: {
+                      type: "array",
+                      description: "同一張訂單的其他憑證（含其 rejection_reason / note）。",
+                      items: { type: "object" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases": {
+      get: {
+        tags: ["Admin"],
+        summary: "檢舉案件佇列 / Report case queue",
+        description:
+          "取代舊的 `GET /admin/reports`（後者保留為 legacy 裸陣列）。支援五狀態 workflow、搜尋與分頁。" +
+          "See docs/mvp_rules.md §6.",
+        security: bearerSecurity,
+        parameters: [
+          {
+            in: "query",
+            name: "status",
+            required: false,
+            description: '"open"（= pending + investigating + awaiting_creator）、"all"，或以逗號分隔的狀態子集合。',
+            schema: { type: "string", example: "open" },
+          },
+          { in: "query", name: "q", required: false, schema: { type: "string" } },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: { type: "array", items: { $ref: "#/components/schemas/ReportCase" } },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                    statusCounts: { type: "object", additionalProperties: { type: "integer" } },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "檢舉案件詳情 / Report case detail",
+        description: "含完整處理歷程（Admin 內部筆記也在內）。`allowedTransitions` 決定 UI 該顯示哪些動作。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    report: { $ref: "#/components/schemas/ReportCase" },
+                    events: { type: "array", items: { $ref: "#/components/schemas/ReportEvent" } },
+                    availableResolutions: { type: "array", items: { type: "string" } },
+                    allowedTransitions: { type: "array", items: { type: "string" } },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases/{id}/investigate": {
+      post: {
+        tags: ["Admin"],
+        summary: "接手檢舉案件 / Start investigation",
+        description: "pending → investigating。非法轉移回 409。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: { "application/json": { schema: { type: "object", properties: { note: { type: "string" } } } } },
+        },
+        responses: {
+          200: { description: "成功 / Success." },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases/{id}/request-response": {
+      post: {
+        tags: ["Admin"],
+        summary: "要求創作者補充說明 / Request creator response",
+        description: "pending | investigating → awaiting_creator。創作者會在 /creator/cases 看到這則訊息。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["message"], properties: { message: { type: "string" } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: "成功 / Success." },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases/{id}/notes": {
+      post: {
+        tags: ["Admin"],
+        summary: "新增內部調查筆記 / Add admin note",
+        description: "不改變案件狀態；**創作者看不到**這則筆記。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["message"], properties: { message: { type: "string" } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: "成功 / Success." },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/report-cases/{id}/resolve": {
+      post: {
+        tags: ["Admin"],
+        summary: "檢舉案件處置 / Resolve report case",
+        description:
+          "dismissed → 狀態 dismissed；其餘 → resolved。`unpublish_material` 會實際把教材下架" +
+          "（僅當目前為 published），並寫入 material.unpublished audit log。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["resolution"],
+                properties: {
+                  resolution: {
+                    type: "string",
+                    enum: ["dismissed", "warning", "request_changes", "unpublish_material"],
+                  },
+                  note: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "成功 / Success." },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/creator/cases": {
+      get: {
+        tags: ["Creator"],
+        summary: "創作者平台案件清單 / Creator moderation cases",
+        description:
+          "只回**自己教材**上的案件（授權寫在 SQL 的 materials.teacher_id）。不回傳檢舉人身分。" +
+          "亦掛在 /teacher/cases（相容別名）。",
+        security: bearerSecurity,
+        parameters: [
+          {
+            in: "query",
+            name: "scope",
+            required: false,
+            schema: { type: "string", enum: ["action_required", "open", "all"], default: "all" },
+          },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: { type: "array", items: { type: "object" } },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                    actionRequiredCount: {
+                      type: "integer",
+                      description: "待回覆案件的**全表**數量；側欄徽章讀這個，不要用 items.length。",
+                      example: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/creator/cases/{id}": {
+      get: {
+        tags: ["Creator"],
+        summary: "創作者案件詳情 / Creator case detail",
+        description: "`events` 已濾除 Admin 內部筆記。不屬於自己的案件一律 404（不是 403）。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    case: { type: "object" },
+                    events: { type: "array", items: { $ref: "#/components/schemas/ReportEvent" } },
+                    canRespond: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/creator/cases/{id}/respond": {
+      post: {
+        tags: ["Creator"],
+        summary: "創作者提交說明 / Submit creator response",
+        description: "awaiting_creator → investigating（球回到 Admin 手上）。狀態不符回 409。目前僅支援文字。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["message"], properties: { message: { type: "string" } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: "成功 / Success." },
+          400: { $ref: "#/components/responses/BadRequest" },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { $ref: "#/components/responses/Conflict" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/activity-logs/filters": {
+      get: {
+        tags: ["Admin"],
+        summary: "活動紀錄篩選選項 / Activity log filter options",
+        description:
+          "回傳 activity_logs 中**實際出現過**的 action 與 actor_role（含筆數）。" +
+          "硬編下拉清單會在新增 action 之後靜靜地漏掉它。",
+        security: bearerSecurity,
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    actions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { action: { type: "string" }, count: { type: "integer" } },
+                      },
+                    },
+                    actorRoles: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: { actor_role: { type: "string" }, count: { type: "integer" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
     "/admin/activity-logs": {
       get: {
         tags: ["Admin"],
         summary: "活動紀錄列表 / Activity logs",
-        description: "管理員查詢活動紀錄與分頁。Admin list activity logs with filters and pagination.",
+        description:
+          "既有的精確比對參數全部保留；另加人類可讀搜尋 `q` 與日期區間 `from`/`to`。" +
+          "每列補上 `actor_email` 與 `target_label`，`meta` 與所有 technical id 原封不動回傳。" +
+          "See docs/mvp_rules.md §21.",
         security: bearerSecurity,
         parameters: [
           { in: "query", name: "actor_id", required: false, schema: { type: "string" } },
@@ -1411,6 +2013,27 @@ const openApiSpec = {
           { in: "query", name: "action", required: false, schema: { type: "string" } },
           { in: "query", name: "target_type", required: false, schema: { type: "string" } },
           { in: "query", name: "target_id", required: false, schema: { type: "string" } },
+          {
+            in: "query",
+            name: "q",
+            required: false,
+            description: "操作者 email / 教材標題 / 對象 email / 訂單編號 / action。",
+            schema: { type: "string" },
+          },
+          {
+            in: "query",
+            name: "from",
+            required: false,
+            description: "YYYY-MM-DD，含當日。格式不符一律視為未提供（不回 400）。",
+            schema: { type: "string", format: "date" },
+          },
+          {
+            in: "query",
+            name: "to",
+            required: false,
+            description: "YYYY-MM-DD，含當日。",
+            schema: { type: "string", format: "date" },
+          },
           { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
           { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
         ],

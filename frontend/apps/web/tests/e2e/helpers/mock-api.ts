@@ -8,6 +8,25 @@ function json(route: Route, payload: unknown, status = 200) {
   });
 }
 
+/** 付款審核的共用 fixture：清單與詳情必須是同一筆，否則兩邊會顯示不同的金額。 */
+const PENDING_PROOF = {
+  id: "proof_001",
+  review_status: "pending",
+  order_id: "ord_mock_001",
+  user_id: "usr_parent_01",
+  buyer_email: "parent@example.com",
+  order_status: "pending_payment",
+  order_total_amount: 299,
+  order_payment_mode: "manual_transfer",
+  order_created_at: "2026-04-24T10:00:00Z",
+  order_payment_due_at: "2026-04-27T10:00:00Z",
+  order_proof_count: 1,
+  proof_url: "",
+  original_filename: "proof.png",
+  proof_size_bytes: 20480,
+  uploaded_at: "2026-04-25T10:00:00Z",
+};
+
 export async function installCoreApiMocks(page: Page) {
   const handleLogin = async (route: Route) => {
     const req = route.request();
@@ -151,6 +170,14 @@ export async function installCoreApiMocks(page: Page) {
       });
     }
 
+    if (method === "GET" && path.startsWith("admin/materials") && !path.includes("/reports") && !path.includes("/activity-logs")) {
+      return json(route, {
+        items: [{ id: "mat_mock_001", title: "示範教材", status: "pending_review", price: 299, teacher_id: "usr_t1" }],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        statusCounts: { total: 1, pending_review: 1, published: 0, unpublished: 0 },
+      });
+    }
+
     if (method === "GET" && path === "admin/reports") {
       return json(route, [
         { id: "rep_001", status: "pending", material_id: "mat_mock_001", reason: "內容不符", reporter_id: "usr_parent_01" },
@@ -162,22 +189,98 @@ export async function installCoreApiMocks(page: Page) {
       return json(route, { ok: true });
     }
 
-    if (method === "GET" && path.startsWith("admin/payment-proofs")) {
+    /*
+     * 檢舉案件佇列（`/admin/report-cases`）。舊的 `GET /admin/reports` 仍保留在上面 ——
+     * 它是 legacy 端點，形狀沒有改變。
+     */
+    if (method === "GET" && /^admin\/report-cases\/[^/]+\/[a-z-]+$/.test(path)) {
+      return route.fallback();
+    }
+    if (method === "POST" && /^admin\/report-cases\/[^/]+\/[a-z-]+$/.test(path)) {
+      return json(route, { ok: true });
+    }
+    if (method === "GET" && /^admin\/report-cases\/[^/]+$/.test(path)) {
+      return json(route, {
+        report: {
+          id: "rep_001",
+          material_id: "mat_mock_001",
+          material_title: "示範教材",
+          material_status: "published",
+          creator_email: "creator@example.com",
+          reporter_email: "parent@example.com",
+          reason: "內容不符",
+          status: "pending",
+          created_at: "2026-04-25T10:00:00Z",
+        },
+        events: [],
+        availableResolutions: ["dismissed", "warning", "request_changes", "unpublish_material"],
+        allowedTransitions: ["investigating", "awaiting_creator", "resolved", "dismissed", "reviewed"],
+      });
+    }
+    if (method === "GET" && path.startsWith("admin/report-cases")) {
       return json(route, {
         items: [
           {
-            id: "proof_001",
-            review_status: "pending",
-            order_id: "ord_mock_001",
-            user_id: "usr_parent_01",
-            uploaded_at: "2026-04-25T10:00:00Z",
+            id: "rep_001",
+            material_id: "mat_mock_001",
+            material_title: "示範教材",
+            creator_email: "creator@example.com",
+            reporter_email: "parent@example.com",
+            reason: "內容不符",
+            status: "pending",
+            created_at: "2026-04-25T10:00:00Z",
+            event_count: 0,
           },
         ],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        statusCounts: { pending: 1, investigating: 0, awaiting_creator: 0, resolved: 1, dismissed: 0 },
       });
     }
 
-    if (method === "POST" && /admin\/payment-proofs\/[^/]+\/(approve|reject)$/.test(path)) {
-      return json(route, { ok: true });
+    if (method === "GET" && /^admin\/payment-proofs\/[^/]+$/.test(path)) {
+      return json(route, {
+        proof: PENDING_PROOF,
+        orderItems: [
+          {
+            id: "oi_1",
+            material_id: "mat_demo_1",
+            material_title: "小學數學思維訓練",
+            quantity: 1,
+            unit_price: 299,
+            subtotal: 299,
+          },
+        ],
+        otherProofs: [],
+      });
+    }
+
+    if (method === "GET" && path.startsWith("admin/payment-proofs")) {
+      return json(route, {
+        items: [PENDING_PROOF],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        statusCounts: { total: 1, pending: 1, approved: 0, rejected: 0 },
+      });
+    }
+
+    if (method === "POST" && /admin\/payment-proofs\/[^/]+\/approve$/.test(path)) {
+      return json(route, { proofId: "proof_001", order: { id: "ord_mock_001", status: "approved" } });
+    }
+
+    /*
+     * 退件的必填驗證在 Backend（`utils/paymentProofReview.js`）。
+     * mock 忠實複製它：少了 rejection_reason 就回 400，UI 不能靠自己「大概擋一下」。
+     */
+    if (method === "POST" && /admin\/payment-proofs\/[^/]+\/reject$/.test(path)) {
+      const body = (req.postDataJSON() || {}) as { rejection_reason?: string; note?: string };
+      if (!body.rejection_reason) {
+        return json(route, { message: "rejection_reason is required" }, 400);
+      }
+      if (body.rejection_reason === "other" && !body.note) {
+        return json(route, { message: 'note is required when rejection_reason is "other"' }, 400);
+      }
+      return json(route, {
+        proof: { id: "proof_001", review_status: "rejected", ...body },
+      });
     }
 
     if (method === "GET" && path === "admin/materials/mat_mock_001/reports") {

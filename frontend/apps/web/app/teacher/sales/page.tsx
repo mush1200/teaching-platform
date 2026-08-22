@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, SurfaceCard } from "@teaching-platform/ui";
+import { useRouter, useSearchParams } from "next/navigation";
 import type {
   CreatorSalesByMaterial,
   CreatorSalesListResponse,
@@ -11,601 +9,510 @@ import type {
   CreatorSalesSummary,
 } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
+import {
+  PRESET_LABELS,
+  REPORTING_TIMEZONE,
+  formatIsoDateForDisplay,
+  parseRangeSelection,
+  toRangeQuery,
+  type RangeSelection,
+} from "../../../lib/reportingRange";
+import { AccentTextLink, EmptyState, ErrorState, SurfaceCard } from "../../../components/ds";
+import { Button } from "../../../components/ui/Button";
+import { ReportingRangeSelector } from "../../../components/reporting/ReportingRangeSelector";
+import { StatCard } from "../../../components/reporting/StatCard";
+import { TrendChart } from "../../../components/reporting/TrendChart";
 
-const statusOptions = [
-  { label: "已成交（approved/completed）", value: "all" },
-  { label: "approved", value: "approved" },
-  { label: "completed", value: "completed" },
-  { label: "pending_payment", value: "pending_payment" },
-  { label: "rejected", value: "rejected" },
-];
+/**
+ * Creator 銷售頁。
+ *
+ * **統計語意（見 docs/mvp_rules.md §18）：**
+ *
+ * 這頁顯示的是 **Creator Gross Sales** —— 已成交（`orders.status = 'approved'`）的
+ * 創作者商品行金額，**折扣前**（`SUM(order_items.subtotal)`），認列於 `orders.paid_at`。
+ * 文案一律用「銷售額」，不用「營收」（那是 Admin 的 recognized revenue，折扣後）
+ * 或「收益」（需要抽成與結算模型，本平台沒有）。
+ *
+ * **呈現層規則：**
+ *
+ * - 期間選擇器是 **page-level control**：整頁每一個數字與明細都依它計算，因此放在
+ *   標題列旁，而不是包成一張「統計期間」卡片。
+ * - 三支 endpoint **各自**持有 loading / error state。一支失敗不得清掉其他已成功的
+ *   資料 —— 舊版的 all-or-nothing 會讓 records 掛掉時連 KPI 與趨勢一起消失。
+ * - `lg` 以下不使用 table：中文欄位在窄欄會被壓成一行一個字，且金額欄會被推出畫面。
+ *   改用同一份資料渲染的清單列。
+ */
 
 const PAGE_SIZE = 10;
+const CONNECTION_ERROR = "無法連線至伺服器，請稍後再試。";
+const SERVER_ERROR = "伺服器暫時無法回應，請稍後再試。";
+const EMPTY_HINT = "當訂單付款經核准後，這裡就會出現成交資料。";
 
 function formatMoney(value: number) {
   return `NT$ ${Math.floor(Number(value) || 0).toLocaleString("zh-TW")}`;
 }
 
-function toDateInput(raw?: string | null) {
-  if (!raw) return "";
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
+function formatCount(value: number) {
+  return (Number(value) || 0).toLocaleString("zh-TW");
 }
 
-type MonthlyBucket = {
-  month: string;
-  soldUnits: number;
-  revenue: number;
-};
+/**
+ * 成交時間一律以 **Asia/Taipei** 呈現，不跟隨瀏覽器時區 —— 統計期間是台北日曆日，
+ * 明細時間若用瀏覽器時區顯示，兩者會對不起來。
+ */
+const taipeiDateTime = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: REPORTING_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+const taipeiDate = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: REPORTING_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
-function formatMonth(raw: string) {
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return raw;
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+function formatTaipeiDateTime(raw?: string | null) {
+  if (!raw) return "-";
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? "-" : taipeiDateTime.format(d);
+}
+function formatTaipeiDate(raw?: string | null) {
+  if (!raw) return "-";
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? "-" : taipeiDate.format(d);
 }
 
-function buildLastSixMonthKeys() {
-  const out: string[] = [];
-  const now = new Date();
-  now.setDate(1);
-  for (let i = 5; i >= 0; i -= 1) {
-    const d = new Date(now);
-    d.setMonth(now.getMonth() - i);
-    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-  return out;
+/** `ord_mo2q2du20ytgpj0` → `#ytgpj0`。完整值仍以 `title` 提供。 */
+function shortId(id?: string | null) {
+  const raw = String(id ?? "");
+  return raw.length > 6 ? `#${raw.slice(-6)}` : raw;
 }
 
-function buildSalesQuery(params: {
-  status: string;
-  fromDate: string;
-  toDate: string;
-  materialId: string;
-  page?: number;
-  limit?: number;
-}) {
-  const q = new URLSearchParams();
-  if (params.status) q.set("status", params.status);
-  if (params.fromDate) q.set("from", params.fromDate);
-  if (params.toDate) q.set("to", params.toDate);
-  if (params.materialId) q.set("materialId", params.materialId);
-  if (params.page) q.set("page", String(params.page));
-  if (params.limit) q.set("limit", String(params.limit));
-  return q.toString();
-}
+/** 每支 endpoint 各自一份，彼此不互相清空。 */
+type Section<T> = { data: T | null; loading: boolean; error: string | null };
 
-function CreatorSalesPageContent() {
-  const searchParams = useSearchParams();
-  const recordsSectionRef = useRef<HTMLDivElement | null>(null);
-  const tab = searchParams.get("tab");
-  const [summary, setSummary] = useState<CreatorSalesSummary | null>(null);
-  const [materials, setMaterials] = useState<CreatorSalesByMaterial[]>([]);
-  const [records, setRecords] = useState<CreatorSalesRecord[]>([]);
-  const [recordsTotalPages, setRecordsTotalPages] = useState(1);
-  const [recordsTotalItems, setRecordsTotalItems] = useState(0);
-  const [recordsPage, setRecordsPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [materialFilter, setMaterialFilter] = useState("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [trendWindowDays, setTrendWindowDays] = useState<7 | 14 | 30>(14);
+const initialSection = <T,>(): Section<T> => ({ data: null, loading: true, error: null });
 
-  const materialOptions = useMemo(() => {
-    const base = [{ label: "全部教材", value: "all" }];
-    const rest = materials.map((m) => ({ label: `${m.title}（${m.soldUnits} 份）`, value: m.materialId }));
-    return [...base, ...rest];
-  }, [materials]);
-
-  const monthlyBuckets = useMemo<MonthlyBucket[]>(() => {
-    if (!summary?.trend) return [];
-    const map = new Map<string, MonthlyBucket>();
-    for (const item of summary.trend) {
-      const key = formatMonth(item.day);
-      const existing = map.get(key) ?? { month: key, soldUnits: 0, revenue: 0 };
-      existing.soldUnits += Number(item.soldUnits || 0);
-      existing.revenue += Number(item.revenue || 0);
-      map.set(key, existing);
-    }
-    const keys = buildLastSixMonthKeys();
-    return keys.map((key) => map.get(key) ?? { month: key, soldUnits: 0, revenue: 0 });
-  }, [summary?.trend]);
-
-  const topMaterials = useMemo(() => {
-    return [...materials]
-      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
-      .slice(0, 5);
-  }, [materials]);
-
-  const chartRows = useMemo(() => {
-    const rows = summary?.trend?.slice(-trendWindowDays) ?? [];
-    const maxRevenue = Math.max(1, ...rows.map((r) => Number(r.revenue || 0)));
-    const maxUnits = Math.max(1, ...rows.map((r) => Number(r.soldUnits || 0)));
-    return rows.map((r) => ({
-      day: toDateInput(r.day),
-      soldUnits: Number(r.soldUnits || 0),
-      revenue: Number(r.revenue || 0),
-      unitHeightPct: Math.round((Number(r.soldUnits || 0) / maxUnits) * 100),
-      revenueHeightPct: Math.round((Number(r.revenue || 0) / maxRevenue) * 100),
-    }));
-  }, [summary?.trend, trendWindowDays]);
-
-  const revenueExtremes = useMemo(() => {
-    if (chartRows.length === 0) return null;
-    let max = chartRows[0];
-    let min = chartRows[0];
-    for (const row of chartRows) {
-      if (row.revenue > max.revenue) max = row;
-      if (row.revenue < min.revenue) min = row;
-    }
-    return {
-      maxDay: max.day,
-      maxRevenue: max.revenue,
-      minDay: min.day,
-      minRevenue: min.revenue,
-    };
-  }, [chartRows]);
-
-  useEffect(() => {
-    if (tab === "records") {
-      recordsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [tab, loading]);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const summaryQuery = buildSalesQuery({
-        status: statusFilter,
-        fromDate,
-        toDate,
-        materialId: "",
-      });
-      const materialQuery = buildSalesQuery({
-        status: statusFilter,
-        fromDate,
-        toDate,
-        materialId: "",
-        page: 1,
-        limit: 100,
-      });
-      const recordsQuery = buildSalesQuery({
-        status: statusFilter,
-        fromDate,
-        toDate,
-        materialId: materialFilter === "all" ? "" : materialFilter,
-        page: recordsPage,
-        limit: PAGE_SIZE,
-      });
-
-      const [summaryRes, materialsRes, recordsRes] = await Promise.all([
-        apiFetch(`teacher/sales/summary?${summaryQuery}`),
-        apiFetch(`teacher/sales/materials?${materialQuery}`),
-        apiFetch(`teacher/sales/records?${recordsQuery}`),
-      ]);
-
-      if (!summaryRes.ok) {
-        setError(await parseApiErrorMessage(summaryRes));
-        setSummary(null);
-        setMaterials([]);
-        setRecords([]);
-        return;
-      }
-      if (!materialsRes.ok) {
-        setError(await parseApiErrorMessage(materialsRes));
-        setSummary(null);
-        setMaterials([]);
-        setRecords([]);
-        return;
-      }
-      if (!recordsRes.ok) {
-        setError(await parseApiErrorMessage(recordsRes));
-        setSummary(null);
-        setMaterials([]);
-        setRecords([]);
-        return;
-      }
-
-      const summaryPayload = (await summaryRes.json()) as CreatorSalesSummary;
-      const materialsPayload = (await materialsRes.json()) as CreatorSalesListResponse<CreatorSalesByMaterial>;
-      const recordsPayload = (await recordsRes.json()) as CreatorSalesListResponse<CreatorSalesRecord>;
-
-      setSummary(summaryPayload);
-      setMaterials(Array.isArray(materialsPayload.items) ? materialsPayload.items : []);
-      const nextRecords = Array.isArray(recordsPayload.items) ? recordsPayload.items : [];
-      setRecords(nextRecords);
-      setRecordsTotalPages(Math.max(1, recordsPayload.pagination?.totalPages ?? 1));
-      setRecordsTotalItems(recordsPayload.pagination?.total ?? nextRecords.length);
-    } catch {
-      setError("無法連線至伺服器，請稍後再試。");
-      setSummary(null);
-      setMaterials([]);
-      setRecords([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [fromDate, materialFilter, recordsPage, statusFilter, toDate]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    setRecordsPage(1);
-  }, [statusFilter, materialFilter, fromDate, toDate]);
-
-  function exportCsv() {
-    const headers = [
-      "orderId",
-      "orderItemId",
-      "materialId",
-      "materialTitle",
-      "quantity",
-      "unitPrice",
-      "subtotal",
-      "orderStatus",
-      "createdAt",
-      "paidAt",
-      "buyerId",
-    ];
-    const rows = records.map((item) => [
-      item.orderId,
-      item.orderItemId,
-      item.materialId,
-      item.materialTitle,
-      String(item.quantity),
-      String(item.unitPrice),
-      String(item.subtotal),
-      item.orderStatus,
-      item.createdAt ?? "",
-      item.paidAt ?? "",
-      item.buyerId ?? "",
-    ]);
-    const content = [headers, ...rows]
-      .map((cols) =>
-        cols
-          .map((cell) => {
-            const safe = String(cell ?? "").replaceAll('"', '""');
-            return `"${safe}"`;
-          })
-          .join(",")
-      )
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `creator-sales-records-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function exportTopMaterialsCsv() {
-    const headers = ["rank", "materialId", "title", "soldUnits", "revenue", "lastSoldAt"];
-    const rows = topMaterials.map((item, index) => [
-      String(index + 1),
-      item.materialId,
-      item.title,
-      String(item.soldUnits),
-      String(item.revenue),
-      item.lastSoldAt ?? "",
-    ]);
-    const content = [headers, ...rows]
-      .map((cols) =>
-        cols
-          .map((cell) => {
-            const safe = String(cell ?? "").replaceAll('"', '""');
-            return `"${safe}"`;
-          })
-          .join(",")
-      )
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `creator-top-materials-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900">{tab === "records" ? "銷售紀錄" : "教材銷售中心"}</h1>
-          <p className="text-sm text-slate-600">
-            {tab === "records" ? "聚焦查看每筆成交明細，可直接匯出 CSV。" : "查看你名下教材的銷量、營收、成交明細與趨勢。"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button intent="action" onPress={exportCsv} disabled={records.length === 0}>
-            匯出 CSV
-          </Button>
-          <Link href="/creator/materials">
-            <Button intent="neutral">返回教材管理</Button>
-          </Link>
-        </div>
-      </div>
-
-      <SurfaceCard title="篩選條件" description="可依狀態、日期與教材篩選銷售資料。" level="flat">
-        <div className="grid gap-3 md:grid-cols-4">
-          <SelectField id="teacher-sales-status" label="訂單狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
-          <SelectField id="teacher-sales-material" label="教材" value={materialFilter} options={materialOptions} onValueChange={setMaterialFilter} />
-          <label className="space-y-1 text-sm text-slate-700">
-            <span>起始日期</span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="space-y-1 text-sm text-slate-700">
-            <span>結束日期</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
-      </SurfaceCard>
-
-      {loading ? <LoadingState title="載入銷售資料中…" /> : null}
-      {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
-
-      {!loading && !error && summary ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-4">
-            <SurfaceCard title="總賣出份數" description={`${summary.totalSoldUnits.toLocaleString("zh-TW")} 份`} level="elevated" />
-            <SurfaceCard title="總營收" description={formatMoney(summary.totalRevenue)} level="elevated" />
-            <SurfaceCard title="成交訂單數" description={`${summary.totalOrders.toLocaleString("zh-TW")} 筆`} level="elevated" />
-            <SurfaceCard title="有成交教材數" description={`${summary.materialsCount.toLocaleString("zh-TW")} 項`} level="elevated" />
-          </div>
-
-          <SurfaceCard title="銷售趨勢（日）" description="依日期聚合的每日銷量與營收（Phase 3）。" level="default">
-            {summary.trend.length === 0 ? (
-              <EmptyState title="目前沒有趨勢資料" description="當有成交訂單後，這裡會顯示每日銷售走勢。" />
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {monthlyBuckets.map((bucket) => (
-                    <div key={bucket.month} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <p className="text-xs text-slate-500">{bucket.month}</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{formatMoney(bucket.revenue)}</p>
-                      <p className="text-xs text-slate-600">{bucket.soldUnits} 份</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 p-3">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-slate-500">紫色柱狀為銷量，藍色點線為營收相對高度</p>
-                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-1">
-                      {[7, 14, 30].map((days) => (
-                        <button
-                          key={days}
-                          type="button"
-                          onClick={() => setTrendWindowDays(days as 7 | 14 | 30)}
-                          className={`rounded-md px-2 py-1 text-xs ${
-                            trendWindowDays === days
-                              ? "bg-indigo-600 text-white"
-                              : "text-slate-600 hover:bg-slate-100"
-                          }`}
-                        >
-                          {days} 天
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block h-2 w-2 rounded bg-violet-400/80" />
-                      銷量
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
-                      營收
-                    </span>
-                    {chartRows.length > 0 ? (
-                      <>
-                        <span>
-                          最大營收：{formatMoney(Math.max(...chartRows.map((r) => Number(r.revenue || 0))))}
-                        </span>
-                        <span>
-                          最小營收：{formatMoney(Math.min(...chartRows.map((r) => Number(r.revenue || 0))))}
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                  <div className="flex h-44 items-end gap-2 overflow-x-auto pb-1">
-                    {chartRows.map((row) => (
-                      <div key={row.day} className="flex min-w-[40px] flex-col items-center justify-end gap-1">
-                        <div className="h-4">
-                          {revenueExtremes && revenueExtremes.maxDay === row.day ? (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
-                              MAX
-                            </span>
-                          ) : null}
-                          {revenueExtremes && revenueExtremes.minDay === row.day ? (
-                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-                              MIN
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="relative flex h-28 w-6 items-end">
-                          <div
-                            className="w-full rounded-t bg-violet-400/80"
-                            style={{ height: `${Math.max(4, row.unitHeightPct)}%` }}
-                            title={`${row.day}\n銷量：${row.soldUnits} 份\n營收：${formatMoney(row.revenue)}`}
-                          />
-                          <div
-                            className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-blue-500"
-                            style={{ bottom: `${Math.max(4, row.revenueHeightPct)}%`, height: "8px" }}
-                            title={`${row.day}\n銷量：${row.soldUnits} 份\n營收：${formatMoney(row.revenue)}`}
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-500">{row.day.slice(5)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {chartRows.map((row) => (
-                    <div key={`row-${row.day}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
-                      <span className="font-medium text-slate-700">{row.day}</span>
-                      <span className="text-slate-600">銷量 {row.soldUnits} 份</span>
-                      <span className="font-semibold text-slate-900">{formatMoney(row.revenue)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </SurfaceCard>
-
-          <SurfaceCard title="熱銷教材 Top 5" description="依目前篩選條件下的營收排序。" level="default">
-            <div className="mb-3 flex justify-end">
-              <Button size="sm" intent="action" onPress={exportTopMaterialsCsv} disabled={topMaterials.length === 0}>
-                匯出 Top 5 CSV
-              </Button>
-            </div>
-            {topMaterials.length === 0 ? (
-              <EmptyState title="目前沒有熱銷資料" description="有成交後會顯示 Top 5 教材。" />
-            ) : (
-              <div className="space-y-2">
-                {topMaterials.map((item, index) => (
-                  <div key={item.materialId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
-                    <div className="min-w-[220px]">
-                      <p className="text-sm font-semibold text-slate-900">
-                        #{index + 1} {item.title}
-                      </p>
-                      <p className="text-xs text-slate-500">{item.materialId}</p>
-                    </div>
-                    <p className="text-sm text-slate-600">賣出 {item.soldUnits} 份</p>
-                    <p className="text-sm font-semibold text-slate-900">{formatMoney(item.revenue)}</p>
-                    <div className="flex gap-2">
-                      <Link href={`/creator/materials/${encodeURIComponent(item.materialId)}/reviews`}>
-                        <Button size="sm" intent="action">
-                          教學回饋
-                        </Button>
-                      </Link>
-                      <Link href={`/creator/materials/${encodeURIComponent(item.materialId)}/edit`}>
-                        <Button size="sm" intent="action">
-                          編輯
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SurfaceCard>
-
-          <SurfaceCard title="教材銷售彙總（Phase 1）" description={`共 ${materials.length} 項`} level="default">
-            {materials.length === 0 ? (
-              <EmptyState title="目前沒有銷售資料" description="當教材開始成交後，這裡會列出每份教材賣出份數與營收。" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-left text-slate-500">
-                      <th className="px-3 py-2">教材</th>
-                      <th className="px-3 py-2">賣出份數</th>
-                      <th className="px-3 py-2">營收</th>
-                      <th className="px-3 py-2">最近成交</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {materials.map((item) => (
-                      <tr key={item.materialId} className="border-b border-slate-100 text-slate-700">
-                        <td className="px-3 py-2">
-                          <div>
-                            <p className="font-medium text-slate-900">{item.title}</p>
-                            <p className="text-xs text-slate-500">{item.materialId}</p>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">{item.soldUnits}</td>
-                        <td className="px-3 py-2">{formatMoney(item.revenue)}</td>
-                        <td className="px-3 py-2">{toDateInput(item.lastSoldAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </SurfaceCard>
-
-          <div ref={recordsSectionRef}>
-            <SurfaceCard title="成交明細（Phase 2）" description={`共 ${recordsTotalItems} 筆`} level="default">
-            {records.length === 0 ? (
-              <EmptyState title="查無成交明細" description="請調整篩選條件，或等待新訂單成交後再查看。" />
-            ) : (
-              <div className="space-y-3">
-                <Pagination page={recordsPage} totalPages={recordsTotalPages} totalItems={recordsTotalItems} onPageChange={setRecordsPage} />
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-slate-500">
-                        <th className="px-3 py-2">時間</th>
-                        <th className="px-3 py-2">教材</th>
-                        <th className="px-3 py-2">數量</th>
-                        <th className="px-3 py-2">單價</th>
-                        <th className="px-3 py-2">小計</th>
-                        <th className="px-3 py-2">狀態</th>
-                        <th className="px-3 py-2">訂單</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records.map((row) => (
-                        <tr key={row.orderItemId} className="border-b border-slate-100 text-slate-700">
-                          <td className="px-3 py-2">{toDateInput(row.createdAt)}</td>
-                          <td className="px-3 py-2">
-                            <div>
-                              <p className="font-medium text-slate-900">{row.materialTitle}</p>
-                              <p className="text-xs text-slate-500">{row.materialId}</p>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">{row.quantity}</td>
-                          <td className="px-3 py-2">{formatMoney(row.unitPrice)}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-900">{formatMoney(row.subtotal)}</td>
-                          <td className="px-3 py-2">{row.orderStatus}</td>
-                          <td className="px-3 py-2">
-                            <span className="text-xs text-slate-500">{row.orderId}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            </SurfaceCard>
-          </div>
-        </>
-      ) : null}
-    </section>
-  );
-}
-
-function CreatorSalesPageFallback() {
-  return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">教材銷售中心</h1>
-      <p className="text-sm text-slate-600">載入中...</p>
-    </section>
-  );
-}
+const sectionHeading = "text-lg font-semibold text-ds-heading";
 
 export default function CreatorSalesPage() {
   return (
-    <Suspense fallback={<CreatorSalesPageFallback />}>
-      <CreatorSalesPageContent />
+    <Suspense fallback={<CreatorSalesFallback />}>
+      <CreatorSalesContent />
     </Suspense>
+  );
+}
+
+function CreatorSalesFallback() {
+  return (
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5">
+      <h1 className="text-2xl font-bold text-ds-heading">我的銷售</h1>
+    </section>
+  );
+}
+
+function CreatorSalesContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // URL 是期間的 single source of truth：reload / bookmark / 上一頁下一頁都自然成立。
+  const searchKey = searchParams?.toString() ?? "";
+  const [selection, setSelection] = useState<RangeSelection>(() => parseRangeSelection(searchParams));
+  useEffect(() => {
+    setSelection(parseRangeSelection(new URLSearchParams(searchKey)));
+  }, [searchKey]);
+
+  const [summary, setSummary] = useState<Section<CreatorSalesSummary>>(initialSection);
+  const [materials, setMaterials] = useState<Section<CreatorSalesListResponse<CreatorSalesByMaterial>>>(initialSection);
+  const [records, setRecords] = useState<Section<CreatorSalesListResponse<CreatorSalesRecord>>>(initialSection);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [materialFilter, setMaterialFilter] = useState("all");
+
+  const rangeQuery = toRangeQuery(selection);
+
+  /*
+   * 每支 endpoint 各自的序號 + AbortController。共用一份會讓某一支的取消
+   * 順手殺掉另一支仍然有效的請求；分開也讓 partial failure 自然成立。
+   */
+  const seqs = useRef({ summary: 0, materials: 0, records: 0 });
+  const aborts = useRef<Record<string, AbortController | null>>({ summary: null, materials: null, records: null });
+
+  const fetchSection = useCallback(
+    async <T,>(key: "summary" | "materials" | "records", path: string, set: (s: Section<T>) => void) => {
+      aborts.current[key]?.abort();
+      const controller = new AbortController();
+      aborts.current[key] = controller;
+      const seq = seqs.current[key] + 1;
+      seqs.current[key] = seq;
+
+      set({ data: null, loading: true, error: null });
+      try {
+        const res = await apiFetch(path, { signal: controller.signal });
+        if (seq !== seqs.current[key]) return;
+        if (!res.ok) {
+          // 5xx 的 body 是給維運看的（例如 "server error"），不要原樣顯示給創作者；
+          // 4xx 才帶有對使用者有意義的訊息（例如日期區間不合法）。
+          const message = res.status >= 500 ? SERVER_ERROR : await parseApiErrorMessage(res);
+          set({ data: null, loading: false, error: message });
+          return;
+        }
+        const payload = (await res.json()) as T;
+        if (seq !== seqs.current[key]) return;
+        set({ data: payload, loading: false, error: null });
+      } catch {
+        if (controller.signal.aborted || seq !== seqs.current[key]) return;
+        set({ data: null, loading: false, error: CONNECTION_ERROR });
+      }
+    },
+    [],
+  );
+
+  const loadSummary = useCallback(
+    (query: string) => fetchSection<CreatorSalesSummary>("summary", `teacher/sales/summary?${query}`, setSummary),
+    [fetchSection],
+  );
+  const loadMaterials = useCallback(
+    (query: string) => {
+      const q = new URLSearchParams(query);
+      q.set("page", "1");
+      q.set("limit", "100");
+      return fetchSection<CreatorSalesListResponse<CreatorSalesByMaterial>>("materials", `teacher/sales/materials?${q}`, setMaterials);
+    },
+    [fetchSection],
+  );
+  const loadRecords = useCallback(
+    (query: string, page: number, material: string) => {
+      const q = new URLSearchParams(query);
+      q.set("page", String(page));
+      q.set("limit", String(PAGE_SIZE));
+      if (material !== "all") q.set("materialId", material);
+      return fetchSection<CreatorSalesListResponse<CreatorSalesRecord>>("records", `teacher/sales/records?${q}`, setRecords);
+    },
+    [fetchSection],
+  );
+
+  useEffect(() => {
+    void loadSummary(rangeQuery);
+    void loadMaterials(rangeQuery);
+  }, [loadSummary, loadMaterials, rangeQuery]);
+
+  useEffect(() => {
+    void loadRecords(rangeQuery, recordsPage, materialFilter);
+  }, [loadRecords, rangeQuery, recordsPage, materialFilter]);
+
+  // 換期間或換教材時回到第一頁，避免停在一個已不存在的頁碼上。
+  useEffect(() => {
+    setRecordsPage(1);
+  }, [rangeQuery, materialFilter]);
+
+  /*
+   * Legacy deep link 相容：舊的側欄連結是 `?tab=records`。
+   * 它現在只是錨點語意（捲到成交明細），**不再改變 h1** —— 那是假的導覽狀態。
+   * 新連結請用 `#records`。期間參數不受影響。
+   */
+  const legacyTab = searchParams?.get("tab");
+  useEffect(() => {
+    if (legacyTab !== "records") return;
+    document.getElementById("records")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [legacyTab, records.loading]);
+
+  // push（非 replace）讓上一頁／下一頁能在期間之間來回。
+  const applySelection = useCallback(
+    (next: RangeSelection) => router.push(`/creator/sales?${toRangeQuery(next)}`, { scroll: false }),
+    [router],
+  );
+
+  const s = summary.data;
+  // 用 useMemo 穩定參考：直接寫 `?? []` 每次 render 都是新陣列，會讓下游 useMemo 失效。
+  const materialItems = useMemo(() => materials.data?.items ?? [], [materials.data]);
+  const recordItems = records.data?.items ?? [];
+  const recordsTotal = records.data?.pagination?.total ?? recordItems.length;
+  const recordsTotalPages = Math.max(1, records.data?.pagination?.totalPages ?? 1);
+
+  /**
+   * 期間文字優先採 API 解析結果；summary 失敗時退回本地選擇（custom 才有明確日期），
+   * 避免永遠停在「期間載入中…」。preset 由 server 依台北今日推導，本地無法預先得知日期。
+   */
+  const periodLabel = s
+    ? `${formatIsoDateForDisplay(s.periodFrom)} – ${formatIsoDateForDisplay(s.periodTo)}`
+    : selection.preset === "custom"
+      ? `${formatIsoDateForDisplay(selection.from)} – ${formatIsoDateForDisplay(selection.to)}`
+      : null;
+
+  const materialOptions = useMemo(
+    () => [{ value: "all", label: "全部教材" }, ...materialItems.map((m) => ({ value: m.materialId, label: m.title }))],
+    [materialItems],
+  );
+
+  function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+    const content = [headers, ...rows]
+      .map((cols) => cols.map((c) => `"${String(c ?? "").replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportRecordsCsv() {
+    downloadCsv(
+      `creator-sales-records-${s?.periodFrom ?? "all"}_${s?.periodTo ?? ""}.csv`,
+      ["orderId", "orderItemId", "materialId", "materialTitle", "quantity", "unitPrice", "subtotal", "orderStatus", "paidAt", "createdAt", "buyerId"],
+      recordItems.map((r) => [
+        r.orderId, r.orderItemId, r.materialId, r.materialTitle,
+        String(r.quantity), String(r.unitPrice), String(r.subtotal),
+        r.orderStatus, r.paidAt ?? "", r.createdAt ?? "", r.buyerId ?? "",
+      ]),
+    );
+  }
+
+  return (
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5">
+      {/*
+        期間選擇器就在標題旁：它控制整頁，因此屬於 page-level control。
+        舊版把它包成一張「統計期間」卡並附上一句說明，等於用 250px 的首屏高度
+        去解釋一件位置本身就能表達的事。
+      */}
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-ds-heading">我的銷售</h1>
+          <p className="mt-1 text-sm text-ds-textMuted" data-testid="creator-period-label" title={`統計時區：${REPORTING_TIMEZONE}`}>
+            {periodLabel ?? (summary.loading ? "期間載入中…" : PRESET_LABELS[selection.preset])}
+            <span className="sr-only">（時區 {s?.periodTimezone ?? REPORTING_TIMEZONE}）</span>
+          </p>
+        </div>
+        <ReportingRangeSelector
+          selection={selection}
+          onChange={applySelection}
+          resolvedFrom={s?.periodFrom ?? null}
+          resolvedTo={s?.periodTo ?? null}
+          busy={summary.loading}
+        />
+      </header>
+
+      {/* 銷售表現 —— 依 Creator 的決策順序排列：先看賺多少，再看幾筆、幾份、幾個教材。 */}
+      <section aria-labelledby="creator-performance" className="space-y-3">
+        <h2 id="creator-performance" className={sectionHeading}>
+          銷售表現
+        </h2>
+        {summary.error ? (
+          <ErrorState variant="inline" retryLabel="重新載入" title="銷售數據暫時無法載入" description={summary.error} onRetry={() => void loadSummary(rangeQuery)} />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="銷售額" value={s ? formatMoney(s.totalSalesAmount) : null} subtext="折扣前" loading={summary.loading} />
+            <StatCard label="成交訂單" value={s ? formatCount(s.totalOrders) : null} subtext="筆" loading={summary.loading} />
+            <StatCard label="賣出份數" value={s ? formatCount(s.totalSoldUnits) : null} subtext="份" loading={summary.loading} />
+            <StatCard label="有成交教材" value={s ? formatCount(s.materialsCount) : null} subtext="項" loading={summary.loading} />
+          </div>
+        )}
+      </section>
+
+      {/* 趨勢與 KPI 同屬 summary endpoint，因此共用它的 loading / error。 */}
+      <TrendChart
+        title="銷售額趨勢"
+        titleAs="h2"
+        titleClassName={sectionHeading}
+        description="依成交時間統計"
+        points={(s?.trend ?? []).map((p) => ({ key: p.key, value: p.salesAmount }))}
+        granularity={s?.granularity ?? "day"}
+        loading={summary.loading}
+        error={summary.error}
+        formatValue={formatMoney}
+        zeroLabel="此期間尚無成交。"
+      />
+
+      {/* ── 教材銷售表現 ──────────────────────────────────────────────────────── */}
+      <section id="materials" aria-labelledby="creator-materials" className="scroll-mt-20 space-y-2 lg:scroll-mt-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="creator-materials" className={sectionHeading}>
+            教材銷售表現
+          </h2>
+          <p className="text-caption text-ds-textMuted">依所選期間的銷售額排序</p>
+        </div>
+
+        {materials.loading ? (
+          <ListSkeleton rows={3} />
+        ) : materials.error ? (
+          <ErrorState variant="inline" retryLabel="重新載入" title="教材銷售資料暫時無法載入" description={materials.error} onRetry={() => void loadMaterials(rangeQuery)} />
+        ) : materialItems.length === 0 ? (
+          <EmptyState
+            title="此期間沒有教材成交資料"
+            description={EMPTY_HINT}
+            action={<AccentTextLink href="/creator/materials">前往我的教材</AccentTextLink>}
+          />
+        ) : (
+          <SurfaceCard elevation="raised" className="overflow-hidden">
+            {/* Desktop：表格。`lg` 以下改清單 —— 768px 四欄已經開始壓縮中文欄位。 */}
+            <table className="hidden w-full table-auto text-left text-sm lg:table">
+              <caption className="sr-only">教材銷售表現：教材、賣出份數、銷售額（折扣前）、最近成交時間</caption>
+              <thead>
+                <tr className="border-b border-ds-borderMuted text-caption text-ds-textMuted">
+                  <th scope="col" className="w-full max-w-0 px-4 py-2 font-medium">教材</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-3 py-2 text-right font-medium">賣出份數</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-3 py-2 text-right font-medium">銷售額</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-4 py-2 font-medium">最近成交</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ds-borderMuted">
+                {materialItems.map((m) => (
+                  <tr key={m.materialId} className="hover:bg-ds-surfaceMuted">
+                    {/* max-w-0 + truncate：長標題不再撐寬整欄，把數字擠到畫面右緣。 */}
+                    <td className="w-full max-w-0 px-4 py-2.5">
+                      <p className="truncate font-medium text-ds-heading" title={m.title}>{m.title}</p>
+                    </td>
+                    <td className="w-px whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-ds-body">{m.soldUnits}</td>
+                    <td className="w-px whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-ds-heading">{formatMoney(m.salesAmount)}</td>
+                    <td className="w-px whitespace-nowrap px-4 py-2.5 text-meta text-ds-textMuted">{formatTaipeiDate(m.lastSoldAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile / tablet：簡單分隔線清單，不做第二層卡片。 */}
+            <ul className="divide-y divide-ds-borderMuted lg:hidden">
+              {materialItems.map((m) => (
+                <li key={m.materialId} className="px-4 py-3">
+                  <p className="line-clamp-2 text-sm font-medium text-ds-heading" title={m.title}>{m.title}</p>
+                  <p className="mt-1 text-base font-semibold tabular-nums text-ds-heading">{formatMoney(m.salesAmount)}</p>
+                  <p className="mt-0.5 text-caption text-ds-textMuted">
+                    {m.soldUnits} 份・最近成交 {formatTaipeiDate(m.lastSoldAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </SurfaceCard>
+        )}
+      </section>
+
+      {/* ── 成交明細 ─────────────────────────────────────────────────────────── */}
+      <section id="records" aria-labelledby="creator-records" className="scroll-mt-20 space-y-2 lg:scroll-mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="creator-records" className={sectionHeading}>
+            成交明細
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 教材篩選只影響成交明細，因此放在這一區，而不是期間控制旁。 */}
+            <label htmlFor="creator-records-material" className="text-caption text-ds-textMuted">
+              教材
+            </label>
+            <select
+              id="creator-records-material"
+              value={materialFilter}
+              onChange={(e) => setMaterialFilter(e.target.value)}
+              className="min-h-10 max-w-[14rem] truncate rounded-xl border border-ds-border bg-ds-surface px-3 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+            >
+              {materialOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <Button intent="neutral" variant="outline" onClick={exportRecordsCsv} disabled={recordItems.length === 0} className="min-h-10 px-3 py-1.5">
+              匯出 CSV
+            </Button>
+          </div>
+        </div>
+
+        {records.loading ? (
+          <ListSkeleton rows={4} />
+        ) : records.error ? (
+          <ErrorState variant="inline" retryLabel="重新載入" title="成交明細暫時無法載入" description={records.error} onRetry={() => void loadRecords(rangeQuery, recordsPage, materialFilter)} />
+        ) : recordItems.length === 0 ? (
+          <EmptyState title="此期間沒有成交明細" description={EMPTY_HINT} />
+        ) : (
+          <SurfaceCard elevation="raised" className="overflow-hidden">
+            <table className="hidden w-full table-auto text-left text-sm lg:table">
+              <caption className="sr-only">成交明細：成交時間、教材、數量、單價、小計、訂單編號</caption>
+              <thead>
+                <tr className="border-b border-ds-borderMuted text-caption text-ds-textMuted">
+                  <th scope="col" className="w-px whitespace-nowrap px-4 py-2 font-medium">成交時間</th>
+                  <th scope="col" className="w-full max-w-0 px-3 py-2 font-medium">教材</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-3 py-2 text-right font-medium">數量</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-3 py-2 text-right font-medium">單價</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-3 py-2 text-right font-medium">小計</th>
+                  <th scope="col" className="w-px whitespace-nowrap px-4 py-2 font-medium">訂單</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ds-borderMuted">
+                {recordItems.map((r) => (
+                  <tr key={r.orderItemId} className="hover:bg-ds-surfaceMuted">
+                    <td className="w-px whitespace-nowrap px-4 py-2.5 text-meta text-ds-textMuted">{formatTaipeiDateTime(r.paidAt)}</td>
+                    <td className="w-full max-w-0 px-3 py-2.5">
+                      <p className="truncate font-medium text-ds-heading" title={r.materialTitle}>{r.materialTitle}</p>
+                    </td>
+                    <td className="w-px whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-ds-body">{r.quantity}</td>
+                    <td className="w-px whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-ds-body">{formatMoney(r.unitPrice)}</td>
+                    <td className="w-px whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-ds-heading">{formatMoney(r.subtotal)}</td>
+                    {/* opaque id 降權：畫面只顯示末六碼，完整值放 title。 */}
+                    <td className="w-px whitespace-nowrap px-4 py-2.5 font-mono text-meta text-ds-textMuted" title={r.orderId}>{shortId(r.orderId)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <ul className="divide-y divide-ds-borderMuted lg:hidden">
+              {recordItems.map((r) => (
+                <li key={r.orderItemId} className="px-4 py-3">
+                  <p className="text-caption text-ds-textMuted">{formatTaipeiDateTime(r.paidAt)}</p>
+                  <p className="mt-0.5 line-clamp-2 text-sm font-medium text-ds-heading" title={r.materialTitle}>{r.materialTitle}</p>
+                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                    <span className="text-caption tabular-nums text-ds-textMuted">
+                      {r.quantity} 份 × {formatMoney(r.unitPrice)}
+                    </span>
+                    <span className="text-base font-semibold tabular-nums text-ds-heading">{formatMoney(r.subtotal)}</span>
+                  </div>
+                  <p className="mt-0.5 font-mono text-caption text-ds-textMuted" title={r.orderId}>訂單 {shortId(r.orderId)}</p>
+                </li>
+              ))}
+            </ul>
+
+            {/* 分頁放在清單下方（標準位置）；筆數只在這裡出現一次，不與區塊標題重複。 */}
+            <nav aria-label="成交明細分頁" className="flex flex-wrap items-center justify-between gap-2 border-t border-ds-borderMuted px-4 py-3">
+              <p className="text-caption text-ds-textMuted">共 {recordsTotal.toLocaleString("zh-TW")} 筆</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  intent="neutral" variant="outline" className="min-h-10 px-3 py-1.5"
+                  onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                  disabled={recordsPage <= 1}
+                >
+                  上一頁
+                </Button>
+                <span className="text-caption tabular-nums text-ds-textMuted">
+                  第 {recordsPage} / {recordsTotalPages} 頁
+                </span>
+                <Button
+                  intent="neutral" variant="outline" className="min-h-10 px-3 py-1.5"
+                  onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
+                  disabled={recordsPage >= recordsTotalPages}
+                >
+                  下一頁
+                </Button>
+              </div>
+            </nav>
+          </SurfaceCard>
+        )}
+      </section>
+    </section>
+  );
+}
+
+/** 保留區塊高度的載入骨架，避免切換期間時版面塌陷再彈回。 */
+function ListSkeleton({ rows }: { rows: number }) {
+  return (
+    <SurfaceCard elevation="raised" className="divide-y divide-ds-borderMuted" role="status" aria-live="polite">
+      <span className="sr-only">載入中</span>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center justify-between gap-4 px-4 py-3.5" aria-hidden>
+          <span className="h-4 w-1/2 animate-pulse motion-reduce:animate-none rounded-full bg-ds-surfaceMuted" />
+          <span className="h-4 w-20 animate-pulse motion-reduce:animate-none rounded-full bg-ds-surfaceMuted" />
+        </div>
+      ))}
+    </SurfaceCard>
   );
 }

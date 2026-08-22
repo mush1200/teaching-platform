@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { BrandCtaLink } from "../ds";
 
+/** 數值不可用（來源 API 失敗）時的顯示字元。刻意不用 `0` —— `0` 代表真實資料為零。 */
+const UNAVAILABLE = "—";
+
 type Props = {
   icon: string;
   title: string;
-  count: number;
+  /** `null` = 來源 API 失敗，渲染為 `—`。 */
+  count: number | null;
   description: string;
   href: string;
   ctaLabel?: string;
+  /** 載入中顯示 skeleton。與 `count === null`（取得失敗）刻意分開。 */
+  loading?: boolean;
 };
 
 /**
@@ -21,7 +27,7 @@ type Props = {
  *   - 隱藏按鈕，改成整張卡可點（覆蓋式連結），觸控面積放大到整張卡
  * 兩個斷點各只渲染一個連結（另一個 `display:none`，不會被輔助技術重複朗讀）。
  */
-export function AdminTaskCard({ icon, title, count, description, href, ctaLabel = "前往處理" }: Props) {
+export function AdminTaskCard({ icon, title, count, description, href, ctaLabel = "前往處理", loading = false }: Props) {
   return (
     <article className="relative rounded-ds-card border border-ds-border bg-ds-surface p-4 shadow-ds-card">
       {/*
@@ -37,7 +43,16 @@ export function AdminTaskCard({ icon, title, count, description, href, ctaLabel 
         <h3 className="order-3 w-full text-sm font-semibold text-ds-heading sm:order-2 sm:w-auto sm:min-w-0 sm:flex-1">
           {title}
         </h3>
-        <p className="order-2 shrink-0 text-2xl font-bold leading-none text-ds-heading sm:order-3">{count}</p>
+        <p className="order-2 shrink-0 text-2xl font-bold leading-none text-ds-heading sm:order-3">
+          {loading ? (
+            <>
+              <span aria-hidden className="inline-block h-5 w-10 animate-pulse motion-reduce:animate-none rounded-full bg-ds-surfaceMuted align-middle" />
+              <span className="sr-only">載入中</span>
+            </>
+          ) : (
+            count ?? UNAVAILABLE
+          )}
+        </p>
       </div>
       <p className="mt-2 hidden text-meta leading-snug text-ds-textMuted sm:block">{description}</p>
 

@@ -6,9 +6,12 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "smoke": "node scripts/api-smoke-test.js",
+    "test:unit": "node --test tests/reportingRange.test.js tests/trendBuckets.test.js tests/reportWorkflow.test.js tests/adminQuery.test.js tests/paymentProofReview.test.js",
+    "test:db": "node scripts/run-db-tests.js",
     "create-admin": "node scripts/create-admin.js",
     "smtp:check": "node scripts/smtp-smoke-test.js",
-    "postman:newman": "node scripts/run-postman.js"
+    "postman:newman": "node scripts/run-postman.js",
+    "test": "npm run test:unit && npm run test:db"
   },
   "keywords": [],
   "author": "",

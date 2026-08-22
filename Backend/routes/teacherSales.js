@@ -1,8 +1,26 @@
 const express = require("express");
-const db = require("../config/db");
 const { requireAuth, requireRole } = require("../middlewares/auth");
+const { resolveReportingRange, InvalidDateRangeError } = require("../utils/reportingRange");
+const teacherSalesService = require("../services/teacherSales.service");
 
 const router = express.Router();
+
+/**
+ * Creator（teacher）銷售統計。
+ *
+ * 三支 endpoint 共用**同一個** reporting range resolver（`utils/reportingRange.js`）與
+ * 同一個 eligible-sale 定義（`services/teacherSales.service.js`），與 Admin dashboard
+ * 完全一致：Asia/Taipei 日曆日、half-open `[start, end)`、`range` / `from` / `to` 契約、
+ * 不合法 → 400 `INVALID_DATE_RANGE`、未帶參數 → 預設近 30 天。
+ *
+ * 語意（見 docs/mvp_rules.md §18）：
+ *   金額 = SUM(order_items.subtotal)（**折扣前** Creator Gross Sales）
+ *   狀態 = orders.status = 'approved'（`completed` 為 dead status，已移除）
+ *   日期 = orders.paid_at（成交／核准日，非下單日）
+ *
+ * 刻意**不再**提供 `status` query 參數：canonical 定義已固定為 approved + paid_at，
+ * 其餘狀態的訂單沒有 `paid_at`，任何 status 篩選都只會回傳空集合。
+ */
 
 function toPositiveInt(value, fallback) {
   const num = Number.parseInt(String(value ?? ""), 10);
@@ -10,245 +28,67 @@ function toPositiveInt(value, fallback) {
   return num;
 }
 
-function parseDateStart(value) {
-  if (!value) return null;
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+function parsePagination(query) {
+  const page = toPositiveInt(query.page, 1);
+  const limit = Math.min(100, toPositiveInt(query.limit, 20));
+  return { page, limit };
 }
 
-function parseDateEnd(value) {
-  if (!value) return null;
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(23, 59, 59, 999);
-  return date.toISOString();
-}
-
-function buildOrderStatusCondition(status, params, allowAll = false) {
-  if (status && status !== "all") {
-    params.push(status);
-    return ` AND o.status = $${params.length} `;
+/**
+ * 與 Admin dashboard 相同的期間解析與錯誤行為。
+ * 解析失敗時回 400 並結束回應，回傳 `null` 讓 caller 直接 return。
+ */
+function resolvePeriodOrFail(req, res) {
+  try {
+    return resolveReportingRange(req.query || {});
+  } catch (err) {
+    if (err instanceof InvalidDateRangeError) {
+      res.status(400).json({ error: err.code, message: err.message });
+      return null;
+    }
+    throw err;
   }
-  if (allowAll) return "";
-  return ` AND o.status IN ('approved', 'completed') `;
 }
 
-function buildDateRangeCondition(fromIso, toIso, params) {
-  let sql = "";
-  if (fromIso) {
-    params.push(fromIso);
-    sql += ` AND o.created_at >= $${params.length} `;
-  }
-  if (toIso) {
-    params.push(toIso);
-    sql += ` AND o.created_at <= $${params.length} `;
-  }
-  return sql;
-}
-
+/** GET /teacher/sales/summary?range=today|7d|30d|this_month|custom&from=&to= */
 router.get("/summary", requireAuth, requireRole("teacher"), async (req, res) => {
-  const teacherId = req.user.userId;
-  const fromIso = parseDateStart(req.query.from);
-  const toIso = parseDateEnd(req.query.to);
-  const status = req.query.status ? String(req.query.status) : null;
+  const period = resolvePeriodOrFail(req, res);
+  if (!period) return undefined;
 
   try {
-    const params = [teacherId];
-    const statusSql = buildOrderStatusCondition(status, params);
-    const dateSql = buildDateRangeCondition(fromIso, toIso, params);
-
-    const summaryResult = await db.query(
-      `SELECT
-         COALESCE(SUM(oi.quantity), 0)::int AS total_sold_units,
-         COALESCE(SUM(oi.subtotal), 0)::int AS total_revenue,
-         COUNT(DISTINCT o.id)::int AS total_orders,
-         COUNT(DISTINCT oi.material_id)::int AS materials_count
-       FROM order_items oi
-       INNER JOIN orders o ON o.id = oi.order_id
-       WHERE oi.seller_id = $1
-       ${statusSql}
-       ${dateSql}`,
-      params
-    );
-
-    const trendParams = [teacherId];
-    const trendStatusSql = buildOrderStatusCondition(status, trendParams);
-    const trendDateSql = buildDateRangeCondition(fromIso, toIso, trendParams);
-    const trendResult = await db.query(
-      `SELECT DATE(o.created_at) AS day,
-              COALESCE(SUM(oi.quantity), 0)::int AS sold_units,
-              COALESCE(SUM(oi.subtotal), 0)::int AS revenue
-       FROM order_items oi
-       INNER JOIN orders o ON o.id = oi.order_id
-       WHERE oi.seller_id = $1
-       ${trendStatusSql}
-       ${trendDateSql}
-       GROUP BY DATE(o.created_at)
-       ORDER BY DATE(o.created_at) ASC`,
-      trendParams
-    );
-
-    const summary = summaryResult.rows[0] || {
-      total_sold_units: 0,
-      total_revenue: 0,
-      total_orders: 0,
-      materials_count: 0,
-    };
-    return res.json({
-      totalSoldUnits: Number(summary.total_sold_units || 0),
-      totalRevenue: Number(summary.total_revenue || 0),
-      totalOrders: Number(summary.total_orders || 0),
-      materialsCount: Number(summary.materials_count || 0),
-      trend: trendResult.rows.map((row) => ({
-        day: row.day,
-        soldUnits: Number(row.sold_units || 0),
-        revenue: Number(row.revenue || 0),
-      })),
-    });
+    return res.json(await teacherSalesService.getSalesSummary(period, req.user.userId));
   } catch (err) {
     console.error("teacher sales summary failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });
 
+/** GET /teacher/sales/materials?range=…&search=&page=&limit= */
 router.get("/materials", requireAuth, requireRole("teacher"), async (req, res) => {
-  const teacherId = req.user.userId;
-  const fromIso = parseDateStart(req.query.from);
-  const toIso = parseDateEnd(req.query.to);
-  const status = req.query.status ? String(req.query.status) : null;
+  const period = resolvePeriodOrFail(req, res);
+  if (!period) return undefined;
+
+  const { page, limit } = parsePagination(req.query || {});
   const search = req.query.search ? String(req.query.search).trim() : "";
-  const page = toPositiveInt(req.query.page, 1);
-  const limit = Math.min(100, toPositiveInt(req.query.limit, 20));
-  const offset = (page - 1) * limit;
 
   try {
-    const baseParams = [teacherId];
-    let whereSql = ` WHERE oi.seller_id = $1 `;
-    whereSql += buildOrderStatusCondition(status, baseParams);
-    whereSql += buildDateRangeCondition(fromIso, toIso, baseParams);
-
-    if (search) {
-      baseParams.push(`%${search}%`);
-      whereSql += ` AND (m.title ILIKE $${baseParams.length} OR oi.material_id ILIKE $${baseParams.length}) `;
-    }
-
-    const countQuery = await db.query(
-      `SELECT COUNT(*)::int AS total
-       FROM (
-         SELECT oi.material_id
-         FROM order_items oi
-         INNER JOIN orders o ON o.id = oi.order_id
-         INNER JOIN materials m ON m.id = oi.material_id
-         ${whereSql}
-         GROUP BY oi.material_id
-       ) s`,
-      baseParams
-    );
-    const total = Number(countQuery.rows[0]?.total || 0);
-
-    const listParams = [...baseParams, limit, offset];
-    const rows = await db.query(
-      `SELECT
-         oi.material_id AS "materialId",
-         m.title AS title,
-         COALESCE(SUM(oi.quantity), 0)::int AS "soldUnits",
-         COALESCE(SUM(oi.subtotal), 0)::int AS revenue,
-         MAX(o.created_at) AS "lastSoldAt"
-       FROM order_items oi
-       INNER JOIN orders o ON o.id = oi.order_id
-       INNER JOIN materials m ON m.id = oi.material_id
-       ${whereSql}
-       GROUP BY oi.material_id, m.title
-       ORDER BY COALESCE(SUM(oi.subtotal), 0) DESC, MAX(o.created_at) DESC
-       LIMIT $${listParams.length - 1}
-       OFFSET $${listParams.length}`,
-      listParams
-    );
-
-    return res.json({
-      items: rows.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    });
+    return res.json(await teacherSalesService.getSalesByMaterial(period, req.user.userId, { search, page, limit }));
   } catch (err) {
     console.error("teacher sales by materials failed:", err);
     return res.status(500).json({ message: "server error" });
   }
 });
 
+/** GET /teacher/sales/records?range=…&materialId=&page=&limit= */
 router.get("/records", requireAuth, requireRole("teacher"), async (req, res) => {
-  const teacherId = req.user.userId;
-  const fromIso = parseDateStart(req.query.from);
-  const toIso = parseDateEnd(req.query.to);
-  const status = req.query.status ? String(req.query.status) : null;
+  const period = resolvePeriodOrFail(req, res);
+  if (!period) return undefined;
+
+  const { page, limit } = parsePagination(req.query || {});
   const materialId = req.query.materialId ? String(req.query.materialId).trim() : "";
-  const page = toPositiveInt(req.query.page, 1);
-  const limit = Math.min(100, toPositiveInt(req.query.limit, 20));
-  const offset = (page - 1) * limit;
 
   try {
-    const params = [teacherId];
-    let whereSql = ` WHERE oi.seller_id = $1 `;
-    whereSql += buildOrderStatusCondition(status, params, true);
-    whereSql += buildDateRangeCondition(fromIso, toIso, params);
-
-    if (!status || status === "all") {
-      whereSql += ` AND o.status IN ('approved', 'completed') `;
-    }
-
-    if (materialId) {
-      params.push(materialId);
-      whereSql += ` AND oi.material_id = $${params.length} `;
-    }
-
-    const countResult = await db.query(
-      `SELECT COUNT(*)::int AS total
-       FROM order_items oi
-       INNER JOIN orders o ON o.id = oi.order_id
-       INNER JOIN materials m ON m.id = oi.material_id
-       ${whereSql}`,
-      params
-    );
-    const total = Number(countResult.rows[0]?.total || 0);
-
-    const listParams = [...params, limit, offset];
-    const result = await db.query(
-      `SELECT
-         o.id AS "orderId",
-         oi.id AS "orderItemId",
-         oi.material_id AS "materialId",
-         m.title AS "materialTitle",
-         oi.quantity AS quantity,
-         COALESCE(oi.subtotal, 0)::int AS subtotal,
-         COALESCE(oi.price_snapshot, 0)::int AS "unitPrice",
-         o.user_id AS "buyerId",
-         o.status AS "orderStatus",
-         o.created_at AS "createdAt",
-         o.paid_at AS "paidAt"
-       FROM order_items oi
-       INNER JOIN orders o ON o.id = oi.order_id
-       INNER JOIN materials m ON m.id = oi.material_id
-       ${whereSql}
-       ORDER BY o.created_at DESC, oi.id DESC
-       LIMIT $${listParams.length - 1}
-       OFFSET $${listParams.length}`,
-      listParams
-    );
-
-    return res.json({
-      items: result.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    });
+    return res.json(await teacherSalesService.getSalesRecords(period, req.user.userId, { materialId, page, limit }));
   } catch (err) {
     console.error("teacher sales records failed:", err);
     return res.status(500).json({ message: "server error" });

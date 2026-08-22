@@ -1,16 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, getStoredRole } from "../../lib/api-client";
 import { ParentAppShell } from "../dashboard/ParentAppShell";
+import { MobileNavBar, NavDrawer } from "./NavDrawer";
+import { CreatorSidebar, SimpleNavSidebar } from "./CreatorSidebar";
+import type { CreatorSection } from "./CreatorSidebar";
+import { CONTENT_OFFSET_CLASS } from "./shell-constants";
 
 type RoleKind = "public" | "parent" | "teacher" | "creator" | "admin";
 type NavItem = { href: string; label: string; exact?: boolean };
-type CreatorNavItem = { id: string; href?: string; label: string; icon: string; exact?: boolean; action?: "logout" };
-type CreatorSection = { label: string; items: CreatorNavItem[] };
 
 const NAVS: Record<RoleKind, NavItem[]> = {
   public: [
@@ -31,16 +32,16 @@ const NAVS: Record<RoleKind, NavItem[]> = {
   teacher: [
     { href: "/creator/materials", label: "教材管理" },
     { href: "/creator/materials/new", label: "新增教材" },
-    { href: "/creator/sales", label: "銷售與收益" },
+    { href: "/creator/sales", label: "我的銷售" },
   ],
   creator: [
     { href: "/creator/materials", label: "教材管理" },
     { href: "/creator/materials/new", label: "新增教材" },
-    { href: "/creator/sales", label: "銷售與收益" },
+    { href: "/creator/sales", label: "我的銷售" },
   ],
   admin: [
     { href: "/admin", label: "儀表板", exact: true },
-    { href: "/admin/materials", label: "教材管理" },
+    { href: "/admin/materials", label: "教材審核" },
     { href: "/admin/orders", label: "訂單管理" },
     { href: "/admin/users", label: "用戶管理" },
     { href: "/admin/reviews-hub", label: "教學回饋管理" },
@@ -50,19 +51,26 @@ const NAVS: Record<RoleKind, NavItem[]> = {
   ],
 };
 
+/**
+ * 「教材狀態」只列 Backend 真的存在的三個值。
+ *
+ * 這裡原本還有一個 `?status=draft` —— `materials.status` 的 allowlist
+ * （`Backend/routes/materials.js`）是 `pending_review | published | unpublished`，
+ * 沒有 `draft`，所以那是一個永遠 0 筆的 dead filter。移除它不是視覺調整，
+ * 是把 UI 對回真實的 domain state（Epic §5 同一個原則）。
+ */
 const CREATOR_SECTIONS: CreatorSection[] = [
   {
     label: "主要功能",
     items: [
       { id: "teacher-materials", href: "/creator/materials?view=list", label: "教材管理", icon: "📖" },
       { id: "teacher-create", href: "/creator/materials/new", label: "新增教材", icon: "➕" },
-      { id: "teacher-sales", href: "/creator/sales?tab=overview", label: "銷售與收益", icon: "📊" },
+      { id: "teacher-sales", href: "/creator/sales?tab=overview", label: "我的銷售", icon: "📊" },
     ],
   },
   {
     label: "教材狀態",
     items: [
-      { id: "teacher-status-draft", href: "/creator/materials?status=draft", label: "草稿", icon: "📝" },
       { id: "teacher-status-pending", href: "/creator/materials?status=pending_review", label: "待審核", icon: "⏱️" },
       { id: "teacher-status-published", href: "/creator/materials?status=published", label: "已發布", icon: "✅" },
       { id: "teacher-status-unpublished", href: "/creator/materials?status=unpublished", label: "已下架", icon: "📦" },
@@ -70,14 +78,18 @@ const CREATOR_SECTIONS: CreatorSection[] = [
   },
   {
     label: "成效與互動",
-    items: [{ id: "teacher-reviews", href: "/creator/materials?view=reviews", label: "教材教學回饋", icon: "💬" }],
+    items: [
+      { id: "teacher-reviews", href: "/creator/materials?view=reviews", label: "教材教學回饋", icon: "💬" },
+      { id: "teacher-cases", href: "/creator/cases", label: "平台案件", icon: "🚩" },
+    ],
   },
   {
     label: "帳戶",
-    items: [
-      { id: "teacher-profile", href: "/creator/materials?view=profile", label: "個人資料", icon: "👤" },
-      { id: "teacher-logout", label: "登出", icon: "🚪", action: "logout" },
-    ],
+    /*
+     * 登出**不**放在這裡：shell 底部的固定登出列已經有一顆，Admin 側欄也只有那一顆。
+     * 兩顆同名按鈕除了讓 accessibility tree 出現重複的「登出」之外沒有任何好處。
+     */
+    items: [{ id: "teacher-profile", href: "/creator/materials?view=profile", label: "個人資料", icon: "👤" }],
   },
 ];
 
@@ -109,13 +121,17 @@ function isActive(pathname: string, item: NavItem) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function getCreatorActiveId(pathname: string, params: { status: string | null; view: string | null; tab: string | null }) {
-  if (pathname.startsWith("/teacher/materials/new") || pathname.startsWith("/creator/materials/new")) return "teacher-create";
+function getCreatorActiveId(
+  pathname: string,
+  params: { status: string | null; view: string | null; tab: string | null }
+) {
+  if (pathname.startsWith("/teacher/cases") || pathname.startsWith("/creator/cases")) return "teacher-cases";
+  if (pathname.startsWith("/teacher/materials/new") || pathname.startsWith("/creator/materials/new"))
+    return "teacher-create";
   if (pathname.startsWith("/teacher/sales") || pathname.startsWith("/creator/sales")) {
     return "teacher-sales";
   }
   if (pathname.startsWith("/teacher/materials") || pathname.startsWith("/creator/materials")) {
-    if (params.status === "draft") return "teacher-status-draft";
     if (params.status === "pending_review") return "teacher-status-pending";
     if (params.status === "published") return "teacher-status-published";
     if (params.status === "unpublished") return "teacher-status-unpublished";
@@ -134,29 +150,41 @@ function roleTitle(role: RoleKind) {
   return "探索教材";
 }
 
+/**
+ * 非 Admin 路由的外殼。
+ *
+ * Mobile drawer 的行為（hamburger、ESC、scroll lock、focus、overlay、寬度）
+ * 一律來自 `components/layout/NavDrawer`，與 `AdminShell` 是**同一份實作** ——
+ * 之前 Creator 用的是文字「選單」按鈕、沒有 ESC、沒有 scroll lock，
+ * 而且側欄面板不是 flex 容器，導致內容超過視窗時完全捲不動（Epic §10、§11）。
+ */
 export function RoleShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [storedRole, setStoredRole] = useState<RoleKind | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [creatorStatusCounts, setCreatorStatusCounts] = useState({
-    draft: 0,
     pending_review: 0,
     published: 0,
     unpublished: 0,
   });
+  const [creatorCaseCount, setCreatorCaseCount] = useState(0);
   const role = getRoleByPath(pathname, storedRole);
   const nav = NAVS[role];
+
+  const closeNav = useCallback(() => setMobileOpen(false), []);
+  const openNav = useCallback(() => setMobileOpen(true), []);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    const role = getStoredRole();
-    if (role === "parent" || role === "teacher" || role === "creator" || role === "admin") {
-      setStoredRole(role === "teacher" ? "creator" : role);
+    const stored = getStoredRole();
+    if (stored === "parent" || stored === "teacher" || stored === "creator" || stored === "admin") {
+      setStoredRole(stored === "teacher" ? "creator" : stored);
     } else {
       setStoredRole(null);
     }
@@ -173,10 +201,11 @@ export function RoleShell({ children }: { children: ReactNode }) {
         const meId = mePayload.user?.id;
         const materialsRes = await apiFetch("materials");
         if (!materialsRes.ok) return;
-        const materialsPayload = (await materialsRes.json()) as { items?: Array<{ teacher_id?: string; status?: string }> };
+        const materialsPayload = (await materialsRes.json()) as {
+          items?: Array<{ teacher_id?: string; status?: string }>;
+        };
         const own = (materialsPayload.items ?? []).filter((item) => (meId ? item.teacher_id === meId : true));
         const next = {
-          draft: own.filter((item) => item.status === "draft").length,
           pending_review: own.filter((item) => item.status === "pending_review").length,
           published: own.filter((item) => item.status === "published").length,
           unpublished: own.filter((item) => item.status === "unpublished").length,
@@ -184,6 +213,28 @@ export function RoleShell({ children }: { children: ReactNode }) {
         if (active) setCreatorStatusCounts(next);
       } catch {
         /* keep last counts */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [pathname, role]);
+
+  /**
+   * 待回覆的平台案件數。讀 API 回傳的 `actionRequiredCount`（全表計數），
+   * 不是 `items.length` —— 後者只是第一頁。
+   */
+  useEffect(() => {
+    if (role !== "creator") return;
+    let active = true;
+    void (async () => {
+      try {
+        const res = await apiFetch("creator/cases?scope=action_required&page=1&limit=1");
+        if (!res.ok) return;
+        const payload = (await res.json()) as { actionRequiredCount?: number };
+        if (active) setCreatorCaseCount(Number(payload.actionRequiredCount ?? 0));
+      } catch {
+        /* keep last count */
       }
     })();
     return () => {
@@ -236,256 +287,79 @@ export function RoleShell({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
+  const isCreator = role === "creator" || role === "teacher";
+  const title = roleTitle(role);
+  const drawerId = isCreator ? "creator-mobile-nav" : "role-mobile-nav";
+
   const creatorActiveId = getCreatorActiveId(pathname, {
     status: searchParams.get("status"),
     view: searchParams.get("view"),
     tab: searchParams.get("tab"),
   });
 
-  const creatorItemCls = (item: CreatorNavItem) =>
-    [
-      "flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-sm transition-colors",
-      creatorActiveId === item.id
-        ? "border-[#6C63FF] bg-[#EDE9FE] font-semibold text-[#6C63FF]"
-        : "border-transparent font-medium text-[#4B5563] hover:bg-[#F7F4FF] hover:text-[#1F2937]",
-    ].join(" ");
+  const creatorBadges = {
+    "teacher-status-pending": { value: creatorStatusCounts.pending_review, tone: "bg-[#FEF3EC] text-edu-warning" },
+    "teacher-status-published": { value: creatorStatusCounts.published, tone: "bg-[#ECFDF3] text-edu-success" },
+    "teacher-status-unpublished": { value: creatorStatusCounts.unpublished, tone: "bg-[#F3F4F6] text-ds-textMuted" },
+    // 只有真的有待回覆案件才顯示徽章；`0` 徽章只是視覺噪音。
+    ...(creatorCaseCount > 0
+      ? { "teacher-cases": { value: creatorCaseCount, tone: "bg-[#FEE2E2] text-[#B91C1C]" } }
+      : {}),
+  };
 
-  const creatorStatusBadgeMap = {
-    "teacher-status-draft": { value: creatorStatusCounts.draft, tone: "bg-[#F3F4F6] text-[#6B7280]" },
-    "teacher-status-pending": { value: creatorStatusCounts.pending_review, tone: "bg-[#FEF3EC] text-[#F59E0B]" },
-    "teacher-status-published": { value: creatorStatusCounts.published, tone: "bg-[#ECFDF3] text-[#22C55E]" },
-    "teacher-status-unpublished": { value: creatorStatusCounts.unpublished, tone: "bg-[#F3F4F6] text-[#6B7280]" },
-  } as const;
-
-  const creatorSectionLabel = "mb-2 mt-6 px-3 text-xs font-semibold tracking-wide text-[#7C74C8]";
-  const creatorHeader = (
-    <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
-      <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
-      <div className="mt-3 rounded-3xl bg-[#F4F1FF] p-4">
-        <p className="text-3xl leading-none" aria-hidden>
-          🎓
-        </p>
-        <p className="mt-2 text-[30px] font-bold leading-none text-[#1F2937]">Hi, 歡迎回來 👋</p>
-        <p className="mt-2 text-sm text-[#6B7280]">管理你的創作者教材與銷售</p>
-      </div>
-    </div>
-  );
-
-  if (role === "creator" || role === "teacher") {
-    return (
-      <div className="min-h-dvh bg-gradient-to-br from-[#F4F1FF] via-white to-[#F4F1FF]">
-        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[#E5E7EB]/80 bg-white px-4 py-3 lg:hidden">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EDUMARKET</p>
-            <p className="text-sm font-bold text-[#1F2937]">創作者工作台</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileOpen((prev) => !prev)}
-            className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700"
-            aria-label="切換側邊選單"
-            aria-expanded={mobileOpen}
-          >
-            {mobileOpen ? "關閉" : "選單"}
-          </button>
-        </div>
-
-        {mobileOpen ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-            aria-label="關閉側邊欄遮罩"
-            onClick={() => setMobileOpen(false)}
-          />
-        ) : null}
-
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-[#E5E7EB]/80 bg-white transition-transform lg:hidden ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          {creatorHeader}
-          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="創作者工作台手機側邊選單">
-            {CREATOR_SECTIONS.map((section) => (
-              <div key={`mobile-${section.label}`}>
-                <p className={creatorSectionLabel}>{section.label}</p>
-                <ul className="space-y-1">
-                  {section.items.map((item) => (
-                    <li key={`mobile-${item.id}`}>
-                      {item.action === "logout" ? (
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="flex w-full items-center gap-3 rounded-xl border-l-[3px] border-transparent px-3 py-2.5 text-left text-sm font-medium text-[#4B5563] transition-colors hover:bg-[#FEF2F2] hover:text-[#EF4444]"
-                        >
-                          <span aria-hidden>{item.icon}</span>
-                          {item.label}
-                        </button>
-                      ) : (
-                        <Link href={item.href ?? "/creator/materials"} className={creatorItemCls(item)}>
-                          <span aria-hidden>{item.icon}</span>
-                          <span>{item.label}</span>
-                          {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap] ? (
-                            <span
-                              className={`ml-auto inline-flex min-w-[1.6rem] items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
-                                creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].tone
-                              }`}
-                            >
-                              {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].value}
-                            </span>
-                          ) : null}
-                        </Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-[#E5E7EB]/80 bg-white lg:flex lg:flex-col">
-          {creatorHeader}
-          <nav className="flex flex-1 flex-col overflow-y-auto px-3 pb-3" aria-label="創作者工作台側邊選單">
-            {CREATOR_SECTIONS.map((section) => (
-              <div key={section.label}>
-                <p className={creatorSectionLabel}>{section.label}</p>
-                <ul className="space-y-1">
-                  {section.items.map((item) => (
-                    <li key={item.id}>
-                      {item.action === "logout" ? (
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="flex w-full items-center gap-3 rounded-xl border-l-[3px] border-transparent px-3 py-2.5 text-left text-sm font-medium text-[#4B5563] transition-colors hover:bg-[#FEF2F2] hover:text-[#EF4444]"
-                        >
-                          <span aria-hidden>{item.icon}</span>
-                          {item.label}
-                        </button>
-                      ) : (
-                        <Link href={item.href ?? "/creator/materials"} className={creatorItemCls(item)}>
-                          <span aria-hidden>{item.icon}</span>
-                          <span>{item.label}</span>
-                          {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap] ? (
-                            <span
-                              className={`ml-auto inline-flex min-w-[1.6rem] items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
-                                creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].tone
-                              }`}
-                            >
-                              {creatorStatusBadgeMap[item.id as keyof typeof creatorStatusBadgeMap].value}
-                            </span>
-                          ) : null}
-                        </Link>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        <div className="lg:ml-60">
-          <main className="min-h-dvh">{children}</main>
-        </div>
-      </div>
+  const sidebar = (variant: "desktop" | "drawer") =>
+    isCreator ? (
+      <CreatorSidebar
+        variant={variant}
+        sections={CREATOR_SECTIONS}
+        activeId={creatorActiveId}
+        badges={creatorBadges}
+        onNavigate={variant === "drawer" ? closeNav : undefined}
+        onLogout={handleLogout}
+      />
+    ) : (
+      <SimpleNavSidebar
+        variant={variant}
+        title={title}
+        items={nav}
+        isActive={(item) => isActive(pathname, item as NavItem)}
+        onNavigate={variant === "drawer" ? closeNav : undefined}
+        onLogout={handleLogout}
+      />
     );
-  }
 
   return (
     <div className="min-h-dvh bg-gradient-to-br from-[#F4F1FF] via-white to-[#F4F1FF]">
-      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-[#E5E7EB]/80 bg-white px-4 py-3 lg:hidden">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
-          <p className="text-sm font-bold text-[#1F2937]">{roleTitle(role)}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setMobileOpen((prev) => !prev)}
-          className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700"
-          aria-label="切換側邊選單"
-          aria-expanded={mobileOpen}
-        >
-          {mobileOpen ? "關閉" : "選單"}
-        </button>
-      </div>
+      {sidebar("desktop")}
 
-      {mobileOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-          aria-label="關閉側邊欄遮罩"
-          onClick={() => setMobileOpen(false)}
-        />
-      ) : null}
+      <MobileNavBar
+        title={title}
+        onOpen={openNav}
+        open={mobileOpen}
+        controls={drawerId}
+        triggerRef={triggerRef}
+        triggerLabel="開啟側邊選單"
+      />
 
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-[#E5E7EB]/80 bg-white transition-transform lg:hidden ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+      <NavDrawer
+        open={mobileOpen}
+        onClose={closeNav}
+        id={drawerId}
+        ariaLabel={`${title}選單`}
+        triggerRef={triggerRef}
+        header={
+          <>
+            <p className="truncate text-caption font-semibold uppercase tracking-wider text-edu-primary">
+              EDUMARKET
+            </p>
+            <p className="truncate text-sm font-bold text-ds-heading">{title}</p>
+          </>
+        }
       >
-        <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
-          <p className="text-lg font-bold text-[#1F2937]">{roleTitle(role)}</p>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="手機側邊選單">
-          {nav.map((item) => (
-            <Link
-              key={`mobile-${item.href}`}
-              href={item.href}
-              className={`block rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                isActive(pathname, item)
-                  ? "bg-[#F4F1FF] text-[#6C63FF]"
-                  : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#1F2937]"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-[#E5E7EB]/80 p-3">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="block w-full rounded-2xl px-4 py-2.5 text-center text-sm font-semibold text-[#6B7280] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
-          >
-            登出
-          </button>
-        </div>
-      </aside>
+        {sidebar("drawer")}
+      </NavDrawer>
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-[#E5E7EB]/80 bg-white lg:flex lg:flex-col">
-        <div className="border-b border-[#E5E7EB]/80 px-5 py-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
-          <p className="text-lg font-bold text-[#1F2937]">{roleTitle(role)}</p>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="側邊選單">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                isActive(pathname, item)
-                  ? "bg-[#F4F1FF] text-[#6C63FF]"
-                  : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#1F2937]"
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-[#E5E7EB]/80 p-3">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="block w-full rounded-2xl px-4 py-2.5 text-center text-sm font-semibold text-[#6B7280] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
-          >
-            登出
-          </button>
-        </div>
-      </aside>
-
-      <div className="lg:ml-60">
+      <div className={CONTENT_OFFSET_CLASS}>
         <main className="min-h-dvh">{children}</main>
       </div>
     </div>

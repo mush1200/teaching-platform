@@ -6,7 +6,11 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 2. UI must not use `家長` or `老師` as primary identity labels.
 3. Use purpose-oriented wording (what user wants to do), not identity labels.
 4. Buyer-side wording should stay generic: `歡迎回來`, `探索教材`, `我的訂單`, `我的內容`.
-5. Creator-side wording should stay generic: `教材工作台`, `我的教材`, `銷售與收益`.
+5. Creator-side wording should stay generic: `教材工作台`, `我的教材`, `我的銷售`.
+   Creator money metrics are **gross sales before discount** (`SUM(order_items.subtotal)`,
+   recognised at `orders.paid_at`), so the UI must say `銷售額`, never `營收` or `收益` —
+   `營收` is the admin-side recognised revenue (post-discount order total) and there is no
+   commission/settlement model behind `收益`. See `docs/mvp_rules.md` §18.
 6. Admin can use `管理員` or `平台管理`.
 7. Register page is the only exception for options: `我要購買教材` / `我要上架教材`.
 8. Register helper text may mention groups (家長/學生/老師), but not as main labels.

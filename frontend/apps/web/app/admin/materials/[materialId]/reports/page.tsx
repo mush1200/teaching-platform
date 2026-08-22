@@ -6,6 +6,7 @@ import { Button, EmptyState, ErrorState, LoadingState, SelectField } from "@teac
 import Link from "next/link";
 import type { Report } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
+import { REPORT_STATUS_LABEL } from "../../../../../lib/admin-labels";
 
 const statusOptions = [
   { label: "全部", value: "all" },
@@ -18,10 +19,21 @@ const sourceOptions = [
   { label: "GET /materials/{id}/reports", value: "materials" },
 ];
 
+/**
+ * 狀態文案走共用對照表。
+ *
+ * 這一頁讀的是 **legacy** 端點（`?status=` 只接受 `pending` / `reviewed`），
+ * 但回傳的列可能已經是新工作流的狀態（`investigating` / `awaiting_creator` / …）。
+ * 自己寫兩個 if 會讓那些列顯示成原始英文 code。
+ */
 function reportStatusLabel(status?: string): string {
-  if (status === "pending") return "待處理";
-  if (status === "reviewed") return "已處理";
-  return status ?? "未知";
+  if (!status) return "未知";
+  return REPORT_STATUS_LABEL[status as keyof typeof REPORT_STATUS_LABEL] ?? status;
+}
+
+/** legacy 的「標記已處理」只允許 pending → reviewed；其餘狀態按了只會拿到 409。 */
+function canMarkReviewed(status?: string): boolean {
+  return status === "pending";
 }
 
 export default function AdminMaterialReportsPage() {
@@ -102,7 +114,16 @@ export default function AdminMaterialReportsPage() {
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <h1 className="text-2xl font-bold text-slate-900">教材檢舉紀錄</h1>
-      <p className="text-sm text-slate-600">教材 ID：{materialId}。兩種後端路徑回傳相同列表，可於下方切換驗證。</p>
+      <p className="text-sm text-slate-600">
+        教材 ID：{materialId}。兩種後端路徑回傳相同列表，可於下方切換驗證。
+      </p>
+      <p className="text-sm text-slate-600">
+        這裡是 legacy 的唯讀檢視（狀態篩選僅支援「待處理 / 已處理」）。完整的調查、與創作者往返與處置請到
+        <Link href="/admin/reports">
+          <span className="mx-1 font-medium text-indigo-600 underline">檢舉案件佇列</span>
+        </Link>
+        。
+      </p>
 
       <div className="flex flex-wrap gap-3 text-sm">
         <Link href="/admin/materials">
@@ -112,7 +133,7 @@ export default function AdminMaterialReportsPage() {
           <span className="font-medium text-indigo-600 underline">此教材的活動紀錄</span>
         </Link>
         <Link href="/admin/reports">
-          <span className="font-medium text-indigo-600 underline">全部檢舉</span>
+          <span className="font-medium text-indigo-600 underline">檢舉案件佇列</span>
         </Link>
       </div>
 
@@ -143,7 +164,7 @@ export default function AdminMaterialReportsPage() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  disabled={r.status === "reviewed" || reviewingId !== null}
+                  disabled={!canMarkReviewed(r.status) || reviewingId !== null}
                   loading={reviewingId === r.id}
                   onPress={() => void markReviewed(r.id)}
                 >

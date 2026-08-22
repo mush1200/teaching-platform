@@ -129,13 +129,19 @@ CREATE TABLE IF NOT EXISTS manual_payment_proofs (
   proof_size_bytes INTEGER,
   original_filename TEXT,
   review_status TEXT NOT NULL DEFAULT 'pending',
+  -- `note` 為自由文字（核准備註／退件補充說明／系統註記）。
+  -- `rejection_reason` 為結構化的退件原因 code；退件時必填（app 層驗證，見 docs/mvp_rules.md §12.2）。
   note TEXT,
+  rejection_reason TEXT,
   reviewed_by TEXT REFERENCES users(id),
   reviewed_at TIMESTAMP,
   uploaded_at TIMESTAMP,
   updated_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  CONSTRAINT mpp_review_status_check CHECK (review_status IN ('pending', 'approved', 'rejected'))
+  CONSTRAINT mpp_review_status_check CHECK (review_status IN ('pending', 'approved', 'rejected')),
+  CONSTRAINT mpp_rejection_reason_check CHECK (rejection_reason IS NULL OR rejection_reason IN (
+    'amount_mismatch', 'unreadable', 'payment_not_found', 'invalid_proof', 'other'
+  ))
 );
 
 CREATE TABLE IF NOT EXISTS review (
@@ -148,17 +154,44 @@ CREATE TABLE IF NOT EXISTS review (
   UNIQUE (material_id, parent_id)
 );
 
+-- Moderation case。狀態機的 canonical 定義在 Backend/utils/reportWorkflow.js
+-- （docs/mvp_rules.md §6）。`reviewed` 為 legacy 終態，保留於 allowlist 且不回填。
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
   material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
   reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   reason TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
+  resolution TEXT,
+  resolution_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ,
   reviewed_at TIMESTAMPTZ,
   reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-  CONSTRAINT reports_status_check CHECK (status IN ('pending', 'reviewed')),
+  CONSTRAINT reports_status_check CHECK (status IN (
+    'pending', 'investigating', 'awaiting_creator', 'resolved', 'dismissed', 'reviewed'
+  )),
+  CONSTRAINT reports_resolution_check CHECK (resolution IS NULL OR resolution IN (
+    'dismissed', 'warning', 'request_changes', 'unpublish_material'
+  )),
   UNIQUE (material_id, reporter_id)
+);
+
+-- 案件歷程 / 溝通串。Admin 的處理歷程與 Creator 的補充說明寫在同一張表，時間軸只有一份。
+-- 與 activity_logs 分工：activity_logs 是全平台稽核軌跡，report_events 是案件內容
+-- （會顯示給創作者看；`admin_note` 除外，Creator 端 API 會過濾）。
+CREATE TABLE IF NOT EXISTS report_events (
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+  actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  actor_role TEXT,
+  event_type TEXT NOT NULL,
+  message TEXT,
+  meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT report_events_type_check CHECK (event_type IN (
+    'status_changed', 'admin_note', 'creator_response_requested', 'creator_response', 'resolution'
+  ))
 );
 
 CREATE TABLE IF NOT EXISTS user_favorites (
@@ -187,6 +220,9 @@ CREATE INDEX IF NOT EXISTS idx_manual_payment_proofs_status ON manual_payment_pr
 CREATE INDEX IF NOT EXISTS idx_review_material_id ON review(material_id);
 CREATE INDEX IF NOT EXISTS idx_review_parent_id ON review(parent_id);
 CREATE INDEX IF NOT EXISTS idx_reports_material_id ON reports(material_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_events_report_id ON report_events(report_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_material_contents_material_id ON material_contents(material_id);
 CREATE INDEX IF NOT EXISTS idx_material_images_material_id ON material_images(material_id);
 CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites(user_id);
@@ -201,3 +237,5 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created
 -- `20260420_day20_reports_reporter_status.sql`
 -- `20260420_day20b_report_reviewed_metadata.sql`
 -- `20260423_day22_activity_logs_indexes.sql`
+-- `20260822_report_case_workflow.sql`
+-- `20260822_payment_proof_rejection_reason.sql`

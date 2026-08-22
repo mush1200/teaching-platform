@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@teaching-platform/ui";
 import { ReviewItem } from "../../../components/reviews/ReviewItem";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
+import { PageHeader } from "../../../components/ds";
 import type { MockReview } from "../../../lib/view-models";
 
 type Row = {
@@ -42,15 +43,22 @@ export default function AdminReviewsHubPage() {
     setLoading(true);
     setError(null);
     try {
-      const mRes = await apiFetch("admin/materials");
+      /*
+       * `limit=60` 是明確帶上的，不是預設值。
+       * `GET /admin/materials` 現在是 server-side 分頁（預設 20 筆／頁），
+       * 不帶 limit 只會拿到第一頁，而這一頁的行為契約是「前 60 筆教材」。
+       *
+       * 這個 N+1（每份教材一次 reviews 請求）是既有的實作缺口，本輪不改 ——
+       * 修它需要一支 admin 端的彙總 API，屬於「教學回饋管理」的 MVP 範圍決策。
+       */
+      const mRes = await apiFetch("admin/materials?limit=60");
       if (!mRes.ok) {
         setRows([]);
         setError(await parseApiErrorMessage(mRes));
         return;
       }
       const payload = (await mRes.json()) as { items?: { id: string; title: string }[] };
-      const mats = payload.items ?? [];
-      const capped = mats.slice(0, 60);
+      const capped = payload.items ?? [];
       const batches = await Promise.all(
         capped.map(async (m) => {
           const r = await apiFetch(`materials/${encodeURIComponent(m.id)}/reviews`);
@@ -88,13 +96,25 @@ export default function AdminReviewsHubPage() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <div>
-        <h1 className="text-xl font-bold text-[#1F2937]">教學回饋總覽</h1>
-        <p className="mt-1 text-sm text-[#6B7280]">
-          依教材彙總公開教學回饋（較新在上）；教材數量多時僅載入前 60 筆教材以避免過度請求。
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <PageHeader
+        title="教學回饋總覽"
+        description="依教材彙總公開的教學回饋（較新在上）。這是唯讀檢視 —— 目前沒有下架或隱藏單筆回饋的 API。"
+        action={
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-4 text-sm font-medium text-ds-heading transition-colors hover:bg-edu-page disabled:opacity-50"
+          >
+            重新整理
+          </button>
+        }
+      />
+      <p className="rounded-ds-card border border-ds-border bg-ds-surface px-4 py-3 text-meta text-ds-textMuted">
+        僅載入前 60 筆教材的回饋。這一頁尚未有專屬的彙總 API，因此不做分頁也不提供搜尋 ——
+        要做完整的回饋管理（隱藏、標記、與檢舉串接）需要先確認 MVP 範圍。
+      </p>
 
       {loading ? <LoadingState title="載入教學回饋中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}

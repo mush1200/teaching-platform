@@ -263,6 +263,24 @@ async function runIdempotentMigrations() {
     END $$;
   `);
 
+  /*
+   * 結構化的拒絕原因（Epic §4）。`note` 保留為自由文字補充說明 ——
+   * 它同時被用在核准備註與「superseded by approved proof」的系統註記上，語意不動。
+   * canonical allowlist 在 `utils/paymentProofReview.js`。
+   */
+  await db.query(`ALTER TABLE manual_payment_proofs ADD COLUMN IF NOT EXISTS rejection_reason TEXT;`);
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE manual_payment_proofs DROP CONSTRAINT IF EXISTS mpp_rejection_reason_check;
+      ALTER TABLE manual_payment_proofs
+        ADD CONSTRAINT mpp_rejection_reason_check
+        CHECK (rejection_reason IS NULL OR rejection_reason IN (
+          'amount_mismatch', 'unreadable', 'payment_not_found', 'invalid_proof', 'other'
+        ));
+    END $$;
+  `);
+
   await db.query(`DROP INDEX IF EXISTS idx_manual_payment_proofs_order_id;`);
   await db.query(`DROP INDEX IF EXISTS idx_manual_payment_proofs_review;`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_manual_payment_proofs_order ON manual_payment_proofs(order_id);`);
@@ -500,16 +518,69 @@ async function runIdempotentMigrations() {
   await db.query(`ALTER TABLE reports ALTER COLUMN status SET NOT NULL;`).catch(() => {});
   await db.query(`ALTER TABLE reports ALTER COLUMN reporter_id SET NOT NULL;`).catch(() => {});
 
+  /*
+   * `reports.status` 的 allowlist —— canonical 定義在 `utils/reportWorkflow.js`。
+   *
+   * 這裡用 DROP + ADD（而非 `EXCEPTION WHEN duplicate_object`）：舊資料庫上已經存在
+   * 一個只允許 `pending | reviewed` 的同名 constraint，靠「已存在就跳過」永遠不會被放寬。
+   * 兩個 statement 包在同一個 DO block 內 —— DO block 是單一 statement，
+   * 不會出現「已 DROP、尚未 ADD」的無約束視窗。
+   *
+   * `reviewed` 是 legacy 終態，**保留於 allowlist 且不回填**：既有列反映的是
+   * 「當時只做了標記已讀」，改寫會讓它與真正做過處置的案件無法區分。
+   */
   await db.query(`
     DO $$
     BEGIN
+      ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_status_check;
       ALTER TABLE reports
         ADD CONSTRAINT reports_status_check
-        CHECK (status IN ('pending', 'reviewed'));
-    EXCEPTION
-      WHEN duplicate_object THEN NULL;
+        CHECK (status IN ('pending', 'investigating', 'awaiting_creator', 'resolved', 'dismissed', 'reviewed'));
     END $$;
   `);
+
+  // 檢舉案件工作流欄位（Epic §2）。只做加法。
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolution TEXT;`);
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolution_note TEXT;`);
+  await db.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;`);
+  await db.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_resolution_check;
+      ALTER TABLE reports
+        ADD CONSTRAINT reports_resolution_check
+        CHECK (resolution IS NULL OR resolution IN ('dismissed', 'warning', 'request_changes', 'unpublish_material'));
+    END $$;
+  `);
+
+  /*
+   * 案件歷程 / 溝通串。Admin 的處理歷程與 Creator 的補充說明寫在同一張表，
+   * 時間軸因此只有一份 —— 不需要在 UI 端把兩個來源合併排序。
+   *
+   * 這**不是** activity_logs 的替代品：activity_logs 是全平台稽核軌跡（不可竄改、
+   * 不做業務查詢），report_events 是案件本身的內容（要顯示給 Creator 看）。
+   * 兩者都會寫。
+   */
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS report_events (
+      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+      report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+      actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      actor_role TEXT,
+      event_type TEXT NOT NULL,
+      message TEXT,
+      meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT report_events_type_check CHECK (event_type IN (
+        'status_changed', 'admin_note', 'creator_response_requested', 'creator_response', 'resolution'
+      ))
+    );
+  `);
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_report_events_report_id ON report_events(report_id, created_at);`
+  );
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC);`);
 
   await db.query(`
     DO $$

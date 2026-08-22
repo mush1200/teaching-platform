@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { installCoreApiMocks } from "./helpers/mock-api";
+import { getTestCookieUrl } from "./helpers/base-url";
 
 async function setAuthState(page: Page, role: "parent" | "admin", token: string) {
   const email = role === "parent" ? "parent@example.com" : "admin@example.com";
@@ -23,9 +24,16 @@ async function setAuthState(page: Page, role: "parent" | "admin", token: string)
       coverGradient: "from-rose-100 to-orange-50",
     },
   ];
+  /*
+   * Cookie 的 origin 必須跟著 `baseURL` 走。
+   * 這裡原本寫死 `http://127.0.0.1:3010/` —— 把測試指到別的 port（例如 production build）
+   * 時，cookie 會被設在 3010 而永遠送不出去，middleware 就把每一頁導向 /login，
+   * 於是整個 describe 都在登入頁上「通過」。
+   */
+  const cookieUrl = getTestCookieUrl();
   await page.context().addCookies([
-    { name: "tp_token", value: token, url: "http://127.0.0.1:3010/" },
-    { name: "tp_role", value: role, url: "http://127.0.0.1:3010/" },
+    { name: "tp_token", value: token, url: cookieUrl },
+    { name: "tp_role", value: role, url: cookieUrl },
   ]);
   await page.addInitScript(
     ({ t, r, e, cart }) => {
@@ -157,35 +165,67 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await dlButton.click();
   });
 
-  test("ADMIN | CI | 11) admin reports list loads report rows", async ({ page }) => {
+  /*
+   * 11–14 已改寫成新的營運流程（Admin Operations UX Closure Epic）：
+   *   - 檢舉不再是一顆「標記已處理」，而是一個有調查、往返與處置的案件流程
+   *   - 付款審核不再要求 Admin 手動輸入憑證 ID，而是搜尋 → 開啟審核面板 → 決定
+   * 這些 check 要守的東西沒變：Admin 找得到案件、看得懂內容、做得出決定。
+   */
+  test("ADMIN | CI | 11) admin report case queue loads cases with readable context", async ({ page }) => {
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/reports");
     await expect(page.getByRole("heading", { name: "檢舉管理" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "標記已處理" }).first()).toBeVisible();
+    const row = page.getByTestId("admin-report-row").first();
+    // 教材、創作者、檢舉人都要看得到 —— 不是三個 id
+    await expect(row).toContainText("示範教材");
+    await expect(row).toContainText("creator@example.com");
+    await expect(row).toContainText("parent@example.com");
   });
 
-  test("ADMIN | CI | 12) admin reports can mark reviewed", async ({ page }) => {
+  test("ADMIN | CI | 12) admin can open a case and act on it", async ({ page }) => {
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/reports");
-    await page.getByRole("button", { name: "標記已處理" }).first().click();
-    await expect(page.getByText("檢舉已標記為已處理。")).toBeVisible();
+    await page.getByTestId("report-case-open").first().click();
+    await expect(page.getByTestId("report-case-detail")).toBeVisible();
+    // 動作按鈕由 Backend 的 allowedTransitions 決定；pending 案件可以接手調查
+    await expect(page.getByTestId("report-investigate")).toBeVisible();
+    await page.getByTestId("report-investigate").click();
+    await expect(page.getByTestId("report-case-message")).toContainText("已接手");
   });
 
-  test("ADMIN | NIGHTLY | 13) admin payment proofs list + filter controls visible", async ({ page }) => {
+  test("ADMIN | NIGHTLY | 13) admin payment review is searchable and shows decision context", async ({ page }) => {
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/payment-proofs");
-    await expect(page.getByRole("heading", { name: "付款憑證審核" })).toBeVisible();
-    await expect(page.getByText("憑證 ID：proof_001")).toBeVisible();
-    await expect(page.getByRole("button", { name: "待審" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "全部" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "付款審核" })).toBeVisible();
+    // 入口是訂單編號 / 購買者，不是內部憑證 ID
+    await expect(page.getByTestId("toolbar-search-input")).toBeVisible();
+    await expect(page.getByTestId("filter-tab-pending")).toBeVisible();
+    await expect(page.getByTestId("filter-tab-all")).toBeVisible();
+
+    const row = page.getByTestId("admin-payment-proof-row").first();
+    await expect(row).toContainText("ord_mock_001");
+    await expect(row).toContainText("parent@example.com");
+
+    await page.getByTestId("payment-proof-open").first().click();
+    const panel = page.getByTestId("payment-review-panel");
+    await expect(panel).toContainText("NT$ 299");
+    await expect(panel).toContainText("付款期限");
   });
 
-  test("ADMIN | NIGHTLY | 14) admin payment proofs reject requires note", async ({ page }) => {
+  test("ADMIN | NIGHTLY | 14) admin payment rejection requires a structured reason", async ({ page }) => {
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/payment-proofs");
-    await page.fill("#proof-id", "proof_001");
-    await page.getByRole("button", { name: "拒絕憑證" }).click();
-    await expect(page.getByText("拒絕時需填寫原因。")).toBeVisible();
+    await page.getByTestId("payment-proof-open").first().click();
+    await page.getByTestId("payment-reject-open").click();
+
+    // 「其他」需要補充說明，否則購買者收到的是一句空話
+    await page.getByTestId("rejection-reason-other").check();
+    await page.getByTestId("payment-reject-confirm").click();
+    await expect(page.getByTestId("payment-review-message")).toContainText("必須填寫說明");
+
+    await page.getByTestId("rejection-note").fill("銀行查無此筆匯款");
+    await page.getByTestId("payment-reject-confirm").click();
+    await expect(page.getByTestId("payment-review-message")).toContainText("已退回");
   });
 
   test("ADMIN | NIGHTLY | 15) admin material reports mark reviewed and show feedback", async ({ page }) => {

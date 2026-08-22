@@ -41,7 +41,19 @@ function requireEnv(name) {
 const testAdminEmail = requireEnv("TEST_ADMIN_EMAIL");
 const testAdminPassword = requireEnv("TEST_ADMIN_PASSWORD");
 
+/*
+ * Optional base URL override, mirroring `API_SMOKE_BASE` in scripts/api-smoke-test.js.
+ *
+ * The environment file pins `baseUrl` to port 3000, which is also the default dev port.
+ * Integration runs must target a Backend connected to `teaching_platform_security_test`;
+ * when a development server already occupies 3000, start the test one on another port and
+ * point the collection at it instead of stopping the dev server (or, worse, running the
+ * collection against the development database).
+ */
+const baseUrlOverride = String(process.env.POSTMAN_BASE_URL || "").trim();
+
 console.log(`run-postman: admin account = ${testAdminEmail}`);
+if (baseUrlOverride) console.log(`run-postman: baseUrl override = ${baseUrlOverride}`);
 
 newman.run(
   {
@@ -54,6 +66,7 @@ newman.run(
     envVar: [
       { key: "testAdminEmail", value: testAdminEmail },
       { key: "testAdminPassword", value: testAdminPassword },
+      ...(baseUrlOverride ? [{ key: "baseUrl", value: baseUrlOverride }] : []),
     ],
     reporters: ["cli"],
     timeoutRequest: 60000,

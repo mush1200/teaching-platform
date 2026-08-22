@@ -386,13 +386,38 @@ app  →  layout  →  domain  →  ds  →  ui
 | **Loading state** | `LoadingState` | `components/ds/StateViews.tsx` | **canonical（遷移中）** | 同上，**另有 17 檔仍為 legacy**；`role="status"` + `aria-live="polite"`，spinner 沿用 repo 既有 border-trick 慣例 |
 | **Error state** | `ErrorState` | `components/ds/StateViews.tsx` | **canonical（遷移中）** | 同上，**另有 18 檔仍為 legacy**；`role="alert"`，紅色只用於 icon／標題／邊框，不做大面積紅底 |
 | **Skeleton** | — | — | **missing** | 4 個檔案各自手寫 `animate-pulse` |
-| **Modal / Drawer** | — | — | **missing** | legacy `AppDialog` 有 export 但 **零使用**；mobile drawer 是 `ParentAppShell` / `Sidebar` 內的 domain code |
+| **Pagination** | `Pagination` | `components/ds/Pagination.tsx` | **canonical**（2026-08-22 起） | 頁碼 + 省略號 + 每頁筆數。Admin 四個清單頁使用。legacy：Tamagui `Pagination`（僅上一頁／下一頁）與 `components/parent/PaginationBar`（buyer 端，尚未遷移）**不得**在新頁面使用 |
+| **Search field** | `SearchField` | `components/ds/DataToolbar.tsx` | **canonical**（2026-08-22 起） | **送出制**（Enter／按鈕），不逐字 debounce —— 這些搜尋會打 server 並改寫 URL |
+| **Filter tabs** | `FilterTabs` | `components/ds/DataToolbar.tsx` | **canonical**（2026-08-22 起） | 互斥狀態篩選 + 全表計數徽章。取代了先前四頁四種寫法（Tamagui `SelectField` / 兩顆 `Button` toggle / 裸 `<select>` / 四個 `InputField`） |
+| **Data toolbar** | `DataToolbar` | `components/ds/DataToolbar.tsx` | **canonical**（2026-08-22 起） | 搜尋 + 篩選 + 次要控制項的容器 |
+| **Page header** | `PageHeader` | `components/ds/PageHeader.tsx` | **canonical**（2026-08-22 起） | 標題階層 + 描述 + 右側動作。取代各頁就地寫死的 `text-2xl font-bold text-slate-900` |
+| **Status pill** | `StatusPill` | `components/ds/PageHeader.tsx` | **canonical**（2026-08-22 起） | 以 `status.*` token 上色。與 legacy Tamagui `StatusBadge` 並存，新頁面用這個 |
+| **Detail field / grid** | `DetailField` / `DetailGrid` | `components/ds/PageHeader.tsx` | **canonical**（2026-08-22 起） | 詳情頁的「標籤／值」列 |
+| **Modal / Drawer** | `NavDrawer` / `NavDrawerTrigger` / `MobileNavBar` | `components/layout/NavDrawer.tsx` | **canonical（導覽用）**（2026-08-22 起） | Admin 與 Creator 的 mobile drawer 共用同一份行為（hamburger／ESC／scroll lock／focus／overlay／寬度）。**通用 modal 仍 missing**；legacy `AppDialog` 有 export 但零使用；`ParentAppShell` 的 drawer 尚未遷移 |
 | **Tabs** | — | — | **domain-only** | `components/dashboard/CategoryTabs.tsx`、`components/parent/CategoryChips.tsx`、`app/orders/page.tsx` 各一套 |
 | **Stepper** | — | — | **domain-only** | `components/checkout/CheckoutStepper.tsx`；`app/orders/page.tsx` 與 `MaterialDetailPurchasePanel` 另有各自的步驟視覺 |
 | **Pagination** | — | — | **duplicated** | legacy Tamagui `Pagination`（6 檔）vs `components/parent/PaginationBar.tsx`（1 檔） |
 | **Toast** | `GlobalToastHost` | `components/ui/GlobalToastHost.tsx` | **canonical** | 事件驅動（`window` event `tp:toast`），掛在 root layout |
 | **Icons** | — | `components/ui/icons.tsx` + `lucide-react` | **duplicated** | 手寫 SVG（`IconMenu`/`IconSearch`/`IconCart`…）與 `lucide-react`（6 檔）並存 |
 | **CTA links** | `PrimaryCtaLink` / `BrandCtaLink` / `DangerCtaLink` / `AccentTextLink` | `components/ds/` | **canonical** | `<Link>` 型 CTA 用這些，不要把 `Button` 包進 `Link` |
+
+### [規則] Shell 尺寸只有一份定義
+
+Admin 與 Creator 的側欄尺寸一律讀 `components/layout/shell-constants.ts`：
+
+| 項目 | 值 | 常數 |
+| --- | --- | --- |
+| Desktop 側欄寬 | 240px（`layout-sidebar` token） | `SIDEBAR_DESKTOP_WIDTH_CLASS` |
+| 主內容左偏移（`lg`） | 240px | `CONTENT_OFFSET_CLASS` |
+| Mobile drawer 寬 | `min(18rem, 85vw)` | `DRAWER_WIDTH_CLASS` |
+| 可捲動導覽區 | `min-h-0 flex-1 overflow-y-auto` | `SIDEBAR_NAV_SCROLL_CLASS` |
+
+**Shell 尺寸一致，導覽內容可以不同。** 導覽項目比較多不是把 rail 加寬的理由 ——
+用 spacing / truncation / tooltip 解決。
+
+`SIDEBAR_NAV_SCROLL_CLASS` 的 `min-h-0` **不是保險**：flex item 的 `min-height` 預設是
+`auto`（＝內容高度），少了它，可捲動區不會縮小，而是把整條側欄撐出視窗外。
+詳見 `docs/mvp_rules.md` §22.1。
 
 > **[規則] 發現 `missing` 不代表要立刻建立。** 只有當「目前這個 UI 任務真的需要它、且 ≥ 3 處會用」時才建立，並在同一個 PR 更新本文件。
 
@@ -556,7 +581,7 @@ Shared components（3）：`components/parent/ExplorePage.tsx`、`components/par
 1. ~~補齊 `EmptyState` / `LoadingState` / `ErrorState`~~ → **已於 2026-08-19 建立於 `components/ds/StateViews.tsx`**（放 `ds` 而非 `ui`：三者為 surface + typography + 選用 action 的 composed pattern，且 `ErrorState` reuse `ui/Button`）。剩下的工作是把其餘 legacy 引用點逐步改過來：`EmptyState` 20 檔、`LoadingState` 17 檔、`ErrorState` 18 檔，合計 **55 個引用點**。
 2. `StatusBadge` → 以既有 `status.*` Tailwind token 實作 Badge
 3. `SelectField` / `InputField` → `components/ui`
-4. `Pagination` 統一（與 `PaginationBar` 二選一）
+4. ~~`Pagination` 統一~~ → **已於 2026-08-22 建立 canonical `components/ds/Pagination.tsx`**（頁碼 + 省略號 + 每頁筆數），Admin 四個清單頁已使用。剩下的工作是把 buyer 端的 `components/parent/PaginationBar` 與 legacy Tamagui `Pagination` 的引用點遷移過來。
 5. 最後才拔 provider 與 dependency
 
 **這是方向，不是承諾；未經授權不得執行。**
@@ -678,6 +703,7 @@ Desktop 檢視必須在 **100% zoom** 下進行（§8.3）。
 | v1.1 | 2026-08-19 | 建立 canonical `EmptyState` / `LoadingState` / `ErrorState`（`components/ds/StateViews.tsx`），並在 `RecentOrdersTable` / `RecentActivityList` 驗證；同步更新 §9、§12.3、§15.1 H2 |
 | v1.2 | 2026-08-19 | `RecentOrdersTable` 訂單 status badge 改用 canonical `status.*` token（`pendingPayment` / `approved`）；同步更新 §4.3 B10、§9 Badge、§15.2 M4（含 `status.pendingPayment` 對比不足之發現） |
 | v1.3 | 2026-08-19 | Admin 兩張摘要卡（`RecentOrdersTable` / `RecentActivityList`）統一改用 `SurfaceCard` + `ds` token + `AccentTextLink`；Recent Orders 改欄寬策略消除 horizontal overflow；同步更新 §9 SurfaceCard |
+| v1.5 | 2026-08-22 | Admin Operations UX Closure Epic：新增 canonical `Pagination` / `SearchField` / `FilterTabs` / `DataToolbar` / `PageHeader` / `StatusPill` / `DetailField`；`components/layout/NavDrawer` + `shell-constants` 統一 Admin 與 Creator 的 shell 尺寸與 mobile drawer 行為（含修正 Creator drawer 無法捲動的 root cause）；同步更新 §9 元件盤點、§9 Shell 尺寸規則、§12.3 backlog |
 | v1.4 | 2026-08-19 | Admin Dashboard 首屏密度：`AdminTaskCard` / `AdminKpiCard` / `AdminQuickActions` 收斂內距與字級並全面改用 `ds` / `intent` token（硬編碼 hex 歸零），section 間距改用 `space-y-section-md`；摘要卡在 1280px 從 y=636 提前到 y=492；同步更新 §4.3 B5/B9、§15.2 M1 |
 | v1.5 | 2026-08-19 | Admin Dashboard 改用 operations-first IA（proposal B）：順序改為 標題 → 待處理 KPI → 最近訂單/最近活動 → 統計；訂單左、活動右；Dashboard 不再 render `AdminQuickActions`。1280×560 下 Recent 從 y=496 提前到 **y=293**。同步更新 §15.3 |
 | v1.6 | 2026-08-19 | `AdminShell` mobile navigation：`lg` 以下側欄改為 compact top bar + slide-in drawer + overlay（沿用 `ParentAppShell` 慣例），`AdminSidebar` 加 `variant` / `onNavigate`、共用同一份 navigation source。390px 下 Dashboard 內容起點 y=770 → **y=85**。同步更新 §7.1 Admin 列 |
