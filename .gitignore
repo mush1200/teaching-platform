@@ -3,7 +3,16 @@ frontend/node_modules/
 Backend/.env
 frontend/.env
 Backend/uploads/
+# 私有檔案：教材本體（買家付費取得的商品）與付款憑證（買家的匯款證明）。
+# 與 uploads/ 不同的是它從不被 static serving 公開，也絕對不能進版控。
+# 見 docs/material-file-storage-and-delivery.md §23。
+Backend/private-storage/
 
 .cursor/
 *.log
 Backend/server-out.log
+
+# 從 frontend/ 這一層（而非 frontend/apps/web/）呼叫 playwright 時會找不到 config，
+# 退回「以 cwd 為根」的預設值，於是把產物寫到這裡。這不是 canonical config 會產生的
+# 路徑（正確的在 frontend/apps/web/.gitignore），但實際會出現，且內容純屬執行產物。
+frontend/test-results/
