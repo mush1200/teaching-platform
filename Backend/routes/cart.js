@@ -4,6 +4,7 @@ const db = require("../config/db");
 
 const { requireAuth } = require("../middlewares/auth");
 const { writeActivityLog } = require("../utils/activityLog");
+const { isNotDeliverable, MATERIAL_NOT_DELIVERABLE_MESSAGE } = require("../utils/materialDeliverability");
 
 async function listCart(req, res) {
   try {
@@ -33,10 +34,20 @@ router.post("/items", requireAuth, async (req, res) => {
       return res.status(400).json({ message: "materialId and positive integer quantity are required" });
     }
 
-    const material = await db.query(`SELECT id, status FROM materials WHERE id = $1 LIMIT 1`, [String(materialId)]);
+    const material = await db.query(`SELECT id, status, approved_file_id FROM materials WHERE id = $1 LIMIT 1`, [
+      String(materialId),
+    ]);
     if (material.rows.length === 0) return res.status(404).json({ message: "material not found" });
     if (material.rows[0].status !== "published") {
       return res.status(400).json({ message: "only published material can be added to cart" });
+    }
+    /*
+     * 可交付性防線 #2（見 `utils/materialDeliverability.js`）。
+     * `published` 不等於「有檔案可下載」—— 沒有 `approved_file_id` 的教材若讓它進購物車，
+     * 買家會一路付完款才在下載時失敗。這裡是買家最早撞到的地方，所以在這裡就講清楚。
+     */
+    if (isNotDeliverable(material.rows[0])) {
+      return res.status(409).json({ message: MATERIAL_NOT_DELIVERABLE_MESSAGE });
     }
 
     const existed = await db.query(

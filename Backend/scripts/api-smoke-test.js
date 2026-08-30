@@ -83,13 +83,77 @@ function requireEnv(name) {
   return String(raw);
 }
 
+/**
+ * 產生一個**最小但合法**的 PDF。
+ *
+ * 上傳端會驗 magic bytes，所以 fixture 不能是隨手一串位元組 —— 那正是這一層要擋掉的東西。
+ * 每次內容不同（帶入 seed），才能驗證 SHA-256 round-trip 真的對到這一份檔案。
+ */
+function makeSmokePdf(seed) {
+  return Buffer.from(`%PDF-1.7
+% smoke fixture ${seed}
+1 0 obj<</Type/Catalog>>endobj
+trailer<</Root 1 0 R>>
+%%EOF
+`, "latin1");
+}
+
+/** 上傳一份教材本體檔案，回傳 `{ fileId, bytes }`（bytes 供 checksum 比對）。 */
+async function uploadSmokeMaterialFile(token, seed) {
+  const bytes = makeSmokePdf(seed);
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "application/pdf" }), `smoke_${seed}.pdf`);
+  const res = await http("POST", "/teacher/uploads/material-file", { token, rawBody: form });
+  expect(
+    "POST /teacher/uploads/material-file",
+    res.status === 201 && res.data?.fileId,
+    JSON.stringify(res.data)
+  );
+  return { fileId: res.data.fileId, bytes };
+}
+
+/**
+ * 產生一張**最小但合法**的 PNG（magic bytes 是真的）。
+ *
+ * 素材上傳端會驗 magic bytes，所以 fixture 不能是隨手一串位元組 —— 那正是這一層
+ * 要擋掉的東西（改個副檔名就能寫進伺服器磁碟）。
+ */
+function makeSmokePng(seed) {
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from(`IHDR smoke media ${seed}`, "latin1"),
+  ]);
+}
+
+/** 上傳一張教材封面素材，回傳 `{ url, mediaId, bytes }`。 */
+async function uploadSmokeMaterialMedia(token, seed, kind = "cover") {
+  const bytes = makeSmokePng(seed);
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "image/png" }), `smoke_${seed}.png`);
+  const res = await http("POST", `/teacher/uploads/material-media?kind=${kind}`, {
+    token,
+    rawBody: form,
+  });
+  expect(
+    "POST /teacher/uploads/material-media",
+    res.status === 201 && res.data?.url && res.data?.mediaId,
+    JSON.stringify(res.data)
+  );
+  return { url: res.data.url, mediaId: res.data.mediaId, bytes, response: res.data };
+}
+
+/** 素材交付路徑（相對於 BASE）。 */
+function mediaPath(mediaId) {
+  return `/materials/media/${mediaId}`;
+}
+
 /** 符合目前 POST /materials 必填欄位之最小 body（教學商品欄位）。 */
-function smokeMaterialBody({ title, fileKey, price = 100 }) {
+function smokeMaterialBody({ title, fileId, price = 100, coverImageUrl }) {
   return {
     title,
     price,
-    file_key: fileKey,
-    cover_image_url: "https://picsum.photos/seed/smoke-cover/640/480",
+    fileId,
+    cover_image_url: coverImageUrl || "https://picsum.photos/seed/smoke-cover/640/480",
     teaching_objective: "Smoke test teaching objective",
     teaching_methods: ["遊戲活動"],
     usage_duration: "約 1 小時",
@@ -218,24 +282,191 @@ async function main() {
 
   // Teacher creates material
   let materialId;
+  // 主教材的檔案位元組，稍後用來驗證買家下載到的內容逐位元組相同。
+  let smokeMaterialFileBytes;
+  // 封面素材：用來驗證「未上架素材不得匿名取得、上架後自動公開」（SEC-02）。
+  let smokeCover;
   {
+    const uploaded = await uploadSmokeMaterialFile(teacherToken, `main_${stamp}`);
+    smokeMaterialFileBytes = uploaded.bytes;
+    smokeCover = await uploadSmokeMaterialMedia(teacherToken, `cover_${stamp}`);
+
+    // 上傳回應不得洩漏儲存資訊。
+    const serialized = JSON.stringify(smokeCover.response);
+    expect(
+      "material media upload exposes no storage key or public path",
+      !serialized.includes("material-media/") &&
+        !serialized.includes("/uploads/") &&
+        smokeCover.response.storage_key === undefined &&
+        smokeCover.response.checksum_sha256 === undefined,
+      serialized
+    );
+    console.log("OK  POST /teacher/uploads/material-media (no storage key leaked)");
+
     const { status, data } = await http("POST", "/materials", {
       token: teacherToken,
-      body: smokeMaterialBody({ title: `Smoke material ${stamp}`, fileKey: `files/smoke_${stamp}.pdf` }),
+      body: smokeMaterialBody({
+        title: `Smoke material ${stamp}`,
+        fileId: uploaded.fileId,
+        coverImageUrl: smokeCover.url,
+      }),
     });
     expect("POST /materials", status === 201 && data?.id, JSON.stringify(data));
     materialId = data.id;
     console.log("OK  POST /materials");
   }
 
-  // Admin publishes
+  /*
+   * SEC-02 —— 素材可見性由所屬教材的 status 決定。
+   *
+   * 此刻教材是 `pending_review`：素材**不得**被匿名取得。這正是搬離
+   * `express.static` 的理由 —— 舊實作在這一步就已經公開了。
+   */
   {
-    const { status, data } = await http("PUT", `/materials/${materialId}`, {
+    const anon = await http("GET", mediaPath(smokeCover.mediaId));
+    expect(
+      "material media of a pending_review material is not anonymous (401)",
+      anon.status === 401 && anon.data?.error === "media_auth_required",
+      `status=${anon.status} body=${JSON.stringify(anon.data)}`
+    );
+
+    const owner = await http("GET", mediaPath(smokeCover.mediaId), { token: teacherToken });
+    expect("material media readable by owning creator", owner.status === 200, `status=${owner.status}`);
+
+    const admin = await http("GET", mediaPath(smokeCover.mediaId), { token: adminToken });
+    expect("material media readable by admin", admin.status === 200, `status=${admin.status}`);
+
+    const buyer = await http("GET", mediaPath(smokeCover.mediaId), { token: parentToken });
+    expect(
+      "material media of an unpublished material denied to other signed-in users (403)",
+      buyer.status === 403,
+      `status=${buyer.status}`
+    );
+    console.log("OK  material media hidden while pending_review (401 anon / 403 other / 200 owner+admin)");
+
+    // 舊的公開 static 路徑必須不再供應任何位元組。
+    const publicProbe = await http("GET", "/uploads/material-media/anything.png");
+    expect(
+      "GET /uploads/material-media/* is no longer served",
+      publicProbe.status === 404 && publicProbe.data?.error === "material_media_not_public",
+      `status=${publicProbe.status} body=${JSON.stringify(publicProbe.data)}`
+    );
+    console.log("OK  /uploads/material-media/* returns 404 (no longer a static asset)");
+  }
+
+  /*
+   * Admin 核准上架。
+   *
+   * 走正式的審核端點，**不是** `PUT /materials/:id { status }` ——
+   * 後者已不再接受 status（教材狀態由審核 workflow 管理，見
+   * docs/material-review-workflow.md）。這裡順便驗證那個防線還在。
+   */
+  {
+    const legacy = await http("PUT", `/materials/${materialId}`, {
       token: adminToken,
       body: { status: "published" },
     });
-    expect("PUT /materials/:id publish", status === 200 && data?.status === "published", JSON.stringify(data));
-    console.log("OK  PUT /materials/:id (published)");
+    expect(
+      "PUT /materials/:id no longer changes status",
+      legacy.status === 400 && legacy.data?.error === "status_not_updatable_here",
+      JSON.stringify(legacy.data)
+    );
+
+    const { status, data } = await http("POST", `/admin/materials/${materialId}/approve`, {
+      token: adminToken,
+      body: {},
+    });
+    expect(
+      "POST /admin/materials/:id/approve",
+      status === 200 && data?.material?.status === "published" && data?.material?.published_at,
+      JSON.stringify(data)
+    );
+    console.log("OK  POST /admin/materials/:id/approve (published)");
+  }
+
+  /*
+   * 上架之後，同一條素材 URL 對匿名訪客自動變成可取 —— 不需要搬檔案、不需要換 URL。
+   * 這一段同時驗證交付的位元組與上傳的完全一致，以及公開素材允許共享快取。
+   */
+  {
+    const probe = await fetch(`${BASE}${mediaPath(smokeCover.mediaId)}`);
+    expect(
+      "material media becomes anonymous after publish",
+      probe.status === 200,
+      `status=${probe.status}`
+    );
+    const cacheControl = String(probe.headers.get("cache-control") || "");
+    expect(
+      "published material media is cacheable and nosniff",
+      cacheControl.includes("public") &&
+        !cacheControl.includes("no-store") &&
+        probe.headers.get("x-content-type-options") === "nosniff" &&
+        String(probe.headers.get("content-type") || "").startsWith("image/") &&
+        probe.headers.get("accept-ranges") === "bytes",
+      `cache-control=${cacheControl} content-type=${probe.headers.get("content-type")}`
+    );
+    const delivered = Buffer.from(await probe.arrayBuffer());
+    expect(
+      "delivered material media bytes are byte-identical to the upload",
+      delivered.equals(smokeCover.bytes),
+      `expected ${smokeCover.bytes.length} bytes, got ${delivered.length}`
+    );
+    console.log("OK  GET /materials/media/:mediaId (anonymous after publish, byte-identical)");
+
+    // Range 請求（試看影片拖曳進度條靠它）。
+    const ranged = await fetch(`${BASE}${mediaPath(smokeCover.mediaId)}`, {
+      headers: { Range: "bytes=0-3" },
+    });
+    const rangedBytes = Buffer.from(await ranged.arrayBuffer());
+    expect(
+      "material media supports Range requests",
+      ranged.status === 206 &&
+        ranged.headers.get("content-range") === `bytes 0-3/${smokeCover.bytes.length}` &&
+        rangedBytes.equals(smokeCover.bytes.subarray(0, 4)),
+      `status=${ranged.status} content-range=${ranged.headers.get("content-range")}`
+    );
+    console.log("OK  GET /materials/media/:mediaId (Range → 206)");
+  }
+
+  /*
+   * 素材認領的擁有權檢查（SEC-02 不變條件 #3）：創作者 B 不能把 A 的未認領素材
+   * 填進自己的教材再上架。少了這條，整個授權模型可以被一次 POST 繞過。
+   */
+  {
+    const victimMedia = await uploadSmokeMaterialMedia(teacherToken, `victim_${stamp}`);
+    const attacker = await http("POST", "/auth/register", {
+      body: {
+        email: `smoke_attacker_${stamp}@example.com`,
+        password: "Passw0rd!23456789",
+        role: "teacher",
+      },
+    });
+    expect("POST /auth/register (second teacher)", attacker.status === 201 && attacker.data?.token, JSON.stringify(attacker.data));
+
+    const attackerFile = await uploadSmokeMaterialFile(attacker.data.token, `attacker_${stamp}`);
+    const stolen = await http("POST", "/materials", {
+      token: attacker.data.token,
+      body: smokeMaterialBody({
+        title: `Smoke stolen media ${stamp}`,
+        fileId: attackerFile.fileId,
+        coverImageUrl: victimMedia.url,
+      }),
+    });
+    expect(
+      "cannot claim another creator's media (400 media_not_claimable)",
+      stolen.status === 400 && stolen.data?.error === "media_not_claimable",
+      `status=${stolen.status} body=${JSON.stringify(stolen.data)}`
+    );
+
+    const stillHidden = await http("GET", mediaPath(victimMedia.mediaId), {
+      token: attacker.data.token,
+    });
+    expect(
+      "the other creator's media stays inaccessible",
+      stillHidden.status === 403,
+      `status=${stillHidden.status}`
+    );
+    console.log("OK  material media ownership enforced on claim (no cross-creator disclosure)");
   }
 
   // GET /materials (anon)
@@ -336,6 +567,93 @@ async function main() {
     expect("POST /orders/:id/upload-proof", up.status === 201 && up.data?.proof?.id, JSON.stringify(up.data));
     proofId = up.data.proof.id;
     console.log("OK  POST /orders/:id/upload-proof");
+
+    /*
+     * Payment Proof Private Storage（P1）。The upload response must not carry any
+     * public URL or storage key: the bytes now live in private-storage/payment-proofs/
+     * and can only be reached through the authorized read endpoint.
+     */
+    const serialized = JSON.stringify(up.data);
+    expect(
+      "POST /orders/:id/payment-proof response carries no public proof URL",
+      !serialized.includes("/uploads/payment-proofs/") && up.data.proof.proof_url === undefined,
+      serialized
+    );
+    expect(
+      "POST /orders/:id/payment-proof response carries no storage key",
+      up.data.proof.storage_key === undefined && up.data.proof.checksum_sha256 === undefined,
+      serialized
+    );
+    expect(
+      "upload response exposes the protected read path",
+      up.data.proof.proof_file_path === `/orders/${orderId}/payment-proofs/${proofId}/file` &&
+        up.data.proof.proof_file_available === true,
+      serialized
+    );
+    console.log("OK  payment proof upload exposes no public URL / storage key");
+  }
+
+  // Payment proof: authorized read, and no public path
+  {
+    const proofPath = `/orders/${orderId}/payment-proofs/${proofId}/file`;
+
+    const owner = await http("GET", proofPath, { token: parentToken });
+    expect("GET payment proof file (owner)", owner.status === 200, JSON.stringify(owner.data));
+    console.log("OK  GET /orders/:orderId/payment-proofs/:proofId/file (owner)");
+
+    const admin = await http("GET", proofPath, { token: adminToken });
+    expect("GET payment proof file (admin)", admin.status === 200, JSON.stringify(admin.data));
+    console.log("OK  GET /orders/:orderId/payment-proofs/:proofId/file (admin)");
+
+    const anon = await http("GET", proofPath);
+    expect("GET payment proof file (anonymous -> 401)", anon.status === 401, `status=${anon.status}`);
+
+    const teacherRead = await http("GET", proofPath, { token: teacherToken });
+    expect(
+      "GET payment proof file (other user -> 403)",
+      teacherRead.status === 403,
+      `status=${teacherRead.status}`
+    );
+    console.log("OK  payment proof read denied for anonymous and non-owner");
+
+    /*
+     * The delivery headers matter as much as the authorization: a payment proof must
+     * never sit in a shared cache, and the browser must not sniff it into something else.
+     */
+    const headerProbe = await fetch(`${BASE}${proofPath}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const cacheControl = String(headerProbe.headers.get("cache-control") || "");
+    expect(
+      "payment proof response is no-store and nosniff",
+      cacheControl.includes("no-store") &&
+        cacheControl.includes("private") &&
+        headerProbe.headers.get("x-content-type-options") === "nosniff" &&
+        String(headerProbe.headers.get("content-type") || "").startsWith("image/"),
+      `cache-control=${cacheControl} nosniff=${headerProbe.headers.get("x-content-type-options")}`
+    );
+    await headerProbe.arrayBuffer();
+    console.log("OK  payment proof delivery headers (private, no-store, nosniff)");
+
+    // The legacy public static path must no longer serve anything.
+    const publicProbe = await http("GET", "/uploads/payment-proofs/anything.png");
+    expect(
+      "GET /uploads/payment-proofs/* is no longer served",
+      publicProbe.status === 404 && publicProbe.data?.error === "payment_proof_not_public",
+      `status=${publicProbe.status} body=${JSON.stringify(publicProbe.data)}`
+    );
+    console.log("OK  /uploads/payment-proofs/* returns 404 (not a public asset)");
+
+    // Admin review context must not leak the public URL either.
+    const detail = await http("GET", `/admin/payment-proofs/${proofId}`, { token: adminToken });
+    expect(
+      "GET /admin/payment-proofs/:id carries no public proof URL",
+      detail.status === 200 &&
+        detail.data?.proof?.proof_url === undefined &&
+        !JSON.stringify(detail.data).includes("/uploads/payment-proofs/"),
+      JSON.stringify(detail.data)
+    );
+    console.log("OK  admin payment proof detail exposes no public URL");
   }
 
   // Admin approve
@@ -380,11 +698,12 @@ async function main() {
 
   // Second material + order + reject（覆蓋 POST …/reject）
   {
+    const rejectUpload = await uploadSmokeMaterialFile(teacherToken, `rej_${stamp}`);
     const cre = await http("POST", "/materials", {
       token: teacherToken,
       body: smokeMaterialBody({
         title: `Smoke reject-flow ${stamp}`,
-        fileKey: `files/smoke_rej_${stamp}.pdf`,
+        fileId: rejectUpload.fileId,
         price: 50,
       }),
     });
@@ -392,13 +711,13 @@ async function main() {
     const materialRejectId = cre.data.id;
     materialRejectIdRef = materialRejectId;
 
-    const pub = await http("PUT", `/materials/${materialRejectId}`, {
+    const pub = await http("POST", `/admin/materials/${materialRejectId}/approve`, {
       token: adminToken,
-      body: { status: "published" },
+      body: {},
     });
     expect(
-      "PUT /materials/:id (reject flow publish)",
-      pub.status === 200 && pub.data?.status === "published",
+      "POST /admin/materials/:id/approve (reject flow publish)",
+      pub.status === 200 && pub.data?.material?.status === "published",
       JSON.stringify(pub.data)
     );
 
@@ -493,6 +812,108 @@ async function main() {
     );
     console.log("OK  GET /me/orders/:orderId (rejection reason visible to buyer)");
 
+    /*
+     * `COR-01` —— 買家進度必須反映**最新一筆**憑證，不是歷史上出現過的憑證。
+     *
+     * 走完整條真實路徑：退件 → 買家重新上傳 → 新憑證 pending。舊版的 CASE 對全部歷史憑證
+     * 做 `EXISTS rejected` 且排在 `EXISTS pending` 之前，於是買家重新上傳後仍被告知
+     * 「請依退件原因重新上傳憑證」，只好再傳一次。
+     *
+     * list 與 detail 兩支端點都要斷言：它們曾經是兩段各自複製的 SQL。
+     *
+     * **另開一張訂單**：`rejectedOrderId` 後面還要當 `payment_rejected` bucket 的樣本，
+     * 在它上面重新上傳會把它推進待審佇列，破壞那一段斷言。
+     */
+    const progressOf = (rows, oid) =>
+      (Array.isArray(rows) ? rows : []).find((o) => String(o.id) === String(oid))?.order_progress_state;
+
+    const listAfterReject = await http("GET", "/me/orders", { token: parentToken });
+    expect(
+      "COR-01: latest proof rejected -> rejected (list and detail agree)",
+      listAfterReject.status === 200 &&
+        progressOf(listAfterReject.data?.items, rejectedOrderId) === "rejected" &&
+        rejectedOrderDetail.data?.order?.order_progress_state === "rejected",
+      JSON.stringify({
+        list: progressOf(listAfterReject.data?.items, rejectedOrderId),
+        detail: rejectedOrderDetail.data?.order?.order_progress_state,
+      })
+    );
+    console.log("OK  order_progress_state = rejected (latest proof rejected)");
+
+    const addRe = await http("POST", "/cart/items", {
+      token: parentToken,
+      body: { materialId: materialRejectId, quantity: 1 },
+    });
+    expect(
+      "POST /cart/items (re-upload flow)",
+      addRe.status === 200 || addRe.status === 201,
+      JSON.stringify(addRe.data)
+    );
+    const ordRe = await http("POST", "/orders", { token: parentToken, body: {} });
+    expect(
+      "POST /orders (re-upload flow)",
+      ordRe.status === 201 && ordRe.data?.data?.order?.id,
+      JSON.stringify(ordRe.data)
+    );
+    const reuploadOrderId = ordRe.data.data.order.id;
+
+    const upRe1 = await http("POST", `/orders/${reuploadOrderId}/payment-proof`, {
+      token: parentToken,
+      rawBody: makeProofFormData("proof-smoke-reupload-1.png"),
+    });
+    expect(
+      "POST …/payment-proof (re-upload flow, first proof)",
+      upRe1.status === 201 && upRe1.data?.proof?.id,
+      JSON.stringify(upRe1.data)
+    );
+    const rjRe = await http("POST", `/admin/payment-proofs/${upRe1.data.proof.id}/reject`, {
+      token: adminToken,
+      body: { rejection_reason: "amount_mismatch" },
+    });
+    expect(
+      "POST /admin/payment-proofs/:id/reject (re-upload flow)",
+      rjRe.status === 200 && rjRe.data?.proof?.review_status === "rejected",
+      JSON.stringify(rjRe.data)
+    );
+
+    const upRe2 = await http("POST", `/orders/${reuploadOrderId}/payment-proof`, {
+      token: parentToken,
+      rawBody: makeProofFormData("proof-smoke-reupload-2.png"),
+    });
+    expect(
+      "POST …/payment-proof (buyer re-uploads after rejection)",
+      upRe2.status === 201 && upRe2.data?.proof?.id,
+      JSON.stringify(upRe2.data)
+    );
+
+    const listReup = await http("GET", "/me/orders", { token: parentToken });
+    const detailReup = await http("GET", `/me/orders/${reuploadOrderId}`, { token: parentToken });
+    expect(
+      "COR-01: older rejected + newer pending -> reviewing (list and detail agree)",
+      listReup.status === 200 &&
+        detailReup.status === 200 &&
+        progressOf(listReup.data?.items, reuploadOrderId) === "reviewing" &&
+        detailReup.data?.order?.order_progress_state === "reviewing" &&
+        detailReup.data?.order?.payment_proof_latest_status === "pending" &&
+        detailReup.data?.order?.payment_proof_uploaded_count === 2,
+      JSON.stringify({
+        list: progressOf(listReup.data?.items, reuploadOrderId),
+        detail: detailReup.data?.order?.order_progress_state,
+        latest: detailReup.data?.order?.payment_proof_latest_status,
+      })
+    );
+    console.log("OK  order_progress_state = reviewing after re-upload (COR-01)");
+
+    /* Admin 端對同一張訂單必須同時回到待審佇列 —— 兩邊字不同，語意必須一致。 */
+    const adminPendingReview = await http("GET", "/admin/orders?status=pending_review", { token: adminToken });
+    expect(
+      "COR-01: Admin pending_review 與 Buyer reviewing 對同一張訂單一致",
+      adminPendingReview.status === 200 &&
+        (adminPendingReview.data?.items ?? []).some((o) => String(o.id) === String(reuploadOrderId)),
+      JSON.stringify({ count: (adminPendingReview.data?.items ?? []).length })
+    );
+    console.log("OK  Admin pending_review aligns with buyer reviewing (COR-01)");
+
     /* 審核 context：Admin 必須能在同一個 payload 內拿到判斷所需的一切。 */
     const proofDetail = await http("GET", `/admin/payment-proofs/${proofRejectId}`, { token: adminToken });
     expect(
@@ -536,13 +957,17 @@ async function main() {
     );
     console.log("OK  GET /admin/payment-proofs?q= (order id / buyer email lookup)");
 
-    // Dashboard summary：憑證遭駁回的訂單仍停留在 pending_payment，
-    // 因此計入 ordersCount（本輪第 2 筆），但不得計入 revenueAmount。
+    /*
+     * Dashboard summary：憑證遭駁回的訂單仍停留在 `pending_payment`，
+     * 因此計入 ordersCount，但不得計入 revenueAmount。
+     *
+     * 本輪建立了 3 筆訂單：主流程 1 筆（已核准）、退件流程 1 筆、`COR-01` 重新上傳流程 1 筆。
+     */
     const s = await fetchAdminSummary(adminToken);
     expect(
       "GET /admin/dashboard/summary (rejected-proof order counts toward ordersCount)",
-      s.ordersCount === summaryBaseline.ordersCount + 2,
-      `expected ordersCount ${summaryBaseline.ordersCount + 2}, got ${s.ordersCount}`
+      s.ordersCount === summaryBaseline.ordersCount + 3,
+      `expected ordersCount ${summaryBaseline.ordersCount + 3}, got ${s.ordersCount}`
     );
     expect(
       "GET /admin/dashboard/summary (rejected-proof order excluded from revenue)",
@@ -766,11 +1191,210 @@ async function main() {
     console.log("OK  GET /teacher/sales/{summary,materials,records} (period contract, gross sales, isolation, 400/403)");
   }
 
-  // Download
+  /*
+   * 教材本體檔案的交付（Material File Upload & Secure Delivery）。
+   *
+   * 這一段是整個 milestone 的驗收核心，斷言的是**買家真的拿到那個檔案**，
+   * 而不只是「API 回了 200」：下載回來的位元組要與創作者上傳的逐位元組相同。
+   */
   {
+    const crypto = require("crypto");
+    const expectedSha = crypto.createHash("sha256").update(smokeMaterialFileBytes).digest("hex");
+
     const dl = await http("GET", `/download/${materialId}`, { token: parentToken });
-    expect("GET /download/:materialId", dl.status === 200 && dl.data?.signedUrl, JSON.stringify(dl.data));
+    expect(
+      "GET /download/:materialId",
+      dl.status === 200 && dl.data?.signedUrl && Number(dl.data?.expiresInSeconds) > 0,
+      JSON.stringify(dl.data)
+    );
+    // mock URL 時代的殘留：signedUrl 必須是真的能打的位址，不是 download.local。
+    expect(
+      "GET /download/:materialId → signedUrl 指向真實後端",
+      typeof dl.data.signedUrl === "string" && !dl.data.signedUrl.includes("download.local"),
+      dl.data.signedUrl
+    );
     console.log("OK  GET /download/:materialId");
+
+    // 位元組層級的 round-trip。
+    const tokenPath = new URL(dl.data.signedUrl).pathname;
+    const fileRes = await fetch(`${BASE}${tokenPath}`);
+    const body = Buffer.from(await fileRes.arrayBuffer());
+    expect("GET /download/file/:token", fileRes.status === 200, `got ${fileRes.status}`);
+    expect(
+      "GET /download/file/:token → SHA-256 與上傳內容相同",
+      crypto.createHash("sha256").update(body).digest("hex") === expectedSha,
+      `expected ${expectedSha}`
+    );
+    const disposition = fileRes.headers.get("content-disposition") || "";
+    expect(
+      "GET /download/file/:token → Content-Disposition 為 attachment 且帶 UTF-8 檔名",
+      disposition.includes("attachment") && disposition.includes("filename*"),
+      disposition
+    );
+    console.log("OK  GET /download/file/:token (binary round-trip)");
+
+    // 一次性：同一張票不能再用。
+    const replay = await fetch(`${BASE}${tokenPath}`);
+    expect("GET /download/file/:token (replay → 404)", replay.status === 404, `got ${replay.status}`);
+    console.log("OK  download token is single-use");
+
+    // 沒買過的人（teacher 自己）拿不到票。
+    const noEntitlement = await http("GET", `/download/${materialId}`, { token: teacherToken });
+    expect(
+      "GET /download/:materialId (未購買 → 403)",
+      noEntitlement.status === 403 && noEntitlement.data?.error === "not_entitled",
+      JSON.stringify(noEntitlement.data)
+    );
+    console.log("OK  download requires an approved order");
+
+    // 匿名不能猜 token。
+    const bogus = await fetch(`${BASE}/download/file/not-a-real-token`);
+    expect("GET /download/file/:token (亂猜 → 404)", bogus.status === 404, `got ${bogus.status}`);
+    console.log("OK  unknown download token is rejected");
+  }
+
+  /*
+   * 教材檔案的安全不變條件。
+   *
+   * 每一條都是「如果壞了，買家或審核會拿到錯的東西」，而且都不會有人在畫面上發現。
+   */
+  {
+    // 1) 公開／買家契約不得出現 file_key 或任何儲存資訊。
+    const anon = await http("GET", `/materials/${materialId}`);
+    expect(
+      "GET /materials/:id (匿名) 不含 file_key / storage_key / material_file",
+      anon.status === 200 &&
+        !Object.prototype.hasOwnProperty.call(anon.data, "file_key") &&
+        !Object.prototype.hasOwnProperty.call(anon.data, "storage_key") &&
+        !Object.prototype.hasOwnProperty.call(anon.data, "material_file"),
+      JSON.stringify(Object.keys(anon.data || {}))
+    );
+    const asBuyer = await http("GET", `/materials/${materialId}`, { token: parentToken });
+    expect(
+      "GET /materials/:id (買家) 不含檔案內部資訊",
+      asBuyer.status === 200 &&
+        !Object.prototype.hasOwnProperty.call(asBuyer.data, "file_key") &&
+        !Object.prototype.hasOwnProperty.call(asBuyer.data, "material_file"),
+      JSON.stringify(Object.keys(asBuyer.data || {}))
+    );
+    console.log("OK  material file internals are not exposed publicly");
+
+    // 2) 擁有者看得到檔案摘要，但不含 storage key。
+    const asOwner = await http("GET", `/materials/${materialId}`, { token: teacherToken });
+    const summary = asOwner.data?.material_file;
+    expect(
+      "GET /materials/:id (擁有者) 帶 material_file 摘要",
+      asOwner.status === 200 && summary?.approvedFile?.id,
+      JSON.stringify(summary)
+    );
+    expect(
+      "material_file 摘要不含 storage_key / checksum",
+      !Object.prototype.hasOwnProperty.call(summary.approvedFile, "storage_key") &&
+        !Object.prototype.hasOwnProperty.call(summary.approvedFile, "checksum_sha256"),
+      JSON.stringify(summary.approvedFile)
+    );
+    // 3) 核准之後候選檔要清空 —— 待審與已核准不能同時指向同一件事。
+    expect("核准後 pendingFile 已清空", summary.pendingFile === null, JSON.stringify(summary.pendingFile));
+    console.log("OK  approved material has an approved file and no pending candidate");
+
+    // 4) generic update 端點不得碰檔案欄位。
+    for (const [field, value] of [
+      ["fileId", "whatever"],
+      ["file_key", "files/x.pdf"],
+      ["approved_file_id", "x"],
+    ]) {
+      const res = await http("PATCH", `/materials/${materialId}`, {
+        token: teacherToken,
+        body: { [field]: value },
+      });
+      expect(
+        `PATCH /materials/:id { ${field} } → 400 file_not_updatable_here`,
+        res.status === 400 && res.data?.error === "file_not_updatable_here",
+        `${res.status} ${JSON.stringify(res.data)}`
+      );
+    }
+    console.log("OK  PUT/PATCH /materials/:id cannot change the material file");
+
+    // 5) 已上架教材不得換檔（那等於在買家背後偷換已售出的商品）。
+    const replaceUpload = await uploadSmokeMaterialFile(teacherToken, `replace_${stamp}`);
+    const replace = await http("POST", `/materials/${materialId}/file`, {
+      token: teacherToken,
+      body: { fileId: replaceUpload.fileId },
+    });
+    expect(
+      "POST /materials/:id/file (published → 409)",
+      replace.status === 409 && replace.data?.error === "file_replacement_not_allowed",
+      `${replace.status} ${JSON.stringify(replace.data)}`
+    );
+    console.log("OK  published materials cannot swap their deliverable");
+
+    // 6) 同一個 fileId 不能被認領兩次。上一步的換檔被擋下來了，所以它仍是 unattached。
+    const firstClaim = await http("POST", "/materials", {
+      token: teacherToken,
+      body: smokeMaterialBody({ title: `Smoke claim ${stamp}`, fileId: replaceUpload.fileId }),
+    });
+    expect("POST /materials 認領尚未使用的檔案", firstClaim.status === 201, JSON.stringify(firstClaim.data));
+
+    const reuse = await http("POST", "/materials", {
+      token: teacherToken,
+      body: smokeMaterialBody({ title: `Smoke reuse ${stamp}`, fileId: replaceUpload.fileId }),
+    });
+    expect(
+      "POST /materials 同一個 fileId 不得認領兩次",
+      reuse.status === 400 && reuse.data?.error === "file_not_available",
+      `${reuse.status} ${JSON.stringify(reuse.data)}`
+    );
+    console.log("OK  a material file can only be claimed once");
+
+    // 7) 缺 fileId 不能建立教材。
+    const noFile = await http("POST", "/materials", {
+      token: teacherToken,
+      body: (() => {
+        const body = smokeMaterialBody({ title: `Smoke nofile ${stamp}`, fileId: "x" });
+        delete body.fileId;
+        return body;
+      })(),
+    });
+    expect("POST /materials 缺 fileId → 400", noFile.status === 400, JSON.stringify(noFile.data));
+    console.log("OK  POST /materials requires an uploaded material file");
+
+    // 8) 型別檢查：改了副檔名的執行檔要被擋下來。
+    const evil = new FormData();
+    evil.append(
+      "file",
+      new Blob([Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00])], { type: "application/pdf" }),
+      "教材.pdf"
+    );
+    const evilRes = await http("POST", "/teacher/uploads/material-file", { token: teacherToken, rawBody: evil });
+    expect(
+      "POST /teacher/uploads/material-file (改名的執行檔 → 415)",
+      evilRes.status === 415 && evilRes.data?.code === "signature_mismatch",
+      `${evilRes.status} ${JSON.stringify(evilRes.data)}`
+    );
+
+    const blocked = new FormData();
+    blocked.append("file", new Blob([Buffer.from("MZ")], { type: "application/octet-stream" }), "payload.exe");
+    const blockedRes = await http("POST", "/teacher/uploads/material-file", { token: teacherToken, rawBody: blocked });
+    expect(
+      "POST /teacher/uploads/material-file (.exe → 415)",
+      blockedRes.status === 415 && blockedRes.data?.code === "blocked_file_type",
+      `${blockedRes.status} ${JSON.stringify(blockedRes.data)}`
+    );
+    console.log("OK  material file type policy is enforced at upload time");
+
+    // 9) 上傳是 teacher 專屬。
+    const buyerUpload = new FormData();
+    buyerUpload.append("file", new Blob([makeSmokePdf("buyer")], { type: "application/pdf" }), "a.pdf");
+    const buyerUploadRes = await http("POST", "/teacher/uploads/material-file", {
+      token: parentToken,
+      rawBody: buyerUpload,
+    });
+    expect(
+      "POST /teacher/uploads/material-file (買家 → 403)",
+      buyerUploadRes.status === 403,
+      `got ${buyerUploadRes.status}`
+    );
+    console.log("OK  only creators can upload material files");
   }
 
   // Review
@@ -1029,6 +1653,197 @@ async function main() {
     console.log("OK  report case workflow (investigate → ask → respond → resolve → closed)");
   }
 
+  /*
+   * 教材審核閉環（Material Review MVP Phase 1）。
+   *
+   *   建立 → 退回修改 → 創作者重新送審 → 核准上架
+   *
+   * 同時驗證三條**禁止繞過正式審核**的路徑，以及退回原因的必填規則。
+   * 教材本體檔案已納入流程：每一份教材都必須帶一個真正上傳過的 `fileId`。
+   */
+  {
+    const reviewUpload = await uploadSmokeMaterialFile(teacherToken, `review_${Date.now()}`);
+    const reviewFileBytes = reviewUpload.bytes;
+    const cre = await http("POST", "/materials", {
+      token: teacherToken,
+      body: {
+        title: `smoke_review_${Date.now()}`,
+        price: 120,
+        fileId: reviewUpload.fileId,
+        teaching_objective: "審核流程 smoke 測試",
+        teaching_methods: ["配對遊戲"],
+        usage_duration: "20 分鐘",
+        activity_steps: "1. 發下教具 2. 進行配對",
+        contents: [{ type: "PDF", name: "主教材", count: 1 }],
+        cover_image_url: "https://example.com/cover.png",
+        material_features: ["PDF教材"],
+        ipDeclarationAccepted: true,
+      },
+    });
+    expect("POST /materials (review flow)", cre.status === 201 && cre.data?.status === "pending_review", JSON.stringify(cre.data));
+    const reviewMaterialId = cre.data.id;
+
+    /* 退回原因與說明都是必填，說明至少 10 字。 */
+    const noReason = await http("POST", `/admin/materials/${reviewMaterialId}/request-changes`, {
+      token: adminToken,
+      body: { note: "這段說明長度是絕對足夠的" },
+    });
+    expect("POST …/request-changes without reasonCode -> 400", noReason.status === 400, JSON.stringify(noReason.data));
+
+    const shortNote = await http("POST", `/admin/materials/${reviewMaterialId}/request-changes`, {
+      token: adminToken,
+      body: { reasonCode: "incomplete_info", note: "太短" },
+    });
+    expect("POST …/request-changes with short note -> 400", shortNote.status === 400, JSON.stringify(shortNote.data));
+
+    const badReason = await http("POST", `/admin/materials/${reviewMaterialId}/request-changes`, {
+      token: adminToken,
+      body: { reasonCode: "not_a_reason", note: "這段說明長度是絕對足夠的" },
+    });
+    expect("POST …/request-changes with invalid reasonCode -> 400", badReason.status === 400, JSON.stringify(badReason.data));
+
+    /* 創作者不得核准或退回自己的教材。 */
+    const teacherApprove = await http("POST", `/admin/materials/${reviewMaterialId}/approve`, {
+      token: teacherToken,
+      body: {},
+    });
+    expect("POST /admin/materials/:id/approve as teacher -> 403", teacherApprove.status === 403, JSON.stringify(teacherApprove.data));
+
+    /* 正式退回。 */
+    const rejected = await http("POST", `/admin/materials/${reviewMaterialId}/request-changes`, {
+      token: adminToken,
+      body: { reasonCode: "incomplete_info", note: "活動步驟請補充完整流程與所需時間。" },
+    });
+    expect(
+      "POST /admin/materials/:id/request-changes",
+      rejected.status === 200 &&
+        rejected.data?.material?.status === "changes_requested" &&
+        rejected.data?.material?.review_reason_code === "incomplete_info" &&
+        rejected.data?.material?.reviewed_by &&
+        rejected.data?.material?.published_at === null,
+      JSON.stringify(rejected.data?.material)
+    );
+
+    /* changes_requested 不得直接上架 —— 必須重新送審。 */
+    const skipReview = await http("POST", `/admin/materials/${reviewMaterialId}/approve`, {
+      token: adminToken,
+      body: {},
+    });
+    expect(
+      "POST …/approve on changes_requested -> 409 (cannot bypass resubmit)",
+      skipReview.status === 409,
+      JSON.stringify(skipReview.data)
+    );
+
+    /* 創作者看得到退回原因（owner 可讀自己的非公開教材）。 */
+    const creatorView = await http("GET", `/materials/${reviewMaterialId}`, { token: teacherToken });
+    expect(
+      "GET /materials/:id as owner exposes the review snapshot",
+      creatorView.status === 200 &&
+        creatorView.data?.review_reason_code === "incomplete_info" &&
+        typeof creatorView.data?.review_note === "string",
+      JSON.stringify({ code: creatorView.data?.review_reason_code })
+    );
+
+    /* 審核快照**只給** admin 與擁有者：已上架教材的公開讀取不得帶出 reviewed_by。 */
+    const publicView = await http("GET", `/materials/${materialId}`);
+    expect(
+      "GET /materials/:id (anon, published) hides the review snapshot",
+      publicView.status === 200 &&
+        publicView.data?.reviewed_by === undefined &&
+        publicView.data?.review_note === undefined,
+      JSON.stringify({ reviewed_by: publicView.data?.reviewed_by })
+    );
+
+    /* 公開讀取不得看到未公開教材。 */
+    const anonView = await http("GET", `/materials/${reviewMaterialId}`);
+    expect("GET /materials/:id (anon) on changes_requested -> 403", anonView.status === 403, JSON.stringify(anonView.data));
+
+    /*
+     * Admin 的審閱下載。這是 `file_problem` 這個退回原因能不能誠實成立的前提 ——
+     * 沒有它，「審核教材」就只是核對表單。
+     */
+    {
+      const crypto = require("crypto");
+      const pending = await fetch(`${BASE}/admin/materials/${reviewMaterialId}/file?slot=pending`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const pendingBytes = Buffer.from(await pending.arrayBuffer());
+      expect("GET /admin/materials/:id/file?slot=pending", pending.status === 200, `got ${pending.status}`);
+      expect(
+        "Admin 下載到的候選檔與創作者上傳的內容相同",
+        crypto.createHash("sha256").update(pendingBytes).digest("hex") ===
+          crypto.createHash("sha256").update(reviewFileBytes).digest("hex"),
+        `${pendingBytes.length} bytes`
+      );
+
+      // 還沒核准，所以 approved slot 應該是空的。
+      const approvedSlot = await http("GET", `/admin/materials/${reviewMaterialId}/file?slot=approved`, {
+        token: adminToken,
+      });
+      expect(
+        "GET …/file?slot=approved (尚未核准 → 409)",
+        approvedSlot.status === 409 && approvedSlot.data?.error === "material_file_unavailable",
+        `${approvedSlot.status} ${JSON.stringify(approvedSlot.data)}`
+      );
+
+      const badSlot = await http("GET", `/admin/materials/${reviewMaterialId}/file?slot=whatever`, {
+        token: adminToken,
+      });
+      expect("GET …/file?slot=whatever → 400", badSlot.status === 400, `got ${badSlot.status}`);
+
+      // 教材檔案只有 Admin 能透過這條路徑取得。
+      const asTeacher = await http("GET", `/admin/materials/${reviewMaterialId}/file?slot=pending`, {
+        token: teacherToken,
+      });
+      expect("GET /admin/materials/:id/file as teacher → 403", asTeacher.status === 403, `got ${asTeacher.status}`);
+      const asAnon = await fetch(`${BASE}/admin/materials/${reviewMaterialId}/file?slot=pending`);
+      expect("GET /admin/materials/:id/file (匿名) → 401", asAnon.status === 401, `got ${asAnon.status}`);
+
+      console.log("OK  GET /admin/materials/:id/file (review download + slot/role boundaries)");
+    }
+
+    /* 創作者重新送審。 */
+    const resubmitted = await http("POST", `/materials/${reviewMaterialId}/resubmit`, { token: teacherToken, body: {} });
+    expect(
+      "POST /materials/:id/resubmit",
+      resubmitted.status === 200 && resubmitted.data?.material?.status === "pending_review",
+      JSON.stringify(resubmitted.data?.material)
+    );
+
+    /* 已在待審佇列的教材不能再送一次。 */
+    const resubmitAgain = await http("POST", `/materials/${reviewMaterialId}/resubmit`, { token: teacherToken, body: {} });
+    expect("POST …/resubmit twice -> 409", resubmitAgain.status === 409, JSON.stringify(resubmitAgain.data));
+
+    /* 核准上架：寫入 reviewer 快照與首次上架時間。 */
+    const approved = await http("POST", `/admin/materials/${reviewMaterialId}/approve`, { token: adminToken, body: {} });
+    expect(
+      "POST /admin/materials/:id/approve (after resubmit)",
+      approved.status === 200 &&
+        approved.data?.material?.status === "published" &&
+        approved.data?.material?.published_at &&
+        approved.data?.material?.review_reason_code === null,
+      JSON.stringify(approved.data?.material)
+    );
+
+    /* 稽核軌跡：三個事件都必須留下。 */
+    const logs = await http("GET", `/admin/materials/${reviewMaterialId}/activity-logs?limit=50`, { token: adminToken });
+    const actions = (logs.data?.items || []).map((i) => i.action);
+    expect(
+      "material review audit trail (created / changes_requested / resubmitted / published)",
+      logs.status === 200 &&
+        actions.includes("material.created") &&
+        actions.includes("material.changes_requested") &&
+        actions.includes("material.resubmitted") &&
+        actions.includes("material.published") &&
+        // 檔案相關的稽核事實：Admin 取走過檔案、以及升級為交付版本。
+        actions.includes("admin.material_file_downloaded") &&
+        actions.includes("material.file_approved"),
+      JSON.stringify(actions)
+    );
+    console.log("OK  material review workflow (submit → changes → resubmit → publish)");
+  }
+
   // Admin lists
   {
     const m = await http("GET", "/admin/materials", { token: adminToken });
@@ -1084,7 +1899,7 @@ async function main() {
     console.log("OK  GET /admin/materials (filter / search / sort / pagination contract)");
 
     /*
-     * Activity log 的人類可讀搜尋（docs/mvp_rules.md §21）。
+     * Activity log 的人類可讀搜尋（docs/mvp_rules.md §22）。
      * 既有的精確比對參數不變；`q` 是額外的 AND 條件。
      */
     const logFilters = await http("GET", "/admin/activity-logs/filters", { token: adminToken });
@@ -1135,7 +1950,11 @@ async function main() {
     console.log("OK  GET /admin/activity-logs (human-readable search + date range + filters)");
 
     const o = await http("GET", "/admin/orders", { token: adminToken });
-    expect("GET /admin/orders", o.status === 200 && Array.isArray(o.data?.items), JSON.stringify(o.data));
+    expect(
+      "GET /admin/orders (paginated envelope)",
+      o.status === 200 && Array.isArray(o.data?.items) && Number(o.data?.pagination?.limit) === 20,
+      JSON.stringify(o.data?.pagination ?? o.data)
+    );
 
     /*
      * `?status=` 篩的是 **Admin operational state**（`orders.status` + 付款憑證衍生），
@@ -1143,33 +1962,40 @@ async function main() {
      *   orderId         → 憑證已核准 → approved
      *   rejectedOrderId → 憑證被退回、尚未重新上傳 → payment_rejected
      * 後者在舊版會被歸進「待付款」，正是這次要修掉的語意錯誤。
+     *
+     * `IA-06` 起回應是分頁的，因此「這張訂單在不在這個 bucket」一律用 `?q=<orderId>`
+     * 精準查，不再依賴它剛好落在第一頁 —— security DB 會跨次執行累積訂單。
      */
     const hasId = (res, id) => Array.isArray(res.data?.items) && res.data.items.some((it) => String(it.id) === String(id));
+    const bucketLookup = (status, id) =>
+      http("GET", `/admin/orders?status=${status}&q=${encodeURIComponent(id)}`, { token: adminToken });
 
-    const oApproved = await http("GET", "/admin/orders?status=approved", { token: adminToken });
+    const oApproved = await bucketLookup("approved", orderId);
     expect(
-      "GET /admin/orders?status=approved",
+      "GET /admin/orders?status=approved&q=<orderId>",
       oApproved.status === 200 &&
         hasId(oApproved, orderId) &&
         oApproved.data.items.every((it) => it.operational_status === "approved"),
       JSON.stringify(oApproved.data)
     );
 
-    const oRejected = await http("GET", "/admin/orders?status=payment_rejected", { token: adminToken });
+    const oRejected = await bucketLookup("payment_rejected", rejectedOrderId);
     expect(
-      "GET /admin/orders?status=payment_rejected",
+      "GET /admin/orders?status=payment_rejected&q=<orderId>",
       oRejected.status === 200 &&
         hasId(oRejected, rejectedOrderId) &&
         oRejected.data.items.every((it) => it.operational_status === "payment_rejected"),
       JSON.stringify(oRejected.data)
     );
 
-    const oAwaiting = await http("GET", "/admin/orders?status=awaiting_payment", { token: adminToken });
-    expect(
-      "GET /admin/orders?status=awaiting_payment (excludes rejected-proof order)",
-      oAwaiting.status === 200 && !hasId(oAwaiting, rejectedOrderId) && !hasId(oAwaiting, orderId),
-      JSON.stringify(oAwaiting.data)
-    );
+    for (const id of [rejectedOrderId, orderId]) {
+      const oAwaiting = await bucketLookup("awaiting_payment", id);
+      expect(
+        "GET /admin/orders?status=awaiting_payment (excludes rejected-proof / approved order)",
+        oAwaiting.status === 200 && !hasId(oAwaiting, id),
+        JSON.stringify(oAwaiting.data)
+      );
+    }
 
     const oPendingReview = await http("GET", "/admin/orders?status=pending_review", { token: adminToken });
     expect(
@@ -1191,6 +2017,52 @@ async function main() {
       expect(`GET /admin/orders?status=${dead} → 400`, res.status === 400, JSON.stringify(res.data));
     }
     console.log("OK  GET /admin/orders?status=<operational state> (+ 400 on legacy/invalid tokens)");
+
+    /*
+     * IA-06 —— 搜尋與分頁。客訴進來時 Admin 手上是**訂單編號**或**買家 Email**，
+     * 兩者都要能直接貼進 `q`；`buyer_email` 同時是列上要顯示的欄位。
+     */
+    const oByEmail = await http("GET", `/admin/orders?q=${encodeURIComponent(emails.parent)}`, {
+      token: adminToken,
+    });
+    expect(
+      "GET /admin/orders?q=<buyer email>",
+      oByEmail.status === 200 &&
+        hasId(oByEmail, orderId) &&
+        oByEmail.data.items.every((it) => it.buyer_email === emails.parent),
+      JSON.stringify(oByEmail.data?.items?.map((it) => it.buyer_email))
+    );
+
+    const oByOrderId = await http("GET", `/admin/orders?q=${encodeURIComponent(orderId)}`, { token: adminToken });
+    expect(
+      "GET /admin/orders?q=<order id> (exact lookup)",
+      oByOrderId.status === 200 &&
+        hasId(oByOrderId, orderId) &&
+        Number(oByOrderId.data?.pagination?.total) === oByOrderId.data.items.length,
+      JSON.stringify(oByOrderId.data?.pagination)
+    );
+
+    const oNoMatch = await http("GET", "/admin/orders?q=smoke_no_such_order_zzz", { token: adminToken });
+    expect(
+      "GET /admin/orders?q=<no match> → 空集合（不是回全部）",
+      oNoMatch.status === 200 && oNoMatch.data.items.length === 0 && Number(oNoMatch.data.pagination.total) === 0,
+      JSON.stringify(oNoMatch.data?.pagination)
+    );
+
+    // 分頁契約與 utils/adminQuery.js 同源：limit 上限 100、page 1 起算。
+    const oPaged = await http("GET", "/admin/orders?page=1&limit=1", { token: adminToken });
+    expect(
+      "GET /admin/orders?page=1&limit=1",
+      oPaged.status === 200 && oPaged.data.items.length <= 1 && Number(oPaged.data.pagination.limit) === 1,
+      JSON.stringify(oPaged.data?.pagination)
+    );
+    const oClamped = await http("GET", "/admin/orders?limit=9999", { token: adminToken });
+    expect(
+      "GET /admin/orders?limit=9999 → clamped to 100",
+      oClamped.status === 200 && Number(oClamped.data.pagination.limit) === 100,
+      JSON.stringify(oClamped.data?.pagination)
+    );
+    console.log("OK  GET /admin/orders?q= / page / limit (IA-06 search + pagination)");
 
     const proofsPending = await http("GET", "/admin/payment-proofs?status=pending&page=1&limit=20", {
       token: adminToken,
@@ -1241,6 +2113,173 @@ async function main() {
     expect("GET /admin/reports", reps.status === 200 && Array.isArray(reps.data), JSON.stringify(reps.data));
 
     console.log("OK  GET /admin/materials, /admin/orders, /admin/payment-proofs, /admin/activity-logs, /admin/reports");
+  }
+
+  /*
+   * `COR-05`：path 參數含 NUL byte（`%00`）必須在進 DB 之前被擋下。
+   *
+   * 以前這幾條會走到 PostgreSQL 並炸在 `22021 invalid byte sequence`，對外回通用 500。
+   * 這裡同時鎖住**兩件事**：非法輸入回 400，以及**合法輸入的語意沒有被這個守衛弄壞**
+   * （存在 → 200、不存在 → 404）。少了後者，把守衛寫成「什麼都擋」也會通過。
+   */
+  {
+    const nulPaths = [
+      "/materials/%00",
+      "/materials/%00/reviews",
+      "/materials/%00/rating",
+      "/materials/%00/rating-distribution",
+      "/materials/media/%00",
+    ];
+    for (const p of nulPaths) {
+      const res = await http("GET", p);
+      expect(`GET ${p} (NUL byte)`, res.status === 400, `expected 400, got ${res.status}`);
+      expect(
+        `GET ${p} error contract`,
+        res.data?.error === "invalid_path_parameter",
+        `unexpected body ${JSON.stringify(res.data)}`
+      );
+      const serialized = JSON.stringify(res.data ?? "");
+      for (const leak of ["22021", "invalid byte sequence", "SELECT", "Backend"]) {
+        expect(
+          `GET ${p} must not leak internals`,
+          !serialized.includes(leak),
+          `response leaked ${leak}: ${serialized}`
+        );
+      }
+    }
+
+    // 字面的 "%00"（雙重編碼）是合法文字，必須照常走到查無資料的 404
+    const doubleEncoded = await http("GET", "/materials/%2500");
+    expect(
+      "GET /materials/%2500 (literal %00 is valid text)",
+      doubleEncoded.status === 404,
+      `expected 404, got ${doubleEncoded.status}`
+    );
+
+    // 控制組：合法識別碼的語意不得被守衛影響
+    const unknownMaterial = await http("GET", "/materials/cor05_unknown_material_id");
+    expect(
+      "GET /materials/:id (unknown) still 404",
+      unknownMaterial.status === 404,
+      `expected 404, got ${unknownMaterial.status}`
+    );
+    const unknownMedia = await http("GET", "/materials/media/cor05-unknown-media-id");
+    expect(
+      "GET /materials/media/:mediaId (unknown) still 404",
+      unknownMedia.status === 404,
+      `expected 404, got ${unknownMedia.status}`
+    );
+    if (materialId) {
+      const existing = await http("GET", `/materials/${materialId}`);
+      expect(
+        "GET /materials/:id (existing) still 200",
+        existing.status === 200,
+        `expected 200, got ${existing.status}`
+      );
+      const rating = await http("GET", `/materials/${materialId}/rating`);
+      expect(
+        "GET /materials/:id/rating (existing) still 200",
+        rating.status === 200,
+        `expected 200, got ${rating.status}`
+      );
+    }
+
+    console.log("OK  path params reject NUL bytes (COR-05) without breaking valid identifiers");
+  }
+
+  /*
+   * `COR-07`：解不開的 percent-encoding 不得回 Express 預設的 HTML 錯誤頁。
+   *
+   * 這些輸入在 router 比對 param 時就丟 `URIError`，**從未進到任何 handler** ——
+   * 所以 `COR-05` 的 NUL guard 攔不到，必須靠終端 error handler。
+   * 修復前 body 是 `text/html`，夾帶完整 stack 與 9 條絕對檔案路徑，且未授權即可觸發。
+   *
+   * 這裡同時鎖住「不是 HTML」與「沒有洩漏」兩件事 —— 只檢查狀態碼會漏掉重點。
+   */
+  {
+    const malformed = [
+      "/materials/100%",           // trailing %
+      "/materials/%ZZ",            // invalid hex
+      "/materials/%C0%80",         // overlong / invalid UTF-8
+      "/materials/%E0%A4%A",       // incomplete multibyte sequence
+    ];
+    for (const p of malformed) {
+      const res = await fetch(`${BASE}${p}`);
+      const contentType = String(res.headers.get("content-type") || "");
+      const body = await res.text();
+      expect(`GET ${p} (malformed encoding)`, res.status === 400, `expected 400, got ${res.status}`);
+      expect(
+        `GET ${p} must be JSON, not Express HTML`,
+        contentType.includes("application/json"),
+        `unexpected content-type ${contentType}`
+      );
+      for (const leak of ["URIError", "node_modules", "teaching-platform", "path-to-regexp", "    at "]) {
+        expect(
+          `GET ${p} must not leak internals`,
+          !body.includes(leak),
+          `response leaked ${leak}`
+        );
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        parsed = null;
+      }
+      expect(
+        `GET ${p} error contract`,
+        parsed?.error === "invalid_request",
+        `unexpected body ${body.slice(0, 120)}`
+      );
+    }
+
+    // 壞掉的 JSON body 走同一條邊界
+    const badBody = await fetch(`${BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{bad json",
+    });
+    const badBodyText = await badBody.text();
+    expect(
+      "POST /auth/login with malformed JSON body",
+      badBody.status === 400 && String(badBody.headers.get("content-type") || "").includes("application/json"),
+      `expected 400 JSON, got ${badBody.status} ${badBody.headers.get("content-type")}`
+    );
+    expect(
+      "POST /auth/login malformed body must not leak internals",
+      !badBodyText.includes("SyntaxError") && !badBodyText.includes("node_modules"),
+      "response leaked parser internals"
+    );
+
+    // 未比對到 route → JSON 404（而不是 Express 的 `Cannot GET /x` HTML）
+    const unmatched = await http("GET", "/cor07-no-such-route");
+    expect(
+      "GET unmatched route returns JSON 404",
+      unmatched.status === 404 && unmatched.data?.error === "not_found",
+      `unexpected ${unmatched.status} ${JSON.stringify(unmatched.data)}`
+    );
+
+    // 控制組：`COR-05` 的 NUL 契約與正常語意不得被這個 handler 蓋掉
+    const nul = await http("GET", "/materials/%00");
+    expect(
+      "COR-05 NUL contract still intact",
+      nul.status === 400 && nul.data?.error === "invalid_path_parameter",
+      `unexpected ${nul.status} ${JSON.stringify(nul.data)}`
+    );
+    const stillUnknown = await http("GET", "/materials/cor07_unknown_id");
+    expect(
+      "valid-but-unknown id still 404",
+      stillUnknown.status === 404,
+      `expected 404, got ${stillUnknown.status}`
+    );
+    const stillUnauthorized = await http("GET", "/me/orders/cor07_x");
+    expect(
+      "auth-required route still 401",
+      stillUnauthorized.status === 401,
+      `expected 401, got ${stillUnauthorized.status}`
+    );
+
+    console.log("OK  malformed requests return JSON errors without stack/paths (COR-07)");
   }
 
   // Cart delete (optional — cart empty after order; expect 404 or empty)

@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const materialWorkflow = require("../utils/materialWorkflow");
 const {
   parsePagination,
   buildPaginationMeta,
@@ -30,7 +31,12 @@ const {
  * 改讀 `statusCounts`，而不是把整份清單抓回來自己 filter().length。
  */
 
-const MATERIAL_STATUSES = Object.freeze(["pending_review", "published", "unpublished"]);
+/**
+ * 狀態 allowlist 直接取自 canonical workflow —— 這裡**不再**維護第二份清單。
+ * 教材審核 workflow 新增 `changes_requested` 之後，若這裡忘了同步，
+ * filter chip 與 statusCounts 就會靜靜地漏掉一整個狀態。
+ */
+const MATERIAL_STATUSES = materialWorkflow.MATERIAL_STATUSES;
 
 /**
  * 排序 allowlist。**不得**把 query 字串直接插進 ORDER BY ——

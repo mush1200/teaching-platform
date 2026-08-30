@@ -1,8 +1,20 @@
 const nodemailer = require("nodemailer");
 const db = require("../config/db");
 const { writeActivityLog } = require("../utils/activityLog");
+const { REVIEW_REASON_LABEL } = require("../utils/materialWorkflow");
+const { formatBankInfoLine } = require("../config/paymentBankInfo");
 
 let cachedTransporter = null;
+
+/** 使用者輸入（例如 Admin 的退回說明）進到 HTML 信件前一律轉義。 */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function appBaseUrl() {
   const explicit = process.env.PUBLIC_WEB_URL || process.env.FRONTEND_URL || process.env.APP_BASE_URL;
@@ -99,13 +111,27 @@ function itemsHtml(items) {
     .join("")}</ul>`;
 }
 
-async function sendEmailWithLog({ orderId, to, subject, html, metaType }) {
+/**
+ * 寄信 + 稽核紀錄。
+ *
+ * 原本是 order-centric（只吃 `orderId`）。教材審核也需要寄信給創作者，因此改成接受
+ * `targetType` / `targetId`；**`orderId` 仍然完全相容**（未帶 targetType 時等同
+ * `targetType: "order"`），既有的訂單信不需要任何改動。
+ *
+ * action 名稱刻意沿用 `order_email_sent` / `order_email_failed`：那兩個值在
+ * `activity_logs` 裡已有大量歷史資料與既有的中文對照，為了新的 target type 再長出
+ * 一組平行的 action 名稱，只會讓「平台寄過哪些信」變成要查兩個地方。
+ * 信件屬於哪個領域由 `target_type` 與 `meta.type` 表達。
+ */
+async function sendEmailWithLog({ orderId, targetType, targetId, to, subject, html, metaType }) {
+  const logTargetType = targetType || "order";
+  const logTargetId = targetId ?? orderId ?? null;
   try {
     const from = process.env.SMTP_FROM || process.env.SMTP_USER;
     await getTransporter().sendMail({ from, to, subject, html });
     await writeActivityLog({
-      targetType: "order",
-      targetId: orderId,
+      targetType: logTargetType,
+      targetId: logTargetId,
       action: "order_email_sent",
       meta: { type: metaType, to },
     });
@@ -113,8 +139,8 @@ async function sendEmailWithLog({ orderId, to, subject, html, metaType }) {
     console.error("send email failed:", err);
     try {
       await writeActivityLog({
-        targetType: "order",
-        targetId: orderId,
+        targetType: logTargetType,
+        targetId: logTargetId,
         action: "order_email_failed",
         meta: { type: metaType, to, error: String(err?.message || err) },
       });
@@ -130,6 +156,15 @@ async function sendOrderCreatedEmail(orderId) {
   const promoHtml = order.promo_code
     ? `<p>優惠代碼：${order.promo_code}（折抵 NT$${Number(order.discount_amount || 0).toLocaleString()}）</p>`
     : "";
+  /*
+   * 匯款資訊來自 `config/paymentBankInfo.js`（唯一來源）。
+   * 未設定時**整段略過**而不是印出佔位帳號 —— 沒有匯款資訊的通知信只是少一段，
+   * 印錯帳號則會讓買家把錢匯到不存在的地方。
+   */
+  const bankLine = formatBankInfoLine();
+  const bankInfoHtml = bankLine
+    ? `<p>匯款資訊：${escapeHtml(bankLine)}</p>`
+    : `<p>匯款資訊尚未設定，請聯繫平台客服確認匯款方式後再付款。</p>`;
   const invoiceHtml =
     order.invoice_type === "carrier" && order.invoice_carrier
       ? `<p>電子發票資訊：<br/>手機載具：${order.invoice_carrier}</p>`
@@ -142,7 +177,7 @@ async function sendOrderCreatedEmail(orderId) {
      <p>總金額：NT$${Number(order.total_amount || 0).toLocaleString()}</p>
      ${promoHtml}
      ${invoiceHtml}
-     <p>匯款資訊：銀行代碼 812 / 戶名 Teaching Platform / 帳號 1234-5678-9012-3456</p>
+     ${bankInfoHtml}
      <p><a href="${links.paymentProof}" style="color:#5b45d9;font-weight:700;">上傳付款憑證</a></p>
      <p><a href="${links.orders}" style="color:#5b45d9;">查看我的訂單</a></p>`
   );
@@ -189,6 +224,92 @@ async function sendPaymentRejectedEmail(orderId, reason) {
   await sendEmailWithLog({ orderId, to: order.email, subject: "【教材平台】付款憑證審核未通過", html, metaType: "payment_rejected" });
 }
 
+/* ------------------------------------------------------------------ *
+ * 教材審核通知（Material Review MVP Phase 1）
+ *
+ * 平台**沒有**站內通知系統，也不打算為了這條流程建一個 notification center。
+ * 因此只寄兩封 —— 都是由 Admin 觸發、有明確收件人、且創作者不主動來看就不會知道的
+ * 終結事件。「送審成功」刻意不寄：創作者剛按下送出，畫面已經確認過了。
+ * ------------------------------------------------------------------ */
+
+/** 教材信的共用 context。教材不存在時丟例外，由 fire-and-forget 的呼叫端記錄。 */
+async function loadMaterialEmailContext(materialId) {
+  const result = await db.query(
+    `SELECT m.id, m.title, m.status, m.review_reason_code, m.review_note, u.email
+       FROM materials m
+       JOIN users u ON u.id = m.teacher_id
+      WHERE m.id = $1
+      LIMIT 1`,
+    [String(materialId)]
+  );
+  if (result.rows.length === 0) throw new Error("material not found for email");
+  return result.rows[0];
+}
+
+function materialLinks(materialId) {
+  const base = appBaseUrl();
+  return {
+    edit: `${base}/creator/materials/${encodeURIComponent(materialId)}/edit`,
+    list: `${base}/creator/materials`,
+    public: `${base}/materials/${encodeURIComponent(materialId)}`,
+  };
+}
+
+/** 教材已上架 —— 創作者可以開始推廣了。 */
+async function sendMaterialPublishedEmail(materialId) {
+  try {
+    const material = await loadMaterialEmailContext(materialId);
+    const links = materialLinks(materialId);
+    const html = emailCard(
+      "教材已上架",
+      `<p>你的教材《${material.title}》已通過審核，現在買家可以看到並購買了。</p>
+       <p><a href="${links.public}" style="color:#5b45d9;font-weight:700;">查看教材頁面</a></p>
+       <p><a href="${links.list}" style="color:#5b45d9;">回到我的教材</a></p>`
+    );
+    await sendEmailWithLog({
+      targetType: "material",
+      targetId: material.id,
+      to: material.email,
+      subject: "【教材平台】教材已上架",
+      html,
+      metaType: "material_published",
+    });
+  } catch (err) {
+    console.error("send material published email failed:", err);
+  }
+}
+
+/**
+ * 教材需要修改 —— **這是整條流程最關鍵的一封信**。
+ * 沒有站內通知，創作者不會知道要回來修改，教材就永遠卡在 changes_requested。
+ */
+async function sendMaterialChangesRequestedEmail(materialId) {
+  try {
+    const material = await loadMaterialEmailContext(materialId);
+    const links = materialLinks(materialId);
+    const reasonLabel =
+      REVIEW_REASON_LABEL[material.review_reason_code] ?? material.review_reason_code ?? "未提供";
+    const html = emailCard(
+      "教材需要修改",
+      `<p>你的教材《${material.title}》尚未通過審核，需要修改後重新送審。</p>
+       <p><strong>退回原因：</strong>${reasonLabel}</p>
+       <p><strong>審核說明：</strong>${escapeHtml(material.review_note || "")}</p>
+       <p><a href="${links.edit}" style="color:#5b45d9;font-weight:700;">前往修改教材</a></p>
+       <p style="color:#6b7280;font-size:13px;">修改完成後，請在編輯頁按「儲存並重新送審」，教材才會回到審核佇列。</p>`
+    );
+    await sendEmailWithLog({
+      targetType: "material",
+      targetId: material.id,
+      to: material.email,
+      subject: "【教材平台】教材需要修改",
+      html,
+      metaType: "material_changes_requested",
+    });
+  } catch (err) {
+    console.error("send material changes-requested email failed:", err);
+  }
+}
+
 module.exports = {
   verifySmtpConnection,
   sendSmtpTestEmail,
@@ -196,4 +317,6 @@ module.exports = {
   sendProofUploadedEmail,
   sendPaymentApprovedEmail,
   sendPaymentRejectedEmail,
+  sendMaterialPublishedEmail,
+  sendMaterialChangesRequestedEmail,
 };

@@ -1,5 +1,7 @@
 const db = require("../config/db");
 const { REPORTING_TIMEZONE, resolvePreviousPeriod, computeDeltaPercent } = require("../utils/reportingRange");
+const reportWorkflow = require("../utils/reportWorkflow");
+const consumerComplaint = require("./consumerComplaint.service");
 
 /**
  * Admin dashboard summary 的資料層。
@@ -63,7 +65,9 @@ async function getDashboardSummary(period) {
   const previous = resolvePreviousPeriod(period);
   const p = [period.from, period.endExclusive, REPORTING_TIMEZONE, previous.from, previous.endExclusive];
 
-  const [ordersRes, usersRes, materialsRes, reviewRes, pendingProofsRes, pendingReportsRes] = await Promise.all([
+  const [ordersRes, usersRes, materialsRes, reviewRes, pendingProofsRes, pendingReportsRes,
+    actionableReportsRes, overdueComplaintsRes] =
+    await Promise.all([
     /*
      * 一次掃描取得 orders 的四個指標。
      *   ordersCount          所有訂單，不分狀態（all-time）
@@ -142,6 +146,32 @@ async function getDashboardSummary(period) {
     ),
     db.query(`SELECT COUNT(*)::int AS c FROM manual_payment_proofs WHERE review_status = 'pending'`),
     db.query(`SELECT COUNT(*)::int AS c FROM reports WHERE status = 'pending'`),
+    /*
+     * **Dashboard 待辦的 canonical 定義**：現在需要 Admin 執行下一步的案件。
+     *
+     * 狀態清單來自 `utils/reportWorkflow.js` 的 `ADMIN_ACTIONABLE_REPORT_STATUSES`
+     * （`pending` + `investigating`），**不是**在這裡手寫一組 status array ——
+     * Dashboard 與檢舉頁各自寫一份，正是兩邊數字對不起來的成因。
+     *
+     * `awaiting_creator` 刻意不計：球在創作者手上（見該常數的說明）。
+     * terminal（含 legacy `reviewed`）自然也不在其中。
+     */
+    db.query(`SELECT COUNT(*)::int AS c FROM reports WHERE status = ANY($1::text[])`, [
+      [...reportWorkflow.ADMIN_ACTIONABLE_REPORT_STATUSES],
+    ]),
+    /*
+     * **已逾法定期限且仍需處理的消費申訴數**（`P1-09` Gate 3 / Wave 2 #11）。
+     *
+     * 判準來自 `services/consumerComplaint.service.js` 的 `OVERDUE_SQL` ——
+     * **不是**在這裡手寫一組條件。Dashboard 與 `/admin/complaints?overdue=1`
+     * 各寫一份，正是「告警說 3 件、點進去只有 2 件」的成因，
+     * 而那會直接毀掉告警的可信度。
+     *
+     * `resolved` / `closed` 已在該判準中排除 —— 已處理完的案件不是待辦告警。
+     */
+    db.query(
+      `SELECT COUNT(*)::int AS c FROM consumer_complaints WHERE ${consumerComplaint.OVERDUE_SQL}`
+    ),
   ]);
 
   const o = ordersRes.rows[0] || {};
@@ -214,7 +244,23 @@ async function getDashboardSummary(period) {
     reviewsCount: Number(r.reviews_count || 0),
     usersCount: Number(u.users_count || 0),
     pendingProofsCount: Number(pendingProofsRes.rows[0]?.c || 0),
+    /**
+     * @deprecated 語意上仍然是**字面**的 `status = 'pending'`（新進、沒有人接手）。
+     * Dashboard 的待辦卡已改用 `actionableReportsCount`；保留此欄位是為了不破壞既有 caller，
+     * 且它的名字與內容仍然相符 —— 不會變成「名字說 pending、實際卻是別的東西」的技術債。
+     */
     pendingReportsCount: Number(pendingReportsRes.rows[0]?.c || 0),
+    /**
+     * 現在需要 Admin 執行下一步的檢舉數（`pending` + `investigating`）。
+     * 定義見 `utils/reportWorkflow.js` 的 `ADMIN_ACTIONABLE_REPORT_STATUSES`。
+     */
+    actionableReportsCount: Number(actionableReportsRes.rows[0]?.c || 0),
+    /**
+     * 已逾消保法 §43 II 十五日期限、且**仍需處理**的申訴數。
+     * canonical 判準見 `consumerComplaint.service.js` 的 `OVERDUE_SQL`；
+     * 與 `/admin/complaints?overdue=1` 回傳的集合**必定一致**。
+     */
+    overdueComplaintsCount: Number(overdueComplaintsRes.rows[0]?.c || 0),
     wowReviewDeltaPercent,
   };
 }

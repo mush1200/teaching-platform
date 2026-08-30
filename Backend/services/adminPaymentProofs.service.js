@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const paymentTimingPolicy = require("../utils/paymentTimingPolicy");
 const { parsePagination, buildPaginationMeta, toLikePattern } = require("../utils/adminQuery");
 
 /**
@@ -21,6 +22,13 @@ const { parsePagination, buildPaginationMeta, toLikePattern } = require("../util
  * 因此本模組**不會**編造「使用者付款申報」區塊 —— 只顯示真的存在的資料：
  * 上傳時間、檔名、MIME、大小、憑證影像。缺的欄位列在最終報告的
  * 「Requires product decision」。
+ *
+ * ## 憑證影像怎麼交出去
+ *
+ * **不經由這一層**。本模組只回 metadata 與一條受保護的 `proof_file_path`；
+ * 位元組由 `GET /orders/:orderId/payment-proofs/:proofId/file` 交付，授權在
+ * `services/paymentProof.service.js`（Admin **或** 訂單擁有者）。
+ * 公開的 `proof_url` 已從契約中移除 —— 見 `docs/mvp_rules.md` §12.4。
  */
 
 const REVIEW_STATUSES = Object.freeze(["pending", "approved", "rejected"]);
@@ -30,7 +38,6 @@ const REVIEW_STATUSES = Object.freeze(["pending", "approved", "rejected"]);
  * 以人工轉帳的常見實務，訂單建立後 3 個日曆日內完成匯款。
  * 這個常數是唯一定義；改期限只改這裡，不要在 UI 端再算一次。
  */
-const PAYMENT_DUE_DAYS = 3;
 
 function parseReviewStatus(raw) {
   if (raw == null) return { valid: true, status: null };
@@ -51,7 +58,7 @@ const INVALID_STATUS_MESSAGE = `status must be one of ${REVIEW_STATUSES.join("|"
 const PROOF_SELECT = `
   mpp.id,
   mpp.order_id,
-  mpp.proof_url,
+  mpp.storage_status,
   mpp.proof_mime_type,
   mpp.proof_size_bytes,
   mpp.original_filename,
@@ -62,6 +69,13 @@ const PROOF_SELECT = `
   mpp.reviewed_by,
   mpp.note,
   mpp.rejection_reason,
+  -- 買家申報值（P1-09 Gate 6）。reported_ 前綴是語意的一部分：
+  -- 這些是買家說的，不是平台查證的事實。Admin UI 必須照此標示，
+  -- 不得寫成「實際入帳銀行／金額／時間」。
+  mpp.reported_bank_name,
+  mpp.reported_account_last4,
+  mpp.reported_amount,
+  mpp.reported_transfer_at,
   o.user_id,
   o.status              AS order_status,
   o.total_amount        AS order_total_amount,
@@ -71,7 +85,24 @@ const PROOF_SELECT = `
   o.payment_mode        AS order_payment_mode,
   o.created_at          AS order_created_at,
   o.paid_at             AS order_paid_at,
-  (o.created_at + INTERVAL '${PAYMENT_DUE_DAYS} days') AS order_payment_due_at,
+  -- 四個時間彼此獨立，不得互相冒充（見 docs/mvp_rules.md 第 12.3a 節）：
+  --   payment_info_submitted_at  平台何時被告知買家已付款（審核時鐘起算）
+  --   payment_received_at        平台在銀行帳戶實際觀察到的入帳時間（Admin 填）
+  --   paid_at                    Admin 按下核准的那一刻（既有語意，營收認列依據）
+  o.payment_info_submitted_at AS order_payment_info_submitted_at,
+  o.payment_received_at AS order_payment_received_at,
+  -- 付款期限 enforcement 的 canonical 結果（Wave 2 #12）。
+  -- Admin 必須看得出「買家現在還能不能補件」——
+  -- 否則會出現 Admin 叫買家重傳、但 backend 拒絕的矛盾。
+  -- **frontend 不得自行計算 eligibility。**
+  ${paymentTimingPolicy.PAYMENT_SUBMISSION_ALLOWED_SQL} AS order_payment_submission_allowed,
+  ${paymentTimingPolicy.PAYMENT_DEADLINE_EXPIRED_SQL} AS order_payment_deadline_expired,
+  -- 2026-08-26：付款期限改讀**實體欄位**。
+  -- 先前這裡是 (created_at + INTERVAL '3 days') 的即席推算 —— 那個 3 從未由產品拍板，
+  -- 而且對 legacy 訂單算出一個它們從未被揭露過的期限。
+  -- 現在 legacy 訂單此欄為 NULL，序列化層會誠實回報「未設定」，**不做任何 fallback 推算**。
+  o.payment_due_at      AS order_payment_due_at,
+  o.review_due_at       AS order_review_due_at,
   bu.email              AS buyer_email,
   ru.email              AS reviewed_by_email,
   (SELECT COUNT(*)::int FROM manual_payment_proofs m2 WHERE m2.order_id = o.id) AS order_proof_count`;
@@ -84,6 +115,14 @@ const PROOF_FROM = `
 
 function toIso(value) {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+/**
+ * 憑證影像的受保護讀取路徑。與 `services/paymentProof.service.js` 的
+ * `publicProofShape()` 產生的是同一條路徑 —— 兩邊各拼一次遲早會分歧。
+ */
+function proofFilePath(orderId, proofId) {
+  return `/orders/${encodeURIComponent(String(orderId))}/payment-proofs/${encodeURIComponent(String(proofId))}/file`;
 }
 
 function serializeProof(row) {
@@ -101,9 +140,41 @@ function serializeProof(row) {
     order_payment_mode: row.order_payment_mode ?? null,
     order_created_at: toIso(row.order_created_at),
     order_paid_at: toIso(row.order_paid_at),
+    order_payment_info_submitted_at: toIso(row.order_payment_info_submitted_at),
+    order_payment_received_at: toIso(row.order_payment_received_at),
+    /*
+     * 付款期限與核帳期限都是**實體欄位**，不是推算值。
+     * legacy 訂單為 `null` —— 它們建立時沒有被揭露過任何期限，
+     * **不得**在此 fallback 成 `created_at + N 天`（那正是舊 `PAYMENT_DUE_DAYS` 的錯）。
+     */
     order_payment_due_at: toIso(row.order_payment_due_at),
+    order_review_due_at: toIso(row.order_review_due_at),
+    /** 付款期限是否已過（legacy NULL 一律 false）。 */
+    order_payment_deadline_expired: row.order_payment_deadline_expired === true,
+    /**
+     * 買家現在是否還能提交付款憑證 —— **backend canonical 判準**。
+     * 逾期但曾在期限內提交過的訂單仍為 `true`（退件後可重傳）。
+     */
+    order_payment_submission_allowed: row.order_payment_submission_allowed === true,
+    /** 人工核帳是否已逾時。核准後不再逾時；legacy（NULL）一律 false。 */
+    review_overdue: paymentTimingPolicy.isReviewOverdue({
+      status: row.order_status,
+      review_due_at: row.order_review_due_at,
+    }),
     order_proof_count: row.order_proof_count ?? null,
-    proof_url: row.proof_url,
+    /*
+     * **不回傳 `proof_url`**（也不回傳 `storage_key`）。
+     *
+     * 舊契約直接把 `http://…/uploads/payment-proofs/<file>.png` 交給 Admin UI 當
+     * `<img src>`，那條 URL 沒有任何授權 —— 拿到它的人（包含前端 state、瀏覽器
+     * 歷史、任何側錄）都能看到別人的匯款畫面。
+     *
+     * 取而代之的是 `proof_file_path`：一條只由 order id 與 proof id 組成的受保護
+     * 路徑，讀它仍然要通過 `requireAuth` + Admin/owner 授權。
+     */
+    proof_storage_status: row.storage_status ?? null,
+    proof_file_available: row.storage_status === "private",
+    proof_file_path: proofFilePath(row.order_id, row.id),
     proof_mime_type: row.proof_mime_type,
     proof_size_bytes: row.proof_size_bytes,
     original_filename: row.original_filename,
@@ -115,6 +186,16 @@ function serializeProof(row) {
     reviewed_by_email: row.reviewed_by_email ?? null,
     note: row.note,
     rejection_reason: row.rejection_reason ?? null,
+    /*
+     * **買家申報值 —— 不是平台查證的事實。**
+     * `reported_transfer_at` ≠ `order_payment_received_at`；
+     * `reported_amount` ≠ 平台已確認的入帳金額。
+     * 兩個來源刻意並存：付款爭議時「買家說什麼」與「平台看到什麼」都要留得住。
+     */
+    reported_bank_name: row.reported_bank_name ?? null,
+    reported_account_last4: row.reported_account_last4 ?? null,
+    reported_amount: row.reported_amount == null ? null : Number(row.reported_amount),
+    reported_transfer_at: toIso(row.reported_transfer_at),
   };
 }
 
@@ -210,8 +291,8 @@ async function getProofDetail(proofId) {
   );
 
   const siblingsResult = await db.query(
-    `SELECT mpp.id, mpp.review_status, mpp.note, mpp.rejection_reason,
-            mpp.proof_url, mpp.original_filename,
+    `SELECT mpp.id, mpp.order_id, mpp.review_status, mpp.note, mpp.rejection_reason,
+            mpp.storage_status, mpp.original_filename,
             COALESCE(mpp.uploaded_at, mpp.created_at) AS uploaded_at,
             mpp.reviewed_at
      FROM manual_payment_proofs mpp
@@ -224,7 +305,15 @@ async function getProofDetail(proofId) {
     proof,
     orderItems: itemsResult.rows,
     otherProofs: siblingsResult.rows.map((row) => ({
-      ...row,
+      id: String(row.id),
+      order_id: row.order_id,
+      review_status: row.review_status,
+      note: row.note,
+      rejection_reason: row.rejection_reason ?? null,
+      original_filename: row.original_filename,
+      proof_storage_status: row.storage_status ?? null,
+      proof_file_available: row.storage_status === "private",
+      proof_file_path: proofFilePath(row.order_id, row.id),
       uploaded_at: toIso(row.uploaded_at),
       reviewed_at: toIso(row.reviewed_at),
     })),
@@ -233,7 +322,7 @@ async function getProofDetail(proofId) {
 
 module.exports = {
   REVIEW_STATUSES,
-  PAYMENT_DUE_DAYS,
+  PAYMENT_TIMING_POLICY: paymentTimingPolicy.PAYMENT_TIMING_POLICY,
   INVALID_STATUS_MESSAGE,
   parseReviewStatus,
   listProofs,

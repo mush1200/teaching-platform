@@ -31,6 +31,8 @@ if (process.env.PGDATABASE !== EXPECTED_DB) {
 
 const db = require("../config/db");
 const service = require("../services/adminPaymentProofs.service");
+const policy = require("../utils/paymentTimingPolicy");
+const calendar = require("../utils/taiwanCalendar");
 
 const PREFIX = "tp_apptest_";
 const id = (name) => `${PREFIX}${name}`;
@@ -61,9 +63,13 @@ async function seed() {
     [id("mat"), `${PREFIX}示範教材`, id("creator")]
   );
   await db.query(
-    `INSERT INTO orders(id, user_id, status, payment_mode, total_amount, total_price, created_at)
-     VALUES($1, $2, 'pending_payment', 'manual_transfer', 450, 450, NOW() - INTERVAL '1 day')`,
-    [id("order1"), id("buyer")]
+    // 新政策下建立的訂單：`payment_due_at` 是**實體欄位**（建單時由
+    // `utils/paymentTimingPolicy.js` 算出並寫入），不再是 SELECT 推算值。
+    `INSERT INTO orders(id, user_id, status, payment_mode, total_amount, total_price,
+                        created_at, payment_due_at)
+     VALUES($1, $2, 'pending_payment', 'manual_transfer', 450, 450,
+            NOW() - INTERVAL '1 day', $3)`,
+    [id("order1"), id("buyer"), policy.paymentDueAt(new Date(Date.now() - 24 * 60 * 60 * 1000))]
   );
   await db.query(
     `INSERT INTO order_items(id, order_id, material_id, title_snapshot, price_snapshot, quantity, seller_id, subtotal)
@@ -133,18 +139,49 @@ test("每一列帶得出判斷所需的訂單 context", async () => {
   assert.equal(row.order_status, "pending_payment");
   assert.equal(row.order_payment_mode, "manual_transfer");
   assert.ok(row.order_created_at, "缺少訂單建立時間就無法判斷是否逾期");
-  assert.ok(row.order_payment_due_at, "付款期限為衍生值，必須由 Backend 算");
+  assert.ok(row.order_payment_due_at, "付款期限來自 orders.payment_due_at 實體欄位");
   assert.equal(row.order_proof_count, 2);
   assert.equal(row.proof_mime_type, "image/jpeg");
   assert.equal(row.original_filename, "transfer.jpg");
 });
 
-test("付款期限 = 訂單建立時間 + PAYMENT_DUE_DAYS", async () => {
+test("付款期限來自實體欄位，且與單一 policy 一致（不再是 SELECT 推算）", async () => {
   const result = await service.listProofs({ q: id("proof_new"), limit: 10 });
   const row = result.items[0];
-  const days =
-    (new Date(row.order_payment_due_at) - new Date(row.order_created_at)) / (24 * 60 * 60 * 1000);
-  assert.equal(Math.round(days), service.PAYMENT_DUE_DAYS);
+  // 期限的**日期**必須等於「建單日 + PAYMENT_DUE_CALENDAR_DAYS」，
+  // 且時點是該日的台北終了（末日終了模型，不是 +N×24h）。
+  assert.equal(
+    policy.paymentDueDate(row.order_created_at),
+    calendar.taiwanCalendarDate(row.order_payment_due_at),
+    "付款期限日期必須來自 utils/paymentTimingPolicy.js"
+  );
+  assert.equal(
+    calendar.calendarDaysBetween(row.order_created_at, row.order_payment_due_at),
+    policy.PAYMENT_DUE_CALENDAR_DAYS
+  );
+  assert.equal(new Date(row.order_payment_due_at).toISOString().slice(11), "15:59:59.999Z");
+});
+
+test("legacy 訂單（payment_due_at IS NULL）不得被推算出假期限", async () => {
+  const legacyId = id("legacy_order");
+  await db.query(
+    `INSERT INTO orders(id, user_id, status, payment_mode, total_amount, total_price, created_at)
+     VALUES($1, $2, 'pending_payment', 'manual_transfer', 100, 100, NOW() - INTERVAL '90 days')`,
+    [legacyId, id("buyer")]
+  );
+  const proofId = id("legacy_proof");
+  await db.query(
+    `INSERT INTO manual_payment_proofs(id, order_id, storage_key, storage_status, proof_mime_type,
+                                       proof_size_bytes, original_filename, uploaded_by, review_status, uploaded_at)
+     VALUES($1, $2, $3, 'private', 'image/jpeg', 10, 'legacy.jpg', $4, 'pending', NOW())`,
+    [proofId, legacyId, `payment-proofs/${require("crypto").randomUUID()}`, id("buyer")]
+  );
+  const detail = await service.getProofDetail(proofId);
+  assert.equal(detail.proof.order_payment_due_at, null, "**不得** fallback 成 created_at + N 天");
+  assert.equal(detail.proof.order_review_due_at, null);
+  assert.equal(detail.proof.review_overdue, false, "沒有期限就不是逾時");
+  await db.query(`DELETE FROM manual_payment_proofs WHERE id = $1`, [proofId]);
+  await db.query(`DELETE FROM orders WHERE id = $1`, [legacyId]);
 });
 
 test("詳情含訂單明細與同訂單的其他憑證（含上次退件原因）", async () => {

@@ -36,6 +36,12 @@ if (process.env.PGDATABASE !== EXPECTED_DB) {
 const db = require("../config/db");
 const reportRepository = require("../repositories/report.repository");
 const reportAdminService = require("../services/reportAdmin.service");
+const workflow = require("../utils/reportWorkflow");
+const { getDashboardSummary } = require("../services/adminDashboard.service");
+const { resolveReportingRange } = require("../utils/reportingRange");
+
+/** Dashboard 待辦是 snapshot（不受期間影響），期間隨便給一個合法值即可。 */
+const DASHBOARD_PERIOD = resolveReportingRange({ range: "30d" });
 
 const PREFIX = "tp_rctest_";
 const id = (name) => `${PREFIX}${name}`;
@@ -216,9 +222,11 @@ test("unpublish_material 真的下架教材並寫入 activity_logs", async () =>
   assert.equal(material.rows[0].status, "unpublished");
 
   const logs = await db.query(
+    // `activity_logs.id` 是 UUID（identity 不是 time，見 utils/activityLog.js）——
+    // 事件順序一律以 `created_at` 為準，`id` 只是 deterministic tie-breaker。
     `SELECT action, target_type, target_id, meta FROM activity_logs
      WHERE actor_id = $1 AND target_id IN ($2, $3)
-     ORDER BY id ASC`,
+     ORDER BY created_at ASC, id ASC`,
     [ADMIN.userId, id("mat_other"), reportId]
   );
   const actions = logs.rows.map((r) => r.action);
@@ -301,6 +309,46 @@ test("佇列 status=open 只回需要行動的案件；statusCounts 為全表計
   const counts = await reportRepository.countReportsByStatus();
   assert.ok((counts.resolved ?? 0) >= 1, "flow 案件已 resolved");
   assert.ok((counts.dismissed ?? 0) >= 1, "terminal 案件已 dismissed");
+});
+
+/*
+ * Dashboard 待辦數 = **球在 Admin 手上**的案件（`ADMIN_ACTIONABLE_REPORT_STATUSES`）。
+ *
+ * 這條測試鎖住兩件事：
+ *   1. 數字真的由 canonical 分組算出（不是「只算 pending」也不是「所有未結案」）；
+ *   2. `awaiting_creator` 與 terminal（含 legacy `reviewed`）都不計入。
+ */
+test("Dashboard actionableReportsCount = pending + investigating（不含 awaiting_creator 與 terminal）", async () => {
+  const counts = await reportRepository.countReportsByStatus();
+  const summary = await getDashboardSummary(DASHBOARD_PERIOD);
+
+  const actionable = workflow.ADMIN_ACTIONABLE_REPORT_STATUSES.reduce(
+    (acc, status) => acc + (counts[status] ?? 0),
+    0
+  );
+  const open = workflow.OPEN_REPORT_STATUSES.reduce((acc, status) => acc + (counts[status] ?? 0), 0);
+
+  assert.equal(summary.actionableReportsCount, actionable, "待辦數必須等於 canonical 分組的加總");
+  assert.equal(summary.pendingReportsCount, counts.pending ?? 0, "舊欄位維持字面上的 pending");
+
+  // open = actionable + awaiting_creator，且待辦一定不大於未結案
+  assert.equal(open, actionable + (counts.awaiting_creator ?? 0));
+  assert.ok(summary.actionableReportsCount <= open);
+
+  // 這份 fixture 真的有 awaiting_creator，差值才有意義
+  assert.ok((counts.awaiting_creator ?? 0) > 0, "fixture 應包含 awaiting_creator 案件");
+  assert.ok(summary.actionableReportsCount < open, "awaiting_creator 不得計入待辦");
+
+  // terminal（含 legacy reviewed）一律不計：actionable = 全部 − terminal − awaiting_creator
+  const terminal = workflow.TERMINAL_REPORT_STATUSES.reduce((acc, s) => acc + (counts[s] ?? 0), 0);
+  const total = workflow.REPORT_STATUSES.reduce((acc, s) => acc + (counts[s] ?? 0), 0);
+  assert.ok(terminal > 0, "fixture 應包含已結案案件");
+  assert.ok((counts.reviewed ?? 0) > 0, "fixture 應包含 legacy reviewed 案件");
+  assert.equal(
+    summary.actionableReportsCount,
+    total - terminal - (counts.awaiting_creator ?? 0),
+    "待辦 = 全部 − 已結案 − 等待創作者"
+  );
 });
 
 test("搜尋以人類可讀欄位為主（教材標題 / 檢舉人 email）", async () => {

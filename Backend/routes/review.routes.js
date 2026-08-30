@@ -4,6 +4,7 @@ const { writeActivityLog } = require("../utils/activityLog");
 const reviewService = require("../services/review.service");
 
 const router = express.Router();
+const { requireActiveAccount } = require("../middlewares/accountStatus");
 
 function requireParentReviewer(req, res, next) {
   if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -13,7 +14,7 @@ function requireParentReviewer(req, res, next) {
   next();
 }
 
-router.post("/", requireAuth, requireParentReviewer, async (req, res) => {
+router.post("/", requireAuth, requireParentReviewer, requireActiveAccount, async (req, res) => {
   try {
     const body = req.body || {};
     const materialId = body.material_id ?? body.materialId;
