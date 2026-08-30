@@ -12,6 +12,6 @@
     "build:web": "npm run build -w @teaching-platform/web",
     "lint:web": "npm run lint -w @teaching-platform/web",
     "typecheck:web": "npm run typecheck -w @teaching-platform/web",
-    "verify:web": "npm run lint:web && npm run typecheck:web && npm run build:web"
+    "verify:web": "node scripts/verify-web.mjs"
   }
 }

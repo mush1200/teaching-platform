@@ -13,13 +13,17 @@ import { PageHeader } from "../../../components/ds";
  * 要不要把它們變成可調設定，是產品決策，不是這一輪的 UI 工作。
  *
  * 因此這一頁只誠實說明現況，不做一個什麼都改不動的假設定頁。
+ *
+ * `IA-07`：因為沒有任何可調整的設定，這一頁**已不在側欄**。
+ * route 保留為可直達的相容入口（書籤、既有連結）。
  */
 export const metadata = {
   title: "系統設定 | EduMarket",
 };
 
 const CONFIGURABLE_IN_CODE = [
-  { label: "付款期限（訂單建立後 3 天）", where: "Backend/services/adminPaymentProofs.service.js" },
+  { label: "付款期限（訂單建立後 7 個日曆日）", where: "Backend/utils/paymentTimingPolicy.js" },
+  { label: "人工核帳 SLA（付款資訊提交後 3 個日曆日）", where: "Backend/utils/paymentTimingPolicy.js" },
   { label: "每張訂單的付款憑證上限（3 張、單張 10MB）", where: "Backend/routes/order.js" },
   { label: "Admin 清單分頁上限（每頁最多 100 筆）", where: "Backend/utils/adminQuery.js" },
   { label: "檢舉處置選項", where: "Backend/utils/reportWorkflow.js" },
@@ -40,6 +44,10 @@ export default function AdminSettingsPlaceholderPage() {
         title="系統設定"
         description="目前沒有適合由管理後台調整的設定。平台可調項目不是部署環境變數，就是有明確 canonical 位置的程式常數。"
       />
+
+      <p className="rounded-ds-card border border-ds-border bg-edu-page px-4 py-3 text-meta text-ds-textMuted">
+        這一頁不在側欄裡：在有真正可由後台調整的設定之前，它不佔一級導覽。
+      </p>
 
       <article className="space-y-4 rounded-ds-card border border-ds-border bg-ds-surface p-5 shadow-ds-card-soft">
         <div>

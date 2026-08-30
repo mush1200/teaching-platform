@@ -2,10 +2,11 @@
 
 import type { ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type {
-  ActivityLog,
-  ActivityLogsResponse,
+  ActivityLogRow,
+  ActivityLogsListResponse,
   AdminDashboardSummary,
   AdminDashboardTrends,
   AdminMaterialsListResponse,
@@ -13,16 +14,21 @@ import type {
   OrdersListResponse,
 } from "../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
+import { ATTENTION_ACTIVITY_ACTION_QUERY, ATTENTION_ORDER_STATUSES } from "../../lib/admin-labels";
 import { comparisonLabel, formatIsoDateForDisplay, parseRangeSelection, toRangeQuery, type RangeSelection } from "../../lib/reportingRange";
 import { AdminKpiCard, type KpiComparison } from "./AdminKpiCard";
 import { AdminTaskCard } from "./AdminTaskCard";
 import { ReportingRangeSelector } from "../reporting/ReportingRangeSelector";
-import { RecentActivityList } from "./RecentActivityList";
-import { RecentOrdersTable } from "./RecentOrdersTable";
+import { AttentionActivityList } from "./AttentionActivityList";
+import { AttentionOrdersTable } from "./AttentionOrdersTable";
 import { TrendChart } from "../reporting/TrendChart";
 
-/** 「最近訂單」／「最近活動」各顯示幾筆。activity-logs 亦以此值向後端要資料。 */
-const RECENT_LIMIT = 8;
+/**
+ * 「需要注意的訂單」／「需要注意的活動」各顯示幾筆。
+ * 兩者都以此值向後端要資料 —— 這是**畫面容量**上限，不是篩選條件：
+ * 挑哪些訂單／哪些事件一律由 API 決定（`?status=` 與 `?action=`），前端不自己過濾。
+ */
+const ATTENTION_LIMIT = 8;
 
 const CONNECTION_ERROR = "無法連線至伺服器，請稍後再試。";
 
@@ -37,7 +43,7 @@ type StaticState = {
    */
   materialCounts: { pending_review: number; published: number } | null;
   orders: Order[];
-  activities: ActivityLog[];
+  activities: ActivityLogRow[];
   loading: boolean;
   errors: Partial<Record<"materials" | "orders" | "activities", string>>;
 };
@@ -82,8 +88,8 @@ const sectionHeading = "text-meta font-semibold text-ds-textMuted";
  *
  * **統計語意（見 docs/mvp_rules.md §15）：**
  *
- * - 期間選擇器**只**控制「本期表現」。待處理卡、平台摘要、最近訂單／活動一律是
- *   current snapshot 或 latest-N feed，永遠不受期間影響 —— 待辦被期間濾掉不代表已處理完。
+ * - 期間選擇器**只**控制「本期表現」。待處理卡、平台摘要、需要注意的訂單／活動
+ *   一律是 current snapshot，永遠不受期間影響 —— 待辦被期間濾掉不代表已處理完。
  * - 期間一律以 **Asia/Taipei 日曆日**解讀，邊界為 half-open `[from 00:00, to+1 00:00)`。
  *   換算由 Backend 負責；前端只負責 URL state 與輸入驗證，顯示的區間文字則直接採用
  *   API 回傳的 `periodFrom` / `periodTo`，確保畫面與實際查詢一致。
@@ -143,11 +149,28 @@ function AdminDashboardContent() {
 
   const loadStatic = useCallback(async () => {
     setStaticState(emptyStatic(true));
-    const [materialsRes, ordersRes, activitiesRes] = await Promise.allSettled([
+    const [materialsRes, activitiesRes, ...attentionOrderResults] = await Promise.allSettled([
       // `limit=1`：只要 statusCounts，不需要任何一頁的內容。
       apiFetch("admin/materials?limit=1"),
-      apiFetch("admin/orders"),
-      apiFetch(`admin/activity-logs?page=1&limit=${RECENT_LIMIT}`),
+      /*
+       * 需要注意的活動（IA-05）：allowlist 直接送給 API 篩選。
+       * 不抓一大頁回來自己 filter —— 高頻事件（加入購物車、下載）會把異常擠出視窗，
+       * widget 就會顯示「沒有異常」而其實有，那是靜默漏顯示。
+       */
+      apiFetch(
+        `admin/activity-logs?page=1&limit=${ATTENTION_LIMIT}` +
+          `&action=${encodeURIComponent(ATTENTION_ACTIVITY_ACTION_QUERY)}`,
+      ),
+      /*
+       * 需要注意的訂單（IA-04）：每個 attention 狀態各發一次既有的 `?status=` 查詢。
+       *
+       * 為什麼不抓全部訂單再前端 filter：`GET /admin/orders` 自 `IA-06` 起**已經分頁**
+       * （預設 20 筆／頁）。「抓全部再自己算」會安靜地只看到第一頁，
+       * 正如教材 KPI 曾經踩過的同一個坑（見上方 materialCounts 的註解）。
+       * 用 API 既有的 canonical 篩選，這個 widget 不受分頁影響 ——
+       * `ATTENTION_LIMIT`（8）小於預設頁大小，需要注意的訂單不會被切掉。
+       */
+      ...ATTENTION_ORDER_STATUSES.map((status) => apiFetch(`admin/orders?status=${status}`)),
     ]);
 
     const next = emptyStatic(false);
@@ -175,8 +198,26 @@ function AdminDashboardContent() {
           published: materialsPayload.statusCounts.published ?? 0,
         }
       : null;
-    next.orders = (await resolvePayload<OrdersListResponse>(ordersRes, "orders"))?.items ?? [];
-    next.activities = (await resolvePayload<ActivityLogsResponse>(activitiesRes, "activities"))?.items ?? [];
+    next.activities =
+      (await resolvePayload<ActivityLogsListResponse>(activitiesRes, "activities"))?.items ?? [];
+
+    /*
+     * 任何一個 attention 狀態取不到，整個 widget 就進錯誤態。
+     * 只顯示拿得到的那一半更糟：畫面看起來正常，實際上少了一整類需要處理的訂單。
+     */
+    const attentionOrders: Order[] = [];
+    for (const result of attentionOrderResults) {
+      const payload = await resolvePayload<OrdersListResponse>(result, "orders");
+      if (payload) attentionOrders.push(...(payload.items ?? []));
+    }
+    next.orders = next.errors.orders
+      ? []
+      : attentionOrders
+          // 合併兩組查詢結果後重新排序。順序與各查詢一致（created_at DESC），
+          // 這裡只是把兩份已排序的清單併回一份，沒有引入第二種排序規則。
+          .sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""))
+          .slice(0, ATTENTION_LIMIT);
+
     setStaticState(next);
   }, []);
 
@@ -269,13 +310,22 @@ function AdminDashboardContent() {
     data != null ? `${formatIsoDateForDisplay(data.periodFrom)} – ${formatIsoDateForDisplay(data.periodTo)}` : null;
 
   /**
-   * 比較列。`deltaPercent` 直接採用 Backend 的 canonical 值（含 `null` = 「新增」），
+   * 比較列。`deltaPercent` 直接採用 Backend 的 canonical 值（含 `null` = 前期為 0），
    * 前端不重算任何數學；文案依 preset 決定，`title` 補上實際的比較基準期。
+   *
+   * `current` / `previous` 只用來區分「兩期都是 0」與「有資料但持平」——
+   * 後端對兩者都回傳 `deltaPercent = 0`，把它們顯示成同一句話會讓「這段期間根本沒有
+   * 任何資料」看起來像「業績穩定」。這是**顯示層**的判斷，沒有改動任何統計定義。
    */
-  const comparisonFor = (deltaPercent: number | null | undefined): KpiComparison | null => {
+  const comparisonFor = (
+    deltaPercent: number | null | undefined,
+    current: number | null | undefined,
+    previous: number | null | undefined,
+  ): KpiComparison | null => {
     if (data == null || deltaPercent === undefined) return null;
     return {
       deltaPercent,
+      emptyBothPeriods: deltaPercent === 0 && Number(current ?? 0) === 0 && Number(previous ?? 0) === 0,
       label: comparisonLabel(data.periodPreset),
       title: `比較基準期：${formatIsoDateForDisplay(data.previousPeriodFrom)} – ${formatIsoDateForDisplay(data.previousPeriodTo)}`,
     };
@@ -332,11 +382,15 @@ function AdminDashboardContent() {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <AdminKpiCard label="營收" value={formatMoney(data?.periodRevenueAmount)} subtext="所選期間已核准" loading={periodLoading} comparison={comparisonFor(data?.revenueDeltaPercent)} />
-          <AdminKpiCard label="新增訂單" value={formatCount(data?.newOrdersCount)} subtext="所選期間" loading={periodLoading} comparison={comparisonFor(data?.newOrdersDeltaPercent)} />
-          <AdminKpiCard label="新增用戶" value={formatCount(data?.newUsersCount)} subtext="所選期間" loading={periodLoading} comparison={comparisonFor(data?.newUsersDeltaPercent)} />
-          <AdminKpiCard label="新增教材" value={formatCount(data?.newMaterialsCount)} subtext="所選期間" loading={periodLoading} comparison={comparisonFor(data?.newMaterialsDeltaPercent)} />
-          <AdminKpiCard label="新增教學回饋" value={formatCount(data?.newReviewsCount)} subtext="所選期間" loading={periodLoading} comparison={comparisonFor(data?.newReviewsDeltaPercent)} />
+          {/*
+            subtext 只留在「營收」—— 它補充了標題沒說的統計條件（僅計已核准）。
+            四張「新增類」卡片的「所選期間」與區塊標題／日期區間重複，已移除。
+          */}
+          <AdminKpiCard label="營收" value={formatMoney(data?.periodRevenueAmount)} subtext="所選期間已核准" loading={periodLoading} comparison={comparisonFor(data?.revenueDeltaPercent, data?.periodRevenueAmount, data?.previousPeriodRevenueAmount)} />
+          <AdminKpiCard label="新增訂單" value={formatCount(data?.newOrdersCount)} loading={periodLoading} comparison={comparisonFor(data?.newOrdersDeltaPercent, data?.newOrdersCount, data?.previousNewOrdersCount)} />
+          <AdminKpiCard label="新增用戶" value={formatCount(data?.newUsersCount)} loading={periodLoading} comparison={comparisonFor(data?.newUsersDeltaPercent, data?.newUsersCount, data?.previousNewUsersCount)} />
+          <AdminKpiCard label="新增教材" value={formatCount(data?.newMaterialsCount)} loading={periodLoading} comparison={comparisonFor(data?.newMaterialsDeltaPercent, data?.newMaterialsCount, data?.previousNewMaterialsCount)} />
+          <AdminKpiCard label="新增教學回饋" value={formatCount(data?.newReviewsCount)} loading={periodLoading} comparison={comparisonFor(data?.newReviewsDeltaPercent, data?.newReviewsCount, data?.previousNewReviewsCount)} />
         </div>
 
         {/*
@@ -378,21 +432,71 @@ function AdminDashboardContent() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <AdminTaskCard icon="📚" title="待審核教材" count={pendingMaterials} loading={staticState.loading} description="等待管理員確認上架資格。" href="/admin/materials?status=pending_review" />
           <AdminTaskCard icon="🧾" title="待審核付款憑證" count={data ? data.pendingProofsCount : null} loading={summaryPending} description="使用者上傳付款證明待核准。" href="/admin/payment-proofs?status=pending" />
-          <AdminTaskCard icon="🚩" title="待處理檢舉" count={data ? data.pendingReportsCount : null} loading={summaryPending} description="請盡快判斷是否違反平台規範。" href="/admin/reports?status=pending" />
+          {/*
+            待處理檢舉 = **球在 Admin 手上**的案件（`pending` + `investigating`），
+            由 Backend 依 `reportWorkflow.ADMIN_ACTIONABLE_REPORT_STATUSES` 計算。
+            `awaiting_creator` 不計 —— 那是在等創作者回覆，不是我方待辦
+            （與教材的 `changes_requested` 同一條原則）。
+            deep link 用 `?status=actionable`，點進去看到的清單與這個數字**完全一致**。
+          */}
+          <AdminTaskCard icon="🚩" title="待處理檢舉" count={data ? data.actionableReportsCount : null} loading={summaryPending} description="新進與調查中的案件，等待你處理。" href="/admin/reports?status=actionable" />
         </div>
+
+        {/*
+          **逾期申訴告警**（`P1-09` Gate 3 / Wave 2 #11）。
+
+          刻意**只在真的有逾期時才出現** —— 沒有逾期就不顯示，不製造假警告。
+          這與上方常駐的待辦卡不同：那些是日常佇列（0 也有意義），
+          這個是**已違反法定期限**的例外狀態，常駐顯示「0 件逾期」只會鈍化它。
+
+          數字與 deep link 指向的集合來自**同一個 backend 判準**
+          （`consumerComplaint.service.js` 的 `OVERDUE_SQL`）——
+          前端不做任何日期比較。
+        */}
+        {data && data.overdueComplaintsCount > 0 ? (
+          <div
+            role="status"
+            data-testid="overdue-complaints-alert"
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-ds-card border border-edu-error/40 bg-status-rejectedBg p-4"
+          >
+            <div className="min-w-0">
+              <p className="text-body font-semibold text-status-rejectedText">
+                <span aria-hidden className="mr-1">⏰</span>
+                逾期申訴
+              </p>
+              <p className="mt-1 text-meta text-status-rejectedText">
+                <span data-testid="overdue-complaints-count">{data.overdueComplaintsCount}</span> 件已超過消費者保護法規定的十五日處理期限，需要優先處理。
+              </p>
+            </div>
+            <Link
+              href="/admin/complaints?status=overdue"
+              data-testid="overdue-complaints-cta"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-xl bg-edu-error px-4 text-sm font-semibold text-white"
+            >
+              查看逾期申訴
+            </Link>
+          </div>
+        ) : null}
       </section>
 
       {/*
-        Operational awareness。訂單在左／活動在右：訂單牽涉金額與狀態、可直接處理，
+        需要注意（IA-04 / IA-05）。訂單在左／活動在右：訂單牽涉金額與狀態、可直接處理，
         活動紀錄偏稽核軌跡。JSX 順序同時決定 breakpoint 以下的堆疊順序。
         items-start：兩張卡各自取自然高度，避免較短的一張被 stretch 出大片空白。
 
-        兩者都是「平台最新 N 筆」的 latest-N feed，不是期間聚合，因此不受期間控制：
-        /admin/orders 已 ORDER BY created_at DESC，activity-logs 亦由後端取最新 N 筆。
+        這兩張卡**不再是** latest-N feed。舊版顯示「最新的 8 筆訂單／事件」，
+        回答的是「剛剛發生了什麼」—— 那個問題已由 KPI 與趨勢圖回答，
+        Admin 從清單裡得不到任何行動（IA §1 結論 2、§11 原則 1）。
+        現在兩者都是 exception feed：
+          訂單 —— Backend `operational_status` ∈ ATTENTION_ORDER_STATUSES
+          活動 —— Backend `action` ∈ ATTENTION_ACTIVITY_ACTIONS
+
+        仍然**不受期間控制**，理由與待處理卡相同：需要處理的東西不會因為
+        它發生在所選期間之外就不需要處理。兩者都是 current snapshot。
       */}
       <div className="grid items-start gap-5 xl:grid-cols-2">
-        <RecentOrdersTable orders={staticState.orders.slice(0, RECENT_LIMIT)} loading={staticState.loading} error={staticState.errors.orders ?? null} />
-        <RecentActivityList items={staticState.activities.slice(0, RECENT_LIMIT)} loading={staticState.loading} error={staticState.errors.activities ?? null} />
+        <AttentionOrdersTable orders={staticState.orders} loading={staticState.loading} error={staticState.errors.orders ?? null} />
+        <AttentionActivityList items={staticState.activities} loading={staticState.loading} error={staticState.errors.activities ?? null} />
       </div>
 
       {/*

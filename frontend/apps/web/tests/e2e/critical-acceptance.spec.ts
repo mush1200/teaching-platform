@@ -228,13 +228,18 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await expect(page.getByTestId("payment-review-message")).toContainText("已退回");
   });
 
-  test("ADMIN | NIGHTLY | 15) admin material reports mark reviewed and show feedback", async ({ page }) => {
+  test("ADMIN | NIGHTLY | 15) material reports page is contextual read-only, not a second case handler", async ({ page }) => {
+    /*
+     * 教材檢舉頁是 **contextual read-only**：看得到這份教材被檢舉了什麼，
+     * 但不能在這裡處置 —— 「標記已處理」（legacy `reviewed` 的最後一個產品 writer）
+     * 已移除，所有處置都回 `/admin/reports`。
+     */
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/materials/mat_mock_001/reports");
-    await expect(page.getByRole("heading", { name: "教材檢舉紀錄" })).toBeVisible();
-    await expect(page.getByText("檢舉 rep_101")).toBeVisible();
-    await page.getByRole("button", { name: "標記已處理" }).first().click();
-    await expect(page.getByText("檢舉已標記為已處理。")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "教材檢舉脈絡" })).toBeVisible();
+    await expect(page.getByText("描述不清")).toBeVisible();
+    await expect(page.getByRole("button", { name: "標記已處理" })).toHaveCount(0);
+    await expect(page.getByTestId("material-report-open-case").first()).toBeVisible();
   });
 
   test("JOURNEY | NIGHTLY | 16) full flow end-to-end (login -> shop -> checkout -> upload -> download -> admin review)", async ({ page }) => {
@@ -268,10 +273,19 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await expect(dlButton).toBeVisible();
     await dlButton.click();
 
+    /*
+     * Admin 端收尾：走**目前**的檢舉案件流程。
+     *
+     * 舊版這裡按的是「標記已處理」（legacy `PATCH /admin/reports/:id { status: "reviewed" }`），
+     * 那顆按鈕在案件流程改版後就不在 `/admin/reports` 上了 —— 它只是這條 journey 的
+     * 最後一步「Admin 收到並處理了平台事件」，因此改成接手調查，斷言的是同一件事。
+     */
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/reports", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "檢舉管理" })).toBeVisible();
-    await page.getByRole("button", { name: "標記已處理" }).first().click();
-    await expect(page.getByText("檢舉已標記為已處理。")).toBeVisible();
+    await page.getByTestId("report-case-open").first().click();
+    await expect(page.getByTestId("report-case-detail")).toBeVisible();
+    await page.getByTestId("report-investigate").click();
+    await expect(page.getByTestId("report-case-message")).toContainText("已接手");
   });
 });

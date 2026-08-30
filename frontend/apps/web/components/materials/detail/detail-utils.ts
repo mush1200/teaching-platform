@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import type { Chip } from "../../ui/Chip";
+import { categoryLabel } from "../../../lib/material-categories";
 import {
   MATERIAL_FEATURE_GROUP_LABELS,
   type MaterialFeatureGroupKey,
@@ -22,18 +23,8 @@ export const FEATURE_GROUP_ORDER: MaterialFeatureGroupKey[] = [
 export const FEATURE_GRID_LEFT_ORDER: MaterialFeatureGroupKey[] = ["material_format", "learning_goals", "support_level"];
 export const FEATURE_GRID_RIGHT_ORDER: MaterialFeatureGroupKey[] = ["teaching_methods", "teaching_format"];
 
-const CATEGORY_LABEL: Record<string, string> = {
-  math: "數學",
-  language: "語言",
-  science: "自然",
-  art: "美術",
-};
-
-export function categoryDisplay(category: string | undefined): string {
-  if (!category?.trim()) return "其他";
-  const key = category.trim().toLowerCase();
-  return CATEGORY_LABEL[key] ?? category;
-}
+/** 標籤一律來自 `lib/material-categories.ts`（單一來源）。 */
+export const categoryDisplay = categoryLabel;
 
 export function chipToneByGroup(groupKey: MaterialFeatureGroupKey): ComponentProps<typeof Chip>["tone"] {
   switch (groupKey) {

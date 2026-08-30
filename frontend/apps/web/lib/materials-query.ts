@@ -69,7 +69,12 @@ function sortMaterials(list: MockMaterial[], sort: MaterialsSort | undefined): M
   const s = sort ?? "popular";
   const copy = [...list];
   if (s === "popular") {
-    copy.sort((a, b) => b.learners - a.learners || b.reviewCount - a.reviewCount);
+    /*
+     * `learners` 目前沒有任何真實來源（mapper 寫死 0），先前它是主要排序鍵，
+     * 於是**預設排序實際上是任意順序** —— 首頁「熱門教材」因此會把測試資料排在最前面。
+     * 改用真實存在的訊號：回饋則數優先，同分再看平均分。
+     */
+    copy.sort((a, b) => b.reviewCount - a.reviewCount || b.rating - a.rating);
     return copy;
   }
   if (s === "latest") {
@@ -91,7 +96,8 @@ function sortMaterials(list: MockMaterial[], sort: MaterialsSort | undefined): M
     return copy;
   }
   if (s === "recommended") {
-    copy.sort((a, b) => b.learners - a.learners);
+    // 同上：`learners` 沒有真實來源，改用真實的評分訊號。
+    copy.sort((a, b) => b.reviewCount - a.reviewCount || b.rating - a.rating);
     return copy;
   }
   return copy;

@@ -34,8 +34,10 @@ export async function getMaterialById(id: string): Promise<MockMaterial | null> 
       apiFetch(`materials/${encodeURIComponent(id)}/rating`),
     ]);
     if (detailRes.ok) {
-      const row = (await detailRes.json()) as Material;
+      const row = (await detailRes.json()) as Material & { is_purchasable?: boolean };
       const mock = materialToMock(row);
+      // 只有明確的 `false` 才視為不可購買；欄位缺席（舊 payload）維持可購買。
+      mock.isPurchasable = row.is_purchasable !== false;
       if (ratingRes.ok) {
         const stats = (await ratingRes.json()) as MaterialRatingStats;
         const avg = stats.average;
@@ -60,7 +62,17 @@ function apiReviewRowToMock(
   return {
     id: row.id,
     materialId,
-    userName: "家長",
+    /*
+     * **不要臆測作者身分**（`COR-04`）。`GET /materials/:id/reviews` 只回傳
+     * `id / rating / comment / created_at / parent_id` —— 沒有姓名、沒有角色。
+     * 舊版寫死成「家長」：既是憑空捏造的身分，也違反角色命名規則。
+     * Admin 端早已這麼做（`components/admin/MaterialFeedbackContext.tsx`），
+     * 這裡跟上同一個做法：名稱留空，呼叫端一律 `showAuthorName={false}`。
+     *
+     * `audienceRole` 是**內部常數**（`parent` = 買家寫的回饋，由 `review.parent_id` 決定），
+     * 不是 UI 文案；顯示用的字串在 `components/reviews/ReviewItem.tsx` 的 `roleLabelMap`。
+     */
+    userName: "",
     audienceRole: "parent",
     avatarAccent: accents[idx % accents.length] ?? "violet",
     rating: Number(row.rating) || 0,

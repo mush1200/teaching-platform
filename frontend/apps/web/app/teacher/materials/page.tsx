@@ -6,31 +6,47 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
+import {
+  CREATOR_MATERIAL_STATUSES,
+  CREATOR_MATERIAL_STATUS_LABEL,
+  canResubmit,
+  creatorStatusLabel,
+  creatorStatusTone,
+} from "../../../lib/material-status";
+import { MATERIAL_REVIEW_REASON_LABEL } from "../../../lib/admin-labels";
 
+/**
+ * 狀態選項與文案全部來自 `lib/material-status.ts`（創作者視角）。
+ *
+ * **「草稿」已移除**：`materials.status` 沒有 `draft` 這個值
+ * （DB CHECK 只有 pending_review / published / changes_requested / unpublished），
+ * 舊版的草稿篩選與統計卡是一個永遠 0 筆的幽靈選項。要做草稿需要 schema 決策。
+ */
 const statusOptions = [
   { label: "全部", value: "all" },
-  { label: "草稿", value: "draft" },
-  { label: "審核中", value: "pending_review" },
-  { label: "已上架", value: "published" },
-  { label: "已下架", value: "unpublished" },
+  ...CREATOR_MATERIAL_STATUSES.map((status) => ({
+    label: CREATOR_MATERIAL_STATUS_LABEL[status],
+    value: status,
+  })),
 ];
+
+const ALLOWED_STATUS_FILTERS = new Set<string>(["all", ...CREATOR_MATERIAL_STATUSES]);
 
 const PAGE_SIZE = 8;
 
 function getStatusLabel(status?: string): string {
-  if (status === "draft") return "草稿";
-  if (status === "pending_review") return "審核中";
-  if (status === "published") return "已上架";
-  if (status === "unpublished") return "已下架";
-  return "未設定";
+  return creatorStatusLabel(status);
 }
 
 function getStatusTone(status?: string): "info" | "success" | "warning" | "error" {
-  if (status === "draft") return "warning";
-  if (status === "published") return "success";
-  if (status === "pending_review") return "info";
-  if (status === "unpublished") return "warning";
-  return "error";
+  return creatorStatusTone(status);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function CreatorMaterialsPageContent() {
@@ -46,8 +62,7 @@ function CreatorMaterialsPageContent() {
 
   useEffect(() => {
     const fromQuery = searchParams.get("status");
-    const allowed = new Set(["all", "draft", "pending_review", "published", "unpublished"]);
-    setStatusFilter(fromQuery && allowed.has(fromQuery) ? fromQuery : "all");
+    setStatusFilter(fromQuery && ALLOWED_STATUS_FILTERS.has(fromQuery) ? fromQuery : "all");
   }, [searchParams]);
 
   const load = useCallback(async () => {
@@ -113,11 +128,11 @@ function CreatorMaterialsPageContent() {
   }, [filteredItems, currentPage]);
 
   const statusCounts = useMemo(() => {
-    const draft = items.filter((item) => item.status === "draft").length;
+    const changesRequested = items.filter((item) => item.status === "changes_requested").length;
     const pending = items.filter((item) => item.status === "pending_review").length;
     const published = items.filter((item) => item.status === "published").length;
     const unpublished = items.filter((item) => item.status === "unpublished").length;
-    return { draft, pending, published, unpublished };
+    return { changesRequested, pending, published, unpublished };
   }, [items]);
 
   return (
@@ -150,9 +165,10 @@ function CreatorMaterialsPageContent() {
       {view === "workbench" ? (
         <SurfaceCard title="教材狀態總覽" description="方便快速查看審核流程進度。" level="default">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <p className="text-xs text-slate-500">草稿</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.draft}</p>
+            {/* 需修改排在最前面：那是**創作者**要動作的狀態 */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs text-amber-700">需修改</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900">{statusCounts.changesRequested}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-3">
               <p className="text-xs text-slate-500">待審核</p>
@@ -199,30 +215,78 @@ function CreatorMaterialsPageContent() {
           <div className="space-y-3">
             <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} onPageChange={setCurrentPage} />
             <div className="overflow-hidden rounded-2xl border border-slate-200">
-              {pagedItems.map((m, idx) => (
-                <div key={m.id} className={idx > 0 ? "border-t border-slate-200" : ""}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <div className="min-w-[220px] flex-1 space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">{m.title}</p>
-                      <p className="text-xs text-slate-500">編號：{m.id}</p>
-                      <p className="text-xs text-slate-500">價格：NT$ {Math.floor(Number(m.price) || 0)}</p>
+              {pagedItems.map((m, idx) => {
+                const needsAction = canResubmit(m.status);
+                return (
+                  <div key={m.id} className={idx > 0 ? "border-t border-slate-200" : ""}>
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+                      <div className="min-w-[220px] flex-1 space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">{m.title}</p>
+                        <p className="text-xs text-slate-500">編號：{m.id}</p>
+                        <p className="text-xs text-slate-500">價格：NT$ {Math.floor(Number(m.price) || 0)}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
+                        <Link href={`/creator/materials/${encodeURIComponent(m.id)}/reviews`}>
+                          <Button size="sm" intent="action">
+                            教材教學回饋
+                          </Button>
+                        </Link>
+                        <Link href={`/creator/materials/${encodeURIComponent(m.id)}/edit`}>
+                          <Button size="sm" intent={needsAction ? "flow" : "action"}>
+                            {needsAction ? "修改教材" : "編輯"}
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
-                      <Link href={`/creator/materials/${encodeURIComponent(m.id)}/reviews`}>
-                        <Button size="sm" intent="action">
-                          教材教學回饋
-                        </Button>
-                      </Link>
-                      <Link href={`/creator/materials/${encodeURIComponent(m.id)}/edit`}>
-                        <Button size="sm" intent="action">
-                          編輯
-                        </Button>
-                      </Link>
-                    </div>
+
+                    {/*
+                      需修改：把審核意見直接顯示在列上 —— 創作者不必再點進去才知道要改什麼。
+                      顯示的是 materials 上的**最近一次**審核快照（完整歷史在 activity_logs，
+                      那是 admin-only 的稽核資料）。刻意不顯示 reviewed_by 這類內部識別碼。
+                    */}
+                    {m.status === "changes_requested" ? (
+                      <div
+                        data-testid="creator-changes-requested"
+                        className="mx-3 mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3"
+                      >
+                        <p className="text-xs font-semibold text-amber-800">
+                          需修改
+                          {m.review_reason_code
+                            ? ` ・ ${MATERIAL_REVIEW_REASON_LABEL[m.review_reason_code] ?? m.review_reason_code}`
+                            : ""}
+                        </p>
+                        {m.review_note ? (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-amber-900">{m.review_note}</p>
+                        ) : null}
+                        <p className="mt-1 text-xs text-amber-700">審核時間：{formatDateTime(m.reviewed_at)}</p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          修改完成後，請在編輯頁按「儲存並重新送審」，教材才會回到審核佇列。
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/*
+                      已下架：目前唯一的下架來源是檢舉處置。平台沒有把處置理由存進 materials，
+                      因此這裡只說明狀態與下一步，**不編造**下架原因；細節在平台案件頁。
+                    */}
+                    {m.status === "unpublished" ? (
+                      <div
+                        data-testid="creator-unpublished"
+                        className="mx-3 mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3"
+                      >
+                        <p className="text-xs font-semibold text-rose-800">已下架</p>
+                        <p className="mt-1 text-sm text-rose-900">
+                          這份教材已由平台下架，目前買家看不到它。修改後可以重新送審，通過審核才會再次上架。
+                        </p>
+                        <Link href="/creator/cases" className="mt-1 inline-block text-xs font-medium text-rose-700 underline">
+                          查看平台案件
+                        </Link>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </SurfaceCard>

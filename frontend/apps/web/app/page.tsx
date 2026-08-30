@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "../components/ui/Card";
 import { MaterialCard } from "../components/materials/MaterialCard";
 import { getStoredRole, getStoredToken } from "../lib/api-client";
+import { getLandingRouteForRole } from "../lib/session";
 import type { MockMaterial } from "../lib/view-models";
 import { listMaterialsPreview } from "../lib/materials-query";
 
@@ -48,11 +49,15 @@ export default function Home() {
     const token = getStoredToken();
     const role = getStoredRole();
     if (!token) return;
-    if (role === "teacher" || role === "creator") {
-      router.replace("/creator/materials");
-      return;
-    }
-    router.replace("/dashboard");
+    /*
+     * 目的地一律取自 `lib/session.ts` 的單一對照（`DX-17`）。
+     *
+     * 舊版是 `creator → /creator/materials`、**其餘一律 `/dashboard`** ——
+     * 但 `/dashboard` 在 middleware 是 `parent` 專屬，所以 admin 會被彈到 `/403`。
+     * 無法辨識的角色**不導向**（留在公開首頁），不再猜一個目的地。
+     */
+    const landing = getLandingRouteForRole(role);
+    if (landing) router.replace(landing);
   }, [router]);
 
   useEffect(() => {
@@ -61,7 +66,7 @@ export default function Home() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-[var(--color-surface-page)] via-[#FAF8FF] to-[var(--color-surface-page)] font-sans text-[var(--color-text-primary)] antialiased">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-16 pt-10 sm:px-6 md:gap-12 md:pt-14">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-16 pt-10 sm:px-6 md:gap-12 md:pt-14">
         {/* Hero */}
         <section className="rounded-[var(--radius-card-elevated)] border border-[#E5E7EB]/70 bg-white p-6 shadow-[var(--shadow-card-elevated)] sm:p-8 md:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
@@ -141,7 +146,7 @@ export default function Home() {
             <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-4 text-sm text-[#6B7280]">目前暫無教材預覽資料。</p>
           ) : null}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

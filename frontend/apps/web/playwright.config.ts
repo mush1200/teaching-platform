@@ -12,9 +12,25 @@ const port = Number(new URL(baseURL).port || 3010);
  * 就要 5–30 秒，會產生一堆與程式無關的偽失敗。production build 沒有這個階段，
  * 因此 **acceptance threshold 也不該為了 dev 而永久放寬** —— 見下方 timeout 設定。
  *
- *   npm run build && E2E_SERVER=production npx playwright test
+ *   npm run verify:web && E2E_SERVER=production npx playwright test
  */
 const isProductionServer = process.env.E2E_SERVER === "production";
+
+/**
+ * Production E2E 的建置產物目錄必須與**驗收 build 寫進去的那一個**一致（`DX-05`）。
+ *
+ * `verify:web`（`frontend/scripts/verify-web.mjs`）預設把 build 寫到 `.next-verify`，
+ * 讓驗收不會弄壞另一個 session 在 3010 執行中的 `next dev`（那個 dev server 用 `.next`）。
+ * 這裡若不跟著設，`next start` 會回頭去讀 `.next` —— 也就是 dev 的產物 ——
+ * 於是要嘛啟動失敗、要嘛測到的根本不是剛驗收過的那份 build。
+ *
+ * 兩邊共用同一個環境變數與同一個預設值；呼叫端已設定時**尊重呼叫端**。
+ * dev server 模式（未設 `E2E_SERVER`）完全不受影響，仍用預設的 `.next`。
+ */
+const DEFAULT_VERIFY_DIST_DIR = ".next-verify";
+if (isProductionServer && !process.env.NEXT_DIST_DIR?.trim()) {
+  process.env.NEXT_DIST_DIR = DEFAULT_VERIFY_DIST_DIR;
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",

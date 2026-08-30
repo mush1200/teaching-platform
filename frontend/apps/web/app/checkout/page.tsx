@@ -8,19 +8,13 @@ import { MobileHeader } from "../../components/layout/MobileHeader";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { apiFetch, getStoredRole, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
-import { trackEvent } from "../../lib/analytics";
 import { pushNotification } from "../../lib/notifications";
 import type { CartResponse, CreateOrderResponse } from "../../lib/api-types";
+import { usePaymentBankInfo } from "../../lib/payment-bank-info";
+import { BankTransferInfo } from "../../components/payment/BankTransferInfo";
 
 type Step = 1 | 2 | 3;
 type InvoiceType = "none" | "carrier";
-const BANK_INFO = {
-  name: "Teaching Platform 收款帳戶",
-  code: "812",
-  account: "1234-5678-9012-3456",
-  holder: "Teaching Platform Co.",
-};
-
 export default function CheckoutPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +23,7 @@ export default function CheckoutPage() {
   const [cartLoading, setCartLoading] = useState(true);
   const [step, setStep] = useState<Step>(1);
   const [billing, setBilling] = useState({ name: "", email: "", phone: "" });
+  const bankInfo = usePaymentBankInfo();
   const [paymentMode, setPaymentMode] = useState<"manual_transfer">("manual_transfer");
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [promoApplied, setPromoApplied] = useState<{ code: string; discountAmount: number } | null>(null);
@@ -70,6 +65,32 @@ export default function CheckoutPage() {
     if (text.includes("暫時") || text.includes("稍後")) return "system";
     return "support";
   }
+
+  /*
+   * 換 step 一律清掉共用訊息。
+   *
+   * `msg` 是**整個結帳流程共用**的一份 state（Step 1 驗證、優惠碼、建立訂單錯誤都寫它）。
+   * 訊息現在渲染在共用區域、每一步都看得到，所以如果不在切換時清掉，
+   * Step 1 的「請輸入姓名。」會原封不動地跟著使用者飄到 Step 2、Step 3 ——
+   * 那比看不到還糟：畫面會說一個已經修好的問題。
+   */
+  function goToStep(next: Step) {
+    setMsg(null);
+    setStep(next);
+  }
+
+  /**
+   * Step 2 目前唯一會擋住前進的條件：收款帳戶取不到（`P1-01`）。
+   *
+   * 與 Step 3 的 `submitDisabledReason` 對稱 —— 停用的按鈕旁邊一定要有原因，
+   * 否則使用者只看到按鈕變灰、不知道為什麼。
+   */
+  const step2BlockReason =
+    bankInfo.status === "loading"
+      ? "正在載入付款資訊，請稍候。"
+      : bankInfo.status === "unavailable"
+        ? "平台的收款帳戶尚未設定，目前無法繼續結帳。請先不要匯款，稍後再試。"
+        : null;
 
   const submitDisabledReason = cartLoading
     ? "購物車載入中，請稍候。"
@@ -115,7 +136,6 @@ export default function CheckoutPage() {
       return;
     }
     setPromoBusy(true);
-    trackEvent("promo_apply_clicked", { step: 3 });
     try {
       const res = await apiFetch("orders/promo/validate", {
         method: "POST",
@@ -131,7 +151,6 @@ export default function CheckoutPage() {
         code: String(payload.code || code),
         discountAmount: Math.max(0, Number(payload.discount_amount || 0)),
       });
-      trackEvent("promo_applied", { code: String(payload.code || code) });
       setPromoTick(true);
       window.setTimeout(() => setPromoTick(false), 320);
       setMsg(null);
@@ -144,7 +163,6 @@ export default function CheckoutPage() {
   }
 
   async function placeOrder() {
-    trackEvent("order_submit_clicked", { step: 3, payable, hasPromo: Boolean(promoApplied) });
     if (!token) {
       setMsg("請先登入後再結帳。");
       return;
@@ -154,8 +172,14 @@ export default function CheckoutPage() {
       return;
     }
     if (validateStep1()) {
+      /*
+       * 這裡刻意**不用** `goToStep()`：那個 helper 會清掉訊息，
+       * 但這條路徑的重點正是「把使用者送回 Step 1 並告訴他缺什麼」。
+       * 先寫訊息再換 step，訊息才能存活到 Step 1 被渲染出來。
+       */
       setMsg(validateStep1());
       setStep(1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     const invoiceError = validateInvoice();
@@ -224,7 +248,7 @@ export default function CheckoutPage() {
   return (
     <AppShell withBottomNav>
       <MobileHeader title="結帳" backHref="/cart" right="none" />
-      <main className="mx-auto w-full max-w-6xl space-y-4 px-4 pb-28 pt-4 sm:px-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4 px-4 pb-28 pt-4 sm:px-6">
         <Card level="flat" padding="md" className="mx-auto w-full max-w-[720px]">
           <ol className="grid grid-cols-3 gap-2 text-center">
             {[
@@ -264,6 +288,49 @@ export default function CheckoutPage() {
           </ol>
         </Card>
 
+        {/*
+          共用的結帳訊息區（`P1-07`）。
+
+          先前這一塊只存在於 `step === 3` 的區塊裡，但寫入 `msg` 的地方遍布三個 step：
+          Step 1 的必填驗證、優惠碼、以及 `placeOrder()` 的各種前置檢查。
+          結果是使用者在 Step 1 按「下一步」而驗證不通過時，**畫面完全沒有反應** ——
+          訊息被設好了，只是沒有任何地方渲染它。那是購買漏斗第一關的無聲死路。
+
+          現在只有一份，位置固定在 step 內容正上方，因此不論目前在哪一步都看得見；
+          `placeOrder()` 的錯誤路徑本來就會 `scrollTo({ top: 0 })`，與這個位置一致。
+
+          `role="alert"` + `aria-live="assertive"`：這些訊息一律是「擋住你繼續」的原因，
+          不是背景資訊，需要立即被輔助技術播報。
+        */}
+        {msg ? (
+          <div
+            role="alert"
+            aria-live="assertive"
+            data-testid="checkout-feedback"
+            className={`mx-auto w-full max-w-[720px] rounded-xl border px-3 py-2 text-sm ${
+              classifyMessageTone(msg) === "warning"
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : classifyMessageTone(msg) === "system"
+                  ? "border-violet-200 bg-violet-50 text-violet-800"
+                  : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            {msg}
+            {classifyMessageTone(msg) === "system" ? (
+              <p className="mt-1 text-xs">建議稍後重試，或回到購物車重新整理資料。</p>
+            ) : null}
+            {classifyMessageTone(msg) === "support" ? (
+              <p className="mt-1 text-xs">
+                若問題持續，可前往{" "}
+                <Link href="/me/complaints" className="font-medium underline underline-offset-2">
+                  申訴與消費爭議
+                </Link>{" "}
+                提出，並附上發生時間與您的帳號 Email。
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {step === 1 ? (
           <Card level="default" className="mx-auto w-full max-w-[720px] space-y-4">
             <h2 className="text-lg font-bold text-[#1F2937]">Step 1 帳單資訊</h2>
@@ -299,8 +366,7 @@ export default function CheckoutPage() {
               onClick={() => {
                 const error = validateStep1();
                 if (error) return setMsg(error);
-                setMsg(null);
-                setStep(2);
+                goToStep(2);
               }}
             >
               下一步
@@ -323,17 +389,27 @@ export default function CheckoutPage() {
               <p className="font-semibold text-[#1F2937]">銀行轉帳 {paymentMode === "manual_transfer" ? "✓" : ""}</p>
               <p className="text-sm text-[#6B7280]">MVP 付款方式</p>
             </button>
-            <div className="rounded-2xl border border-dashed border-[#D8D2FF] bg-[#FAF8FF] p-4 text-sm text-[#4B5563]">
-              <p>銀行名稱：{BANK_INFO.name}</p>
-              <p>銀行代碼：{BANK_INFO.code}</p>
-              <p>匯款帳號：{BANK_INFO.account}</p>
-              <p>戶名：{BANK_INFO.holder}</p>
-            </div>
+            <BankTransferInfo state={bankInfo} />
+            {step2BlockReason ? (
+              <p className="text-xs leading-relaxed text-amber-700" data-testid="checkout-step2-blocked">
+                {step2BlockReason}
+              </p>
+            ) : null}
             <div className="flex gap-2">
-              <Button intent="neutral" variant="outline" fullWidth onClick={() => setStep(1)}>
+              <Button intent="neutral" variant="outline" fullWidth onClick={() => goToStep(1)}>
                 上一步
               </Button>
-              <Button intent="flow" fullWidth onClick={() => setStep(3)}>
+              {/*
+                收款帳戶取不到時**擋住**流程，而不是讓買家建立一張無法付款的訂單。
+                人工轉帳是唯一金流方式，沒有匯款目標就沒有任何可以完成的付款路徑
+                —— 讓訂單先成立只會製造一張沒人能結掉的 pending_payment。
+              */}
+              <Button
+                intent="flow"
+                fullWidth
+                disabled={bankInfo.status !== "ready"}
+                onClick={() => goToStep(3)}
+              >
                 下一步
               </Button>
             </div>
@@ -437,7 +513,7 @@ export default function CheckoutPage() {
                 <p>付款方式：銀行轉帳</p>
               </div>
               <div className="mt-4 flex flex-col gap-2">
-                <Button intent="neutral" variant="outline" fullWidth onClick={() => setStep(1)}>
+                <Button intent="neutral" variant="outline" fullWidth onClick={() => goToStep(1)}>
                   返回修改
                 </Button>
                 <Button
@@ -449,26 +525,12 @@ export default function CheckoutPage() {
                   {submitting ? "處理中…" : `確認送出訂單 · NT$${payable.toLocaleString()}`}
                 </Button>
                 {submitDisabledReason ? <p className="text-xs text-amber-700">{submitDisabledReason}</p> : null}
-                {msg ? (
-                  <div
-                    className={`rounded-xl border px-3 py-2 text-sm ${
-                      classifyMessageTone(msg) === "warning"
-                        ? "border-amber-200 bg-amber-50 text-amber-800"
-                        : classifyMessageTone(msg) === "system"
-                          ? "border-violet-200 bg-violet-50 text-violet-800"
-                          : "border-rose-200 bg-rose-50 text-rose-800"
-                    }`}
-                  >
-                    {msg}
-                    {classifyMessageTone(msg) === "system" ? <p className="mt-1 text-xs">建議稍後重試，或回到購物車重新整理資料。</p> : null}
-                    {classifyMessageTone(msg) === "support" ? <p className="mt-1 text-xs">若問題持續，請聯繫客服並提供訂單時間與帳號 Email。</p> : null}
-                  </div>
-                ) : null}
+
               </div>
               <div className="mt-3 rounded-2xl border border-[#e9e8ef] bg-white p-4 text-xs leading-relaxed text-[#4B5563]">
                 <p className="text-sm font-semibold text-[#1F2937]">安心購買保證</p>
                 <ul className="mt-2 space-y-1.5">
-                  <li className="text-emerald-700">✔ 購買後可永久下載</li>
+                  <li className="text-emerald-700">✔ 完成付款審核後即可下載教材</li>
                   <li className="text-emerald-700">✔ 人工審核付款保障交易安全</li>
                   <li className="text-emerald-700">✔ 教材皆經平台審核</li>
                   <li className="text-emerald-700">✔ 支援 Email 通知與訂單查詢</li>
@@ -498,7 +560,7 @@ export default function CheckoutPage() {
           </div>
         ) : null}
 
-      </main>
+      </div>
     </AppShell>
   );
 }

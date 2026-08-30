@@ -6,6 +6,7 @@ import Link from "next/link";
 import { IconEye, IconEyeOff, IconFacebook, IconGoogle } from "../../components/ui/icons";
 import type { LoginResponse } from "../../lib/auth";
 import { mapStatusMessage } from "../../lib/auth";
+import { isSafeInternalPath, getLandingRouteForRole } from "../../lib/session";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -77,13 +78,27 @@ export default function LoginPage() {
         /* 仍設短期 cookie；完整「記住我」可之後接 API */
       }
       setMessage("登入成功，正在導向…");
-      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      /*
+       * `?redirect=` 只接受**站內**路徑（`DX-04`）。
+       *
+       * 這個參數是任何人都能在網址上塞的：`/login?redirect=https://evil.com` 先前會在
+       * 登入成功後把使用者直接送到站外 —— 一個 pre-auth 就能觸發的 open redirect。
+       * `isSafeInternalPath()` 擋掉絕對網址、protocol-relative 的 `//host`
+       * 以及瀏覽器會當成 `//` 的 `/\host`。
+       */
+      const rawRedirect = new URLSearchParams(window.location.search).get("redirect");
+      const redirect = isSafeInternalPath(rawRedirect) ? rawRedirect : null;
+      /*
+       * 目的地與首頁共用 `lib/session.ts` 的單一對照（`DX-17`）——
+       * 先前這裡與 `app/page.tsx` 各寫一份，兩份對 admin 的答案不一致。
+       * 無法辨識的角色退回 `/`（首頁對未知角色不導向，因此不會產生迴圈）。
+       */
+      const landing = getLandingRouteForRole(payload.user.role) ?? "/";
       if (payload.user.role === "parent") {
-        router.push("/dashboard");
+        router.push(landing);
         return;
       }
-      const defaultByRole = payload.user.role === "teacher" || payload.user.role === "creator" ? "/creator/materials" : "/admin";
-      router.push(redirect || defaultByRole);
+      router.push(redirect || landing);
     } catch {
       setMessage(mapStatusMessage(500));
     } finally {
@@ -156,7 +171,28 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between gap-2">
+              {/*
+                `P1-08`：「忘記密碼？」已移除。
+
+                它先前是 `<Link href="/login" onClick={preventDefault}>` —— 一個看起來可以點、
+                但點下去什麼都不會發生、也沒有任何說明的連結。Backend 沒有 forgot/reset 端點、
+                沒有 reset token 資料表、沒有任何 token 基礎建設，canonical MVP spec §11 的
+                auth surface 也只有 `register` / `login` / `me` 三個端點 —— 密碼救援不在 MVP 範圍。
+
+                因此採「誠實移除」而不是臨時擴張成一個完整的 password-recovery 專案：
+                **不存在的功能不要假裝存在。**
+
+                也沒有改成「聯絡客服」之類的替代入口 —— repo 裡雖然有多處文案提到「平台客服」，
+                但整個 codebase 沒有任何真實的客服 Email、網址或聯絡頁；
+                放一個同樣不存在的管道只是把死路換一個位置。
+                真正要恢復這個功能時，見 tracker 的 `P1-08`。
+
+                **2026-08-27 更新（`BUY-02`）：** 平台現在有「申訴與消費爭議」全域入口
+                （買家外殼 →「其他」→ `/me/complaints`），先前那些「請聯繫客服」死文案已改寫。
+                但那條流程**全部端點皆需登入**，因此對「登入不了的人」仍然無解 ——
+                本節的判斷不變：這裡不放替代入口。
+              */}
+              <div className="flex items-center gap-2">
                 <label htmlFor="remember" className="inline-flex items-center gap-2 text-sm text-[#64748B]">
                   <input
                     id="remember"
@@ -167,9 +203,6 @@ export default function LoginPage() {
                   />
                   記住我
                 </label>
-                <Link href="/login" className="text-sm font-medium text-[#6D5CFF] hover:underline" onClick={(e) => e.preventDefault()}>
-                  忘記密碼？
-                </Link>
               </div>
 
               <button

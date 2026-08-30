@@ -7,6 +7,12 @@ export type MockMaterial = {
   originalPrice: number;
   rating: number;
   reviewCount: number;
+  /**
+   * 這份教材目前買不買得到（後端 `is_purchasable`）。
+   * `false` 代表沒有可交付的教材檔案 —— 見 `Backend/utils/materialDeliverability.js`。
+   * 清單 API 目前不回這個欄位，因此 mapper 預設 `true`，只有教材詳情會拿到真實值。
+   */
+  isPurchasable: boolean;
   coverGradient: string;
   coverImageUrl?: string;
   demoVideoUrl?: string;

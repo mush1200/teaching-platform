@@ -83,7 +83,7 @@ export default function ShareTeachingFeedbackPage() {
   return (
     <AppShell>
       <MobileHeader title="分享教學回饋" backHref="/me/materials" right="none" />
-      <main className="mx-auto max-w-2xl space-y-6 px-4 pb-10 sm:px-6">
+      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-10 sm:px-6">
         {loading ? <LoadingState title="載入中…" /> : null}
         {!loading && error ? <ErrorState title="無法開啟頁面" description={error} onRetry={() => void load()} /> : null}
         {!loading && !error && !material ? (
@@ -100,7 +100,7 @@ export default function ShareTeachingFeedbackPage() {
         {!loading && !error && material && owned ? (
           <Card level="elevated" padding="md">
             <h1 className="text-xl font-bold text-[#1F2937]">分享你的教學回饋</h1>
-            <p className="mt-1 text-sm text-[#6B7280]">你的使用經驗能幫助其他家長與老師選擇適合教材。</p>
+            <p className="mt-1 text-sm text-[#6B7280]">你的使用經驗能幫助其他使用者選擇適合教材。</p>
             <p className="mt-4 text-sm font-medium text-[#4B5563]">教材：{material.title}</p>
 
             <div className="mt-4">
@@ -151,7 +151,7 @@ export default function ShareTeachingFeedbackPage() {
             {message ? <p className="mt-3 text-sm text-[#4B5563]">{message}</p> : null}
           </Card>
         ) : null}
-      </main>
+      </div>
     </AppShell>
   );
 }

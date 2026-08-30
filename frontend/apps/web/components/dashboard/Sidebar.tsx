@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { clearClientSession } from "../../lib/session";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
@@ -263,10 +264,21 @@ function NavSectionBlock({
   );
 }
 
+/**
+ * 側欄顯示名稱。
+ *
+ * **`tp_display_name` 自 `DEC-06`（2026-08-27）起為 legacy read only —— 已無任何 writer。**
+ * 註冊流程不再蒐集姓名，也不再寫入這個 key（見 `app/register/page.tsx`）。
+ * 這裡刻意**保留讀取**，只是為了讓既有瀏覽器裡的舊值自然退場：
+ * 使用者下次登出時 `lib/session.ts` 會清掉它，之後就走 email local-part fallback。
+ *
+ * **不得**因為要顯示名稱而在任何地方重新開啟姓名蒐集。
+ */
 function useDisplayName() {
   const [displayName, setDisplayName] = useState("使用者");
 
   useEffect(() => {
+    // legacy read only — no active writer remains（`DEC-06`）。
     const name = localStorage.getItem("tp_display_name")?.trim();
     const email = localStorage.getItem("tp_user_email")?.trim();
     if (name) setDisplayName(name);
@@ -277,48 +289,54 @@ function useDisplayName() {
   return { displayName, initial };
 }
 
-function SidebarProfileFooter({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+/**
+ * 側欄頁尾：**純識別呈現，不是可操作的入口**（`BUY-05` / `DEC-11`，2026-08-28）。
+ *
+ * 這裡原本兩個型態都是 `<a href="#account">` —— 但 `#account` 沒有 target、
+ * 沒有 route，MVP 也沒有 account／profile capability。點下去只會在 URL 後面多一個
+ * hash，是一個 false affordance（與 `BUY-03` 的 `#help`、`BUY-04` 的 `#notifications` 同類）。
+ *
+ * `DEC-11` 拍板：移除假的互動，**avatar 與名稱的純識別價值可以保留**。因此這裡：
+ *   - 不是 `<a>`、不是 `<button>`，沒有 `href`／`onClick` —— 因此也不可 keyboard focus
+ *   - 沒有 hover 態、沒有 `cursor-pointer`，不暗示可點
+ *   - collapsed 型態一併移除 `NavTooltip label="個人資料"` —— 那是**承諾性標籤**，
+ *     expanded 型態的「個人資料」次行同理移除；留著就仍在暗示有一個個人資料頁
+ *
+ * **不得**改導向 `/me`／`/dashboard`／`/settings`，也不得為了留住這個位置去建
+ * `/account` 或任何 profile page（`DEC-11` 明文禁止）。
+ */
+function SidebarProfileFooter({ collapsed }: { collapsed: boolean }) {
   const { displayName, initial } = useDisplayName();
 
   if (collapsed) {
     return (
       <footer className={`mt-auto flex w-full shrink-0 justify-center border-t ${SIDEBAR_BORDER} py-2.5`}>
-        <NavTooltip label="個人資料" show>
-          <a
-            href="#account"
-            onClick={onNavigate}
-            className={`${NAV_BTN_BASE} ${navBtnTone(false)} ${NAV_ITEM_SIZE}`}
+        {/* 尺寸沿用 NAV_ITEM_SIZE 只為維持 rail 的視覺節奏，不帶任何互動樣式。 */}
+        <div className={`${NAV_ITEM_SIZE} flex items-center justify-center`}>
+          <span
+            className="flex size-8 items-center justify-center rounded-full bg-[#2E2E33] text-xs font-semibold text-white"
+            aria-hidden
           >
-            <span
-              className="flex size-8 items-center justify-center rounded-full bg-[#2E2E33] text-xs font-semibold text-white"
-              aria-hidden
-            >
-              {initial}
-            </span>
-          </a>
-        </NavTooltip>
+            {initial}
+          </span>
+        </div>
       </footer>
     );
   }
 
   return (
     <footer className={`mt-auto shrink-0 border-t ${SIDEBAR_BORDER} px-3 py-2`}>
-      <a
-        href="#account"
-        onClick={onNavigate}
-        className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2 transition-colors duration-200 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-edu-primary"
-      >
+      <div className="flex h-10 w-full items-center gap-2.5 rounded-[10px] px-2">
         <span
           className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2E2E33] text-xs font-semibold text-white"
           aria-hidden
         >
           {initial}
         </span>
-        <span className="min-w-0 flex-1 overflow-hidden">
-          <span className="block truncate text-[13px] font-medium leading-tight text-ds-heading">{displayName}</span>
-          <span className="block truncate text-[11px] text-slate-400">個人資料</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-tight text-ds-heading">
+          {displayName}
         </span>
-      </a>
+      </div>
     </footer>
   );
 }
@@ -370,14 +388,8 @@ export function Sidebar({
   const sections = isCollapsed ? SIDEBAR_COLLAPSED_SECTIONS : SIDEBAR_NAV_SECTIONS;
 
   function handleLogout() {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("tp_token");
-      localStorage.removeItem("tp_role");
-      localStorage.removeItem("tp_user_email");
-      localStorage.removeItem("tp_display_name");
-      document.cookie = "tp_token=; path=/; max-age=0; samesite=lax";
-      document.cookie = "tp_role=; path=/; max-age=0; samesite=lax";
-    }
+    // 與 401 session 恢復共用同一份清單（`DX-04`）—— 兩者對「什麼算已登入」必須一致。
+    clearClientSession();
     onNavigate?.();
     router.push("/login");
   }
@@ -414,7 +426,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      <SidebarProfileFooter collapsed={isCollapsed} onNavigate={onNavigate} />
+      <SidebarProfileFooter collapsed={isCollapsed} />
     </aside>
   );
 }

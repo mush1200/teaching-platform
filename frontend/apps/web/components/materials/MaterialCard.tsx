@@ -7,6 +7,7 @@ import { apiFetch } from "../../lib/api-client";
 import { emitFavoritesUpdated } from "../../lib/favorites-storage";
 import { recordMaterialView } from "../../lib/recent-materials";
 import { IconHeart, IconStar } from "../ui/icons";
+import { categoryLabel } from "../../lib/material-categories";
 
 type Props = {
   material: MockMaterial;
@@ -14,18 +15,8 @@ type Props = {
   trackRecent?: boolean;
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  math: "數學",
-  language: "語言",
-  science: "自然",
-  art: "美術",
-};
-
-function categoryDisplay(category: string | undefined): string {
-  if (!category?.trim()) return "其他";
-  const key = category.trim().toLowerCase();
-  return CATEGORY_LABEL[key] ?? category;
-}
+/** 標籤一律來自 `lib/material-categories.ts`（單一來源）。 */
+const categoryDisplay = categoryLabel;
 
 export function MaterialCard({ material, trackRecent }: Props) {
   const [isFavorite, setIsFavorite] = useState(false);

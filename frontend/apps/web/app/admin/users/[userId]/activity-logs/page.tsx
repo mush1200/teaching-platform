@@ -2,18 +2,38 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { EmptyState, ErrorState, LoadingState, Pagination } from "@teaching-platform/ui";
 import Link from "next/link";
-import type { ActivityLog, ActivityLogsResponse } from "../../../../../lib/api-types";
+import type { ActivityLogRow, ActivityLogsListResponse } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
+import { activityTargetHref } from "../../../../../lib/admin-labels";
+import { AccountFreezePanel } from "../../../../../components/admin/AccountFreezePanel";
+import { ActivityLogCard } from "../../../../../components/admin/ActivityLogCard";
+import {
+  AccentTextLink,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  Pagination,
+} from "../../../../../components/ds";
 
 const PAGE_SIZE = 20;
 
+/**
+ * 使用者的活動時間軸（IA §6 的 entity-centric 主入口之一）。
+ *
+ * 這是平台上**唯一**的「依人查詢」入口，因此不論 `/admin/users` 那張 placeholder
+ * 頁最後怎麼處理，這條 route 都必須保持可直達。
+ *
+ * 修正內容與另外兩個 entity 頁相同：原本每一列是 raw `action` 加上
+ * `目標：{target_type} / {target_id}`，現在共用 `ActivityLogCard` 的三層資訊架構。
+ * 資料來自既有的 `GET /admin/users/:userId/activity-logs`（`actor_id = userId`）。
+ */
 export default function AdminUserActivityLogsPage() {
   const params = useParams();
   const userId = String(params.userId ?? "").trim();
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<ActivityLog[]>([]);
+  const [items, setItems] = useState<ActivityLogRow[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -37,7 +57,7 @@ export default function AdminUserActivityLogsPage() {
         setError(await parseApiErrorMessage(res));
         return;
       }
-      const data = (await res.json()) as ActivityLogsResponse;
+      const data = (await res.json()) as ActivityLogsListResponse;
       const nextItems = data.items ?? [];
       setItems(nextItems);
       const total = data.pagination?.total ?? nextItems.length;
@@ -58,44 +78,82 @@ export default function AdminUserActivityLogsPage() {
 
   if (!userId) {
     return (
-      <section className="mx-auto w-full max-w-6xl px-4 py-6">
-        <p className="text-sm text-slate-600">缺少使用者 ID。</p>
+      <section className="flex w-full flex-col gap-4">
+        <PageHeader title="使用者活動紀錄" />
+        <EmptyState title="缺少使用者 ID" description="這個網址沒有帶到使用者編號，請從活動紀錄進入。" />
       </section>
     );
   }
 
+  /*
+   * 這一頁的標題刻意不寫「操作者 <uuid>」：id 是內部識別碼，不是人的名字。
+   * 誰做的由每一列的句子（`describeActivity()` 會用 `actor_email`）說清楚。
+   */
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">使用者活動紀錄</h1>
-      <p className="text-sm text-slate-600">操作者（actor）為 {userId} 的紀錄。</p>
-      <div className="flex flex-wrap gap-3 text-sm">
-        <Link href="/admin/activity-logs">
-          <span className="font-medium text-indigo-600 underline">← 返回活動紀錄總覽</span>
-        </Link>
-      </div>
+    <section className="flex w-full flex-col gap-4">
+      <PageHeader
+        title="使用者活動紀錄"
+        description="這個人在平台上做過的所有操作，由新到舊。"
+        breadcrumb={
+          <AccentTextLink href="/admin/activity-logs" className="text-sm">
+            ← 返回活動紀錄
+          </AccentTextLink>
+        }
+      />
+
+      {/*
+        帳號狀態與凍結操作（`OPS-02`）。
+        放在這裡而不是新開一個使用者管理頁：這是平台唯一的「依人查詢」入口，
+        `IA-07` 也已判定還不做使用者管理模組。面板自行載入自己的資料，
+        因此下方活動紀錄的載入／錯誤狀態完全不受影響。
+      */}
+      <AccountFreezePanel userId={userId} />
 
       {loading ? <LoadingState title="載入紀錄中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && items.length === 0 ? (
-        <EmptyState title="沒有活動紀錄" description="此使用者尚無可查詢的活動紀錄。" />
+        <EmptyState title="沒有活動紀錄" description="這個帳號還沒有可查詢的操作紀錄。" />
       ) : null}
 
       {!loading && !error && items.length > 0 ? (
         <div className="space-y-3">
-          <Pagination page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           {items.map((log) => (
-            <article key={log.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <Link href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}>
-                <span className="text-sm font-semibold text-indigo-600 underline">{log.action ?? "unknown action"}</span>
-              </Link>
-              <p className="text-xs text-slate-500">紀錄 ID：{log.id}</p>
-              {log.target_type || log.target_id ? (
-                <p className="text-xs text-slate-500">目標：{log.target_type ?? "-"} / {log.target_id ?? "-"}</p>
-              ) : null}
-            </article>
+            <ActivityLogCard key={log.id} log={log} links={<EntryLinks log={log} />} />
           ))}
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageChange={setPage}
+            className="pt-2"
+          />
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * 每一列的導航。這一頁是「人」的時間軸，所以出口是**對象** ——
+ * 走 `activityTargetHref()`，與 Dashboard、單筆詳情同一個 mapping，不另開一套。
+ */
+function EntryLinks({ log }: { log: ActivityLogRow }) {
+  const targetHref = activityTargetHref(log);
+  return (
+    <>
+      {targetHref ? (
+        <Link href={targetHref} className="font-medium text-edu-primary underline">
+          此對象紀錄
+        </Link>
+      ) : null}
+      <Link
+        href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
+        className="font-medium text-edu-primary underline"
+      >
+        單筆詳情
+      </Link>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { clearClientSession } from "../../lib/session";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SIDEBAR_DESKTOP_WIDTH_CLASS,
@@ -9,69 +10,26 @@ import {
   SIDEBAR_STATIC_CLASS,
 } from "../layout/shell-constants";
 
-type NavItem = { href: string; label: string; icon: string; exact?: boolean };
-type NavSection = { label: string; items: NavItem[] };
+import {
+  ADMIN_NAV_SECTIONS,
+  navPathOf,
+  type AdminNavItem,
+} from "../../lib/admin-nav";
 
 /**
- * Admin 導覽的 Information Architecture（Epic §7）。
+ * 這份側欄的導覽內容來自 `lib/admin-nav.ts` —— Admin 導覽的**唯一** source of truth。
  *
- * ## 分組依據：**Admin 今天要完成什麼工作**，不是程式的 module 邊界
- *
- *   1. 「營運總覽」單獨在最上方 —— 它是入口，不屬於任何一類日常工作。
- *   2. 「日常審核」是**高頻、有佇列、有 SLA** 的三件事：教材審核、付款審核、訂單管理。
- *      共同特徵是「有一疊東西等我處理完」。
- *   3. 「信任與安全」是**由外部事件觸發**的處理：檢舉案件、教學回饋內容。
- *      共同特徵是「有人回報了問題」，不是每天都有。
- *   4. 「平台管理」是**低頻、非佇列**的管理與稽核：用戶、活動紀錄、系統設定。
- *
- * ## 名稱：描述任務，不描述資料表
- *
- * 「付款憑證」→ **「付款審核」**：Admin 到這頁不是為了「看憑證」，是為了「做審核決定」。
- * 這與同組的「教材審核」也對齊 —— 兩者是同一種工作，名稱不該一個講資料一個講動作。
- * 其餘名稱維持不變（「訂單管理」「檢舉管理」等在目前 product language 中已一致）。
- *
- * 詳細的 audit 與取捨在最終報告 §C。
+ * `RoleShell`（Admin 逛**非** `/admin` 路由時的側欄）取用的是同一份資料的扁平化結果，
+ * 兩個 surface 不各自維護一份清單 —— 之前正是因為各有一份，`IA-01` 與 `IA-07` 的收斂
+ * 只在 `/admin/*` 生效（`IA-08`）。分組依據與各項的去留決策寫在該檔的註解。
  */
-const sections: NavSection[] = [
-  {
-    label: "總覽",
-    items: [{ href: "/admin", label: "營運總覽", icon: "📊", exact: true }],
-  },
-  {
-    label: "日常審核",
-    items: [
-      { href: "/admin/materials?status=pending_review", label: "教材審核", icon: "📚" },
-      { href: "/admin/payment-proofs?status=pending", label: "付款審核", icon: "🧾" },
-      { href: "/admin/orders", label: "訂單管理", icon: "📦" },
-    ],
-  },
-  {
-    label: "信任與安全",
-    items: [
-      { href: "/admin/reports?status=open", label: "檢舉管理", icon: "🚩" },
-      { href: "/admin/reviews-hub", label: "教學回饋管理", icon: "⭐" },
-    ],
-  },
-  {
-    label: "平台管理",
-    items: [
-      { href: "/admin/users", label: "用戶管理", icon: "👥" },
-      { href: "/admin/activity-logs", label: "活動紀錄", icon: "🕒" },
-      { href: "/admin/settings", label: "系統設定", icon: "⚙️" },
-    ],
-  },
-];
-
-function navPath(href: string) {
-  return href.split("?")[0] ?? href;
-}
 
 type Props = {
   /**
    * `desktop`（預設）：`lg` 以下隱藏，`lg` 以上為固定側欄。
    * `drawer`：在 `NavDrawer` 的面板內渲染，填滿容器並自行捲動。
    *
-   * 兩種型態共用同一份 `sections`，不另外維護一組 mobile navigation。
+   * 兩種型態共用同一份 `ADMIN_NAV_SECTIONS`，不另外維護一組 mobile navigation。
    */
   variant?: "desktop" | "drawer";
   /** 點擊導覽項或登出後呼叫；drawer 用它自動關閉。 */
@@ -88,21 +46,15 @@ export function AdminSidebar({ variant = "desktop", onNavigate }: Props = {}) {
   const pathname = usePathname();
   const router = useRouter();
 
-  function isActive(item: NavItem) {
-    const path = navPath(item.href);
+  function isActive(item: AdminNavItem) {
+    const path = navPathOf(item.href);
     if (item.exact) return pathname === path;
     return pathname === path || pathname.startsWith(`${path}/`);
   }
 
   function handleLogout() {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("tp_token");
-      localStorage.removeItem("tp_role");
-      localStorage.removeItem("tp_user_email");
-      localStorage.removeItem("tp_display_name");
-      document.cookie = "tp_token=; path=/; max-age=0; samesite=lax";
-      document.cookie = "tp_role=; path=/; max-age=0; samesite=lax";
-    }
+    // 與 401 session 恢復共用同一份清單（`DX-04`）—— 兩者對「什麼算已登入」必須一致。
+    clearClientSession();
     onNavigate?.();
     router.push("/login");
   }
@@ -130,7 +82,7 @@ export function AdminSidebar({ variant = "desktop", onNavigate }: Props = {}) {
       ) : null}
 
       <nav className={`${SIDEBAR_NAV_SCROLL_CLASS} px-3 pb-3`} aria-label="後台選單">
-        {sections.map((section, index) => (
+        {ADMIN_NAV_SECTIONS.map((section, index) => (
           <div key={section.label}>
             {/* 第一段貼近上方邊界；段與段之間才拉開，避免每一段都留大空白。 */}
             <p
