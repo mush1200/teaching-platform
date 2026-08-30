@@ -38,6 +38,12 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
 - `tp_role` 是 client 可竄改的 cookie，**只能當 UX hint**，不得據以授權任何資料存取。
 - middleware 不讀取、不解碼、不驗證 JWT。
 - `/api/backend/[...path]` proxy 只轉發 `Authorization` header，**不轉發 cookie**。
+- proxy 的 `ALLOW_ROOT` 是 **transport allowlist，不是授權邊界**：它只決定哪些前綴可被
+  轉發，授權一律由 Backend 的 `requireAuth` / `requireRole` 決定。
+  **新增 Backend 路由前綴時必須同步加進 `ALLOW_ROOT`**，否則前端會拿到 proxy 自己產生的
+  `403 {"message":"not allowed"}` 而 Backend 完全沒被呼叫（`creator/*` 曾整條因此不可用）。
+  `creator` 與 `teacher` **兩者都要保留**（Backend 把同一個 router 掛在兩處）。
+  比對必須是**整段相等**，不得用 prefix 比對（`creatorx` 不該被放行）。
 
 ### Admin 帳號
 
@@ -68,6 +74,7 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
    ```
 3. **單一 transaction**：約束變更與資料轉換放同一個 `BEGIN...COMMIT`，避免半套狀態。
 4. **不改寫歷史 `activity_logs`**：`actor_role` 中既有的 `parent` 等值反映寫入當下的事實，屬稽核軌跡，任何 role 遷移都不得回填。
+   **`activity_logs.id` 是 identity，不是 time** —— 它是 UUID（`gen_random_uuid()::text`），不單調遞增。事件先後一律以 `created_at` 為準（`ORDER BY created_at DESC, id DESC`，`id` 只是 deterministic tie-breaker）；**不得** `ORDER BY id`、`MAX(id)` 或 `id > lastId` 當 cursor。canonical 見 `db/db_schema.sql`；`bootstrapModel.verifyCriticalSchema()` 會在啟動時 fail-closed 檢查此型別。
 5. 破壞性操作前先唯讀查 `pg_constraint` 找出所有關聯，確認為 0 才動。
 
 ---
@@ -86,9 +93,54 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
   - 因此 **contract inconsistency 目前仍存在且尚未收斂**。在正式對齊之前，
     不要依賴 `PUT` 的全欄位覆寫語意，也不要以本文件作為該不一致已解決的依據。
 - `POST /materials` 的 **`material_features` 為必填**（array、至少 1 個、值須來自 allowlist）。
-- 只有 admin 可改 `materials.status`；create 時不得帶 `status`（400）。
+- **教材狀態由審核 workflow 管理，不能用 generic update 端點改**：
+  `PUT/PATCH /materials/:id` 帶 `status` → teacher 403、admin 400（`status_not_updatable_here`）。
+  正式入口：`POST /admin/materials/:id/approve`、`/request-changes`、`POST /materials/:id/resubmit`，
+  以及檢舉處置的 `unpublish_material`（**唯一**下架路徑）。
+  狀態有四個：`pending_review` / `published` / `changes_requested` / `unpublished`；
+  轉移規則的 canonical source 是 `Backend/utils/materialWorkflow.js`，規格見 `docs/material-review-workflow.md`。
+  create 時不得帶 `status`（400）。
+- **教材本體檔案由專屬流程管理，不能用 generic update 端點改**：
+  建立教材必填 `fileId`（來自 `POST /teacher/uploads/material-file`）；
+  `PUT/PATCH /materials/:id` 帶任何檔案欄位 → 400（`file_not_updatable_here`）。
+  換檔只走 `POST /materials/:id/file`，且**只有** `changes_requested` / `unpublished` 可用
+  （`published` / `pending_review` 一律 409，沒有偷偷回到待審的路徑）。
+
+  四條不可破的不變條件：
+  1. `pending_file_id` 永遠不是買家可下載的東西；買家只看 `approved_file_id`。
+  2. `approved_file_id` **只有** Admin 核准流程會寫，創作者永遠寫不到。
+  3. 買家授權綁定「教材」而不是「版本」，且**不看 `materials.status`**。
+  4. **沒有 `approved_file_id` 的教材不得成為可購買的付費商品。**
+     `published` ≠ 交付得出東西。三道防線：approve（既有）／`POST /cart/items`／
+     `POST /orders`（transaction 內），全部回 409。canonical source 是
+     `Backend/utils/materialDeliverability.js`，規格見 `docs/mvp_rules.md` §21A.1.1。
+     legacy 已上架但無檔的教材**不回填 DB**，改在販售路徑擋住；
+     **既有 entitlement 不受影響**（第 3 條仍成立）。
+
+  教材本體存在 `Backend/private-storage/`（**不在** `uploads/`，後者是公開 static）。
+  `storage_key` / `checksum` / `uploaded_by` 不得出現在任何 API 回應或 log。
+  `materials.file_key` 是 legacy placeholder，新程式碼不得依賴。
+  canonical source 是 `Backend/services/materialFile.service.js` 與
+  `Backend/utils/materialFilePolicy.js`，規格見 `docs/material-file-storage-and-delivery.md`。
+- **付款憑證永遠不是 public asset**：新憑證只寫 `Backend/private-storage/payment-proofs/`，
+  `/uploads/payment-proofs/*` 已被 `index.js` 在 static 之前擋掉（404），不得恢復。
+  `storage_key` / `checksum_sha256` / `proof_url` 不得出現在任何 API 回應、log 或前端 state。
+  讀取只有一條路：`GET /orders/:orderId/payment-proofs/:proofId/file`，
+  授權**只有** `Admin OR 訂單擁有者`，且不看 `orders.status` 與 `review_status`。
+  **不要把教材的買家 entitlement 模型套到憑證上** —— 兩者只共用
+  `storage/privateFileStorage.js` 的 filesystem primitives，不共用授權。
+  canonical source 是 `Backend/services/paymentProof.service.js` 與
+  `Backend/utils/paymentProofPolicy.js`，規格見 `docs/mvp_rules.md` §12.4。
 - **Report feature 保留**，不要當成死碼刪除：`POST /reports` 與 admin 檢舉管理頁都在使用中。
-  > 已知缺口：buyer 端的檢舉送出 UI 目前不存在（僅 API 與 admin 端）。要移除或補回都需先確認產品決定。
+  > buyer 端的送出入口是**教材詳情頁 `/materials/:id` 頁尾的「檢舉這個教材」**（`BUY-01`，2026-08-24）。
+  > 那是**唯一**能產生新檢舉的地方；沒有、也不會有「Admin 代開案件」的端點。
+  > `reason` 是自由文字，不得在前端拼假分類；重複檢舉靠 DB 的 `UNIQUE (material_id, reporter_id)` 回 409，
+  > **不在前端猜**。規則見 `docs/mvp_rules.md` §6.5。
+- **檢舉案件的唯一正式入口是 `/admin/reports`**（`POST /admin/report-cases/:id/{investigate,request-response,notes,resolve}`）。
+  `/admin/materials/:id/reports` 是 contextual read-only，**不得**加上任何案件處置動作。
+  legacy 的 `PATCH /admin/reports/:id { status: "reviewed" }` 已 **deprecated**：
+  `reviewed` 不是合法轉移目標，正式產品 UI 不得再產生新的；既有歷史資料**保留不回填**。
+  規格見 `docs/mvp_rules.md` §6 與 `docs/admin-information-architecture.md` §9。
 
 ---
 
@@ -157,18 +209,66 @@ Backend **3000**（`npm run dev`，專案根目錄）／Frontend **3010**（`npm
 
 ---
 
+## 11. Pending work tracking
+
+**`docs/pending-work-tracker.md` 是本 repo 唯一的 Active Backlog / Pending Work source of truth。**
+
+1. **開工前先讀 tracker** —— 確認 Current Focus、自己的 task ID、dependency 與已知 deferred 項目。
+2. **發現「已有證據」的問題就記進 tracker** —— reproducible bug、security / authorization / privacy gap、
+   lifecycle correctness bug、stale API contract、stale canonical doc、failing regression、
+   sensitive data 外洩、schema divergence、missing migration、deployment blocker，
+   以及會影響可靠開發／驗證的 DX 問題。
+   **若不屬於本輪 scope：記錄後回到原任務，不要順手擴 scope。**
+   這與 §10.3 是同一件事的兩面 —— §10.3 要你**停下來回報、不自行擴大範圍**，
+   本節要求你**同時把它寫進 tracker**，不要只留在對話裡。
+3. **speculative 的東西不進 Active TODO** —— nice-to-have、brainstorm、個人偏好、純美化、
+   無證據的風險、future feature idea 一律不自動新增。
+4. **每一筆至少要有**：ID、Priority、Area、Task、Why、**Evidence**、Status、Completion Criteria
+   （有的話再加 Dependency、Existing Spec）。同一個問題**更新既有 ID**，不要開近似的新 ID。
+5. **任務完成時必須同步四處**：Status、Current Focus、Next Up、Recently Completed。
+   不得出現「表格寫 DONE、Current Focus 還寫 IN PROGRESS」。
+6. **發現 tracker 的項目已過時或其實已完成** —— 依 code / test 證據更新或標 DONE，
+   不要因為它「曾經是真的」就留在 active backlog。
+7. **Concurrent session** —— 另一個 session 可能同時在改 tracker：
+   動手前**重讀最新檔案**，只做 **minimal merge**，
+   **不得整檔覆寫**，也不要刪除無法確認來源的項目。
+8. **P0 不得默默升級** —— 只有核心交易無法完成、未授權的敏感資料外洩、繞過付款取得商品、
+   繞過 Admin review 替換 buyer content、資料毀損、production 無法安全啟動、
+   明確的 high-impact 漏洞才算 P0，且**必須在最終回報中明確指出並附 repository evidence**。
+9. **最終回報要有 `Pending Work Reconciliation` 一節**：
+   New TODOs discovered / Existing TODOs updated / TODOs completed /
+   Current Focus / Next Up / Tracker changed（Yes-No）。
+   回報中若出現「known gap」「follow-up」「deferred」「future work」這類說法，
+   該項**必須**已經在 tracker 裡。
+
+> **tracker 不是 §9 的 canonical doc。** pre-push 檢查只認
+> `docs/mvp_rules.md`、`docs/teaching-platform-mvp-spec-v1.4.md`、`db/db_schema.sql`
+> （見 `scripts/git-pre-push-docs-check.mjs`）——
+> 更新 tracker 是**額外**要求，不能拿來取代那三份的更新。
+
+> **Active priority 只在 tracker 維護。** 其他 audit / spec 文件（§Canonical 文件）
+> 保存 architecture、product decision、workflow 與歷史 audit，
+> **不各自維護一套 roadmap 或 priority**；若要列待辦，連回 tracker。
+
+---
+
 ## Canonical 文件
 
 | 文件 | 用途 |
 | --- | --- |
+| `docs/pending-work-tracker.md` | **Active backlog／待辦的唯一 source of truth**：Current Focus、Next Up、各項 priority 與 Recently Completed（見 §11）。**注意：它不算 §9 的 canonical doc**，更新它**不會**滿足 pre-push 檢查 |
 | `docs/local-development-and-operations.md` | 啟動、環境變數、回歸、維運（**先讀這份**） |
 | `docs/teaching-platform-mvp-spec-v1.4.md` | 產品／API 契約 |
 | `docs/mvp_rules.md` | 規則、角色邊界、授權邊界 |
 | `db/db_schema.sql` | Schema 參考 |
+| `docs/material-review-workflow.md` | **教材上架審核**：狀態機、轉移規則、退回原因、review snapshot、稽核事件、milestone 邊界 |
+| `docs/material-file-storage-and-delivery.md` | **教材本體檔案**：private storage、審核隔離、買家授權與交付、型別／大小政策、security invariants |
+| `docs/admin-information-architecture.md` | **Admin IA**：每頁的 JTBD、sidebar 分組、Dashboard／Activity Log 責任、Refresh rule、Review Workspace pattern |
 | `docs/ui-design-system.md` | **Web UI 入口**：canonical stack、component 狀態、UI 工作規則、Visual QA / DoD |
 | `docs/frontend-ui-architecture.md` | 元件分層、token 選用（細節文件） |
 | `docs/design-tokens-v1.1.md` | Token 數值 |
 | `docs/db-backup-and-migration.md` | 備份／還原步驟 |
 | `docs/postman/README.md` | Postman / Newman 與 fixtures |
 
-已知但不阻擋開發的技術債清單見 `docs/local-development-and-operations.md` §12。
+待辦與 active priority 一律見 `docs/pending-work-tracker.md`（§11）。
+`docs/local-development-and-operations.md` §12 仍保留工程債的技術說明，但**優先序以 tracker 為準**。

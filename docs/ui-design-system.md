@@ -417,7 +417,7 @@ Admin 與 Creator 的側欄尺寸一律讀 `components/layout/shell-constants.ts
 
 `SIDEBAR_NAV_SCROLL_CLASS` 的 `min-h-0` **不是保險**：flex item 的 `min-height` 預設是
 `auto`（＝內容高度），少了它，可捲動區不會縮小，而是把整條側欄撐出視窗外。
-詳見 `docs/mvp_rules.md` §22.1。
+詳見 `docs/mvp_rules.md` §23.1。
 
 > **[規則] 發現 `missing` 不代表要立刻建立。** 只有當「目前這個 UI 任務真的需要它、且 ≥ 3 處會用」時才建立，並在同一個 PR 更新本文件。
 
