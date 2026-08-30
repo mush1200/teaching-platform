@@ -23,7 +23,7 @@ export function AgeFilter({ value, onChange, id = "filter-age" }: Props) {
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] shadow-sm focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF]"
+        className="w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] shadow-sm focus-visible:border-ds-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
       >
         {OPTIONS.map((o) => (
           <option key={o.value || "all"} value={o.value}>

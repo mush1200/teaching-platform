@@ -138,7 +138,7 @@ export function MaterialReportDialog({ open, materialId, materialTitle, role, on
             type="button"
             onClick={onClose}
             aria-label="關閉"
-            className="-mr-1 -mt-1 shrink-0 rounded-full p-2 text-ds-textMuted transition-colors hover:bg-ds-surfaceSubtle hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6C63FF]"
+            className="-mr-1 -mt-1 shrink-0 rounded-full p-2 text-ds-textMuted transition-colors hover:bg-ds-surfaceSubtle hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
           >
             <span aria-hidden>✕</span>
           </button>
@@ -186,7 +186,7 @@ export function MaterialReportDialog({ open, materialId, materialTitle, role, on
               rows={5}
               onChange={(event) => setReason(event.target.value)}
               placeholder="請描述你遇到的問題…"
-              className="mt-2 w-full resize-y rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus:shadow-[0_0_0_3px_rgba(108,99,255,0.12)] focus:outline-none"
+              className="mt-2 w-full resize-y rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             />
             <div className="mt-1 flex items-center justify-between gap-3">
               <p role="alert" className="text-xs text-[#EF4444]">

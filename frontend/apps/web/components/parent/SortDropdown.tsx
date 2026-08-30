@@ -27,7 +27,7 @@ export function SortDropdown({ value, onChange, id = "explore-sort", compact = f
         onChange={(e) => onChange(e.target.value as MaterialsSort)}
         aria-label={compact ? "排序" : undefined}
         className={[
-          "w-full rounded-xl border border-[#E5E7EB] bg-white text-sm font-medium text-[#1F2937] shadow-sm focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF]",
+          "w-full rounded-xl border border-[#E5E7EB] bg-white text-sm font-medium text-[#1F2937] shadow-sm focus-visible:border-ds-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus",
           compact ? "h-[42px] px-3 py-0" : "px-3 py-2",
         ].join(" ")}
       >

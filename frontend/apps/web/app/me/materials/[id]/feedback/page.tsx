@@ -134,7 +134,7 @@ export default function ShareTeachingFeedbackPage() {
                 placeholder="分享課堂情境、教材效果或使用建議（選填）"
                 rows={4}
                 disabled={submitting}
-                className="mt-2 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#374151] outline-none ring-[#6C63FF]/30 focus:border-[#6C63FF] focus:ring-2"
+                className="mt-2 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#374151] focus:border-[#6C63FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
               />
             </div>
 
