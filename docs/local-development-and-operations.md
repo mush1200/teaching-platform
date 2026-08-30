@@ -321,6 +321,48 @@ npm run verify:web
 > Production E2E 的順序是先 `npm run verify:web`（產出 `.next-verify`），
 > 再 `E2E_SERVER=production npx playwright test`（`next start` 讀同一份產物）。
 
+#### E2E 的 backend 前置條件（`DX-19`，2026-08-30 起）
+
+> **不需要再自己開 backend。** `playwright.config.ts` 的 `webServer` 現在同時管理
+> **backend :3000** 與 **frontend :3010** 兩台，並在 spawn backend 時**寫死**
+> `PGDATABASE=teaching_platform_security_test`。因此：
+>
+> ```bash
+> cd frontend && npm run verify:web          # 產出 .next-verify
+> cd apps/web && E2E_SERVER=production npx playwright test
+> ```
+>
+> 這兩行就是完整的 production E2E —— 兩台 server 由 harness 啟動與關閉。
+>
+> **為什麼要有這一層：** 這套 E2E 有一部分必須打到真的 backend
+> （`api-proxy`／`payment-proof-security`／`material-media-security`／
+> `legal-publication-security` 的 backend contract case），
+> 而 `/materials/:id` 與四條 legal route 是 **server-side fetch**，`page.route()` 攔不到。
+> 在 `DX-19` 之前 backend 是**人工**前置條件，沒開時會出現兩種都無法自我解釋的結果（實測）：
+>
+> | 症狀 | 實際錯誤 |
+> | --- | --- |
+> | **假紅燈** | `api-proxy` 報 `Expected: 200 / Received: 500`、`SyntaxError: Unexpected end of JSON input` —— 看起來像 proxy 壞了；真正的 `ECONNREFUSED ::1:3000` 只出現在交錯的 `[WebServer]` stdout 裡 |
+> | **假綠燈**（更危險） | `legal-publication-security` 的四條 public route case **4/4 通過** —— 因為 `fetchPublished()` 對 fetch 失敗一律 `return null` 而 `notFound()`。頁面「看起來正確」，但證明的是「連不上」而不是「沒有發布」 |
+>
+> 現在兩者都不可能：`tests/e2e/global-setup.ts` 會在**任何 product assertion 之前**
+> 驗證 backend 可達、身分正確（`/health` 回 `{"status":"ok"}`）、
+> 且資料庫連得上並含有 migration seed `mat_detail_seed_1`。
+> 失敗時印出 `E2E BACKEND PREREQUISITE NOT SATISFIED` 與具體補救方式，**不執行任何 test**。
+>
+> **資料庫安全（`CLAUDE.md` §7）：**
+> `E2E_BACKEND_DB` 只接受 `teaching_platform_security_test`；
+> 給任何其他值（例如開發資料庫 `teaching_platform`）會在 **config 載入時**就 throw ——
+> **不會啟動任何 server，也不會執行任何 test**。這個保護不依賴任何人記得 export 環境變數。
+>
+> **`E2E_REUSE_BACKEND=1`（少用）：** 重用已經在 3000 上跑的 backend。
+> harness **無法**從外部證明對方連的是哪一個資料庫（backend 沒有、也不該有
+> 對外揭露資料庫名稱的 endpoint），因此這個模式會印出明確警告，風險由操作者承擔。
+> 預設路徑（不設此變數）較安全，請優先使用。
+>
+> `npm run smoke` 與 `npm run postman` **不受影響** —— 它們仍需要自行啟動的 backend
+> （見下一節），且仍必須自行確認 `PGDATABASE`。
+
 ### Backend / API（需先啟動 Backend，並提供 test admin 憑證）
 
 ```bash
