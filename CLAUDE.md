@@ -84,14 +84,21 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
 - **材料更新端點：`PATCH /materials/:id` 為 preferred／canonical 的 partial-update endpoint。**
   `PUT /materials/:id` 屬 legacy compatibility，**不應在新功能中擴張**（不要新增依賴、不要擴充其行為）。
 
-  現況記錄（**本文件只記錄，未解決此不一致**）：
+  現況記錄（**2026-08-30 `DOC-01` 以 repo 實測更正；只改文件，未改 API 行為**）：
 
-  - 實作上 `PUT` 與 `PATCH` **共用同一個 partial-update handler**
-    （`Backend/routes/materials.js` 的 `updateMaterialHandler`，欄位以 `COALESCE` 合併）。
-  - canonical docs 仍記載 **`PUT` = Full update**
-    （`docs/teaching-platform-mvp-spec-v1.4.md` §11；`docs/mvp_rules.md` §4 亦以 `PUT` 描述更新欄位）。
-  - 因此 **contract inconsistency 目前仍存在且尚未收斂**。在正式對齊之前，
-    不要依賴 `PUT` 的全欄位覆寫語意，也不要以本文件作為該不一致已解決的依據。
+  - **實際語意：`PUT` 與 `PATCH` 都是 partial update。** 兩者掛在同一個 handler
+    （`Backend/routes/materials.js:847-848` → `updateMaterialHandler`），欄位以 `COALESCE` 合併
+    （該 handler 內 15 處），因此**未提供的欄位一律保留原值**。
+    唯二的例外是 replace 語意的集合欄位：body 帶 `contents` 會整批取代 `material_contents`，
+    帶 `detail_images` 會整批取代 `material_images`。
+  - **先前這裡寫「canonical docs 仍記載 `PUT` = Full update」——該敘述已不成立。**
+    `docs/teaching-platform-mvp-spec-v1.4.md` §11 現在寫的是
+    `PUT` = "Update material fields"、`PATCH` = "Partial update semantics, same field
+    validation/authorization as PUT"，**沒有任何地方宣稱 full-replace**。
+  - 唯一殘留的落差是 `docs/mvp_rules.md` §4 過去只寫 `PUT`、未提 `PATCH`，
+    **已於同輪一併更正為 `PUT`／`PATCH`**。三份文件現已一致。
+  - **仍然成立的規則：** `PATCH` 是 preferred／canonical，`PUT` 只保留相容性，
+    **不得**在新功能中擴張其行為，也**不得**依賴任何「全欄位覆寫」語意 —— 那從來就不是實作的行為。
 - `POST /materials` 的 **`material_features` 為必填**（array、至少 1 個、值須來自 allowlist）。
 - **教材狀態由審核 workflow 管理，不能用 generic update 端點改**：
   `PUT/PATCH /materials/:id` 帶 `status` → teacher 403、admin 400（`status_not_updatable_here`）。

@@ -259,7 +259,13 @@ canonical source 是 `Backend/services/materialMedia.service.js` 與
 
 # 4. Material create/update payload（teaching product spec）
 
-`POST /materials`（teacher）與 `PUT /materials/:id` 目前支援下列教學商品欄位：
+`POST /materials`（teacher）與 `PUT`／`PATCH /materials/:id` 目前支援下列教學商品欄位：
+
+> **`PUT` 與 `PATCH` 是同一個 partial-update handler**（`Backend/routes/materials.js` 的
+> `updateMaterialHandler`，欄位以 `COALESCE` 合併）：**未提供的欄位保留原值**，
+> 兩者的驗證與授權完全相同。集合欄位 `contents` / `detail_images` 若出現在 body 中則為整批取代。
+> `PATCH` 為 preferred／canonical；`PUT` 僅保留相容性，不得在新功能中擴張。
+> （2026-08-30 `DOC-01` 依實作更正用詞，**未改變任何 API 行為**。）
 
 - 基本：`title`、`price`、`fileId`（也接受 alias: `file_id`）
   - `fileId` 來自 `POST /teacher/uploads/material-file`。**legacy 的 `file_key` 已不再接受**
