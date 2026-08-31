@@ -1,0 +1,38 @@
+# Git text/binary classification (`DX-20`, 2026-08-30)
+#
+# 這個 repo 的 `core.autocrlf` 為 `true`，而在此檔存在之前，Git 只能靠**內容啟發式**
+# 猜測某個檔案是文字還是二進位：它掃描檔案前 8000 bytes，看到 NUL 就當作二進位。
+#
+# 對真正的圖片那個猜測會猜對（PNG／JPEG／ICO 的檔頭很早就有 NUL），
+# 但對 Postman 的**合成** PDF fixture 會猜錯 —— 那兩個檔案是刻意做到最小的合法 PDF，
+# 內容**全部是 ASCII、沒有任何 NUL**，於是 Git 判定為文字並套用行尾轉換：
+#
+#     warning: LF will be replaced by CRLF in docs/postman/fixtures/material-a.pdf
+#
+# 目前的 worktree 剛好是 LF，所以轉換是 no-op、位元組沒有被改到；
+# 但在 CRLF 平台上做 fresh clone 時，checkout 會把 LF 換成 CRLF，
+# fixture 的位元組就會與 repository 內的 blob 不同 —— 而 multipart 上傳測試
+# 正是靠這些位元組（magic bytes）在驗證型別政策。
+#
+# 因此這裡**只宣告意圖**：下列副檔名一律視為二進位，永遠不做行尾轉換。
+#
+# ## 為什麼沒有 `* text=auto`
+#
+# 實測（2026-08-30，以 temporary index ＋ temporary attributes file 評估，未動到真 index）：
+# 加上 `* text=auto` 會讓 `git add --renormalize` 涵蓋 **531 個檔案**。
+# 那是整個 repo 規模的行尾重寫，風險遠大於它要解決的問題，因此**刻意不加**。
+# 若日後真的要做全域正規化，應該獨立成一張 ticket，並在乾淨的 checkpoint 上單獨執行。
+#
+# ## 為什麼沒有列 zip / woff / mp4 之類
+#
+# 這個 repo 目前**沒有**那些檔案。只宣告實際存在、且確實需要保護的類型。
+# `*.svg` 也刻意不列 —— SVG 是 XML，本來就是文字，標成二進位會讓它失去可讀的 diff。
+
+# Postman multipart fixtures：合成的最小合法檔案，上傳測試依賴其確切位元組。
+# `*.pdf` 是本 ticket 唯一「已實際被 Git 誤判為文字」的類型。
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+
+# 應用程式圖示（`frontend/apps/web/app/favicon.ico`）。
+*.ico   binary

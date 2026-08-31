@@ -330,7 +330,21 @@ test.describe("Material media private storage — authorization boundary", () =>
         file: {
           name: "totally-a-cover.png",
           mimeType: "image/png",
-          buffer: Buffer.from("MZ  windows executable", "latin1"),
+          /*
+           * `\x90\x00` are written as escape sequences on purpose.
+           *
+           * Embedding the raw bytes puts a literal NUL in this TypeScript source, and tools
+           * that scan the whole file rather than a fixed-size prefix then classify it as
+           * binary: `file(1)` reports "data", and GNU `grep -n` prints
+           * "Binary file ... matches" instead of the matching line. (`git` itself was never
+           * affected -- its detector only looks at the first 8000 bytes and the NUL sat at
+           * offset 15745 -- so this is a general-tooling fix, not a git one. See `DX-20`.)
+           *
+           * The decoded payload is byte-identical either way: latin1 maps each code unit to
+           * one byte, giving 4D 5A 90 00 20 ... -- the DOS/PE header "MZ" that the upload
+           * magic-byte check must reject even though the filename says .png.
+           */
+          buffer: Buffer.from("MZ\x90\x00 windows executable", "latin1"),
         },
       },
     });

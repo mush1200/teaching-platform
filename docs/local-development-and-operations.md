@@ -363,6 +363,36 @@ npm run verify:web
 > `npm run smoke` 與 `npm run postman` **不受影響** —— 它們仍需要自行啟動的 backend
 > （見下一節），且仍必須自行確認 `PGDATABASE`。
 
+#### Git 的 text / binary 分類（`DX-20`，2026-08-30 起）
+
+> **repo 根目錄有 `.gitattributes`，把 `*.pdf` / `*.png` / `*.jpg` / `*.ico` 宣告為 `binary`。**
+>
+> 這個 repo 的 `core.autocrlf` 是 `true`。在 `.gitattributes` 存在之前，Git 只能靠內容啟發式
+> （掃前 8000 bytes，看到 NUL 就當二進位）判斷檔案型別 —— 對真正的圖片會猜對，
+> 但對 Postman 的**合成** PDF fixture 會猜錯：那兩個檔是刻意做到最小的合法 PDF，
+> **全部是 ASCII、沒有 NUL**，於是被當成文字並套用行尾轉換。
+>
+> **這不是理論風險，已實測：** 在隔離的 repo 裡設 `core.autocrlf=true` 做 fresh checkout，
+> `material-a.pdf` / `material-b.pdf` 由 **125 bytes 變成 130 bytes**（SHA-256 改變）；
+> 加上 `.gitattributes` 後，同一個實驗的 checkout 位元組與 repository blob **完全一致**。
+> 上傳測試正是靠這些位元組（magic bytes）驗證型別政策，所以這會讓 Windows 上的 clone 出現假失敗。
+>
+> **實務上要注意的兩件事：**
+>
+> - 新增二進位測試素材時，若副檔名不在上面四類，請在 `.gitattributes` 補一行；
+>   **只加實際存在的類型**，不要預防性地列一堆 repo 裡沒有的副檔名。
+> - `*.svg` **刻意不列** —— SVG 是 XML，本來就是文字，標成 binary 會失去可讀 diff。
+>
+> **`.gitattributes` 刻意沒有 `* text=auto`。** 實測（temporary index ＋ temporary attributes
+> file，未動到真 index）：加上它會讓 `git add --renormalize` 涵蓋 **531 個檔案**，
+> 那是整個 repo 規模的行尾重寫。若日後真要做全域正規化，應獨立成一張 ticket 單獨執行。
+>
+> **另一個相關陷阱（同輪修掉）：** 原始碼裡若嵌入 literal NUL，
+> Git 的**轉換層**（whole-buffer 判定）會把整個檔案當二進位而**跳過 CRLF 正規化**，
+> 於是該檔會以 CRLF 存進 repository，成為全 repo 唯一的例外
+> （實測 68 個 `.ts`/`.tsx` blob 中有 67 個是 LF，只有它是 CRLF）。
+> 需要 NUL 之類的控制位元組時，請用逸出序列（`\x00`）在 runtime 建構，不要嵌入原始位元組。
+
 ### Backend / API（需先啟動 Backend，並提供 test admin 憑證）
 
 ```bash
