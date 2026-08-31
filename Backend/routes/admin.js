@@ -8,6 +8,7 @@ const {
   validateFreezeRequest,
 } = require("../utils/accountFreezePolicy");
 const { sendPaymentApprovedEmail, sendPaymentRejectedEmail } = require("../services/emailService");
+const { dispatchBestEffort } = require("../utils/bestEffortDispatch");
 const materialReviewService = require("../services/materialReview.service");
 const materialRightsReviewService = require("../services/materialRightsReview.service");
 const { recordFulfillmentSnapshot } = require("../services/orderService");
@@ -349,7 +350,11 @@ router.post("/payment-proofs/:id/approve", async (req, res) => {
       action: "payment_proof.approved",
       meta: { proofId },
     });
-    void sendPaymentApprovedEmail(pr.order_id);
+    // 審核結果已寫入，通知信為 best-effort 副作用（`REL-02`）。
+    dispatchBestEffort(() => sendPaymentApprovedEmail(pr.order_id), {
+      operation: "payment_approved email",
+      reference: pr.order_id,
+    });
 
     const o = updatedOrder.rows[0];
     return res.json({
@@ -438,9 +443,14 @@ router.post("/payment-proofs/:id/reject", async (req, res) => {
       action: "payment_proof.rejected",
       meta: { proofId, rejectionReason },
     });
-    void sendPaymentRejectedEmail(
-      proofResult.rows[0].order_id,
-      note || REJECTION_REASON_TEXT[rejectionReason] || ""
+    // 退件結果已寫入，通知信為 best-effort 副作用（`REL-02`）。
+    dispatchBestEffort(
+      () =>
+        sendPaymentRejectedEmail(
+          proofResult.rows[0].order_id,
+          note || REJECTION_REASON_TEXT[rejectionReason] || ""
+        ),
+      { operation: "payment_rejected email", reference: proofResult.rows[0].order_id }
     );
 
     const p = updated.rows[0];

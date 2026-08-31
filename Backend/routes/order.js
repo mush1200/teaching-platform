@@ -10,6 +10,7 @@ const { validateReportedPayment } = require("../utils/reportedPayment");
 const paymentTimingPolicy = require("../utils/paymentTimingPolicy");
 const { uploadProof, createOrderFromCart, resolvePromotion } = require("../services/orderService");
 const { sendOrderCreatedEmail, sendProofUploadedEmail } = require("../services/emailService");
+const { dispatchBestEffort } = require("../utils/bestEffortDispatch");
 const paymentProofService = require("../services/paymentProof.service");
 const proofPolicy = require("../utils/paymentProofPolicy");
 const { readPaymentProofMaxBytes } = require("../config/privateFileStorage");
@@ -69,7 +70,16 @@ router.post("/", requireAuth, requireParent, requireActiveAccount, async (req, r
         total_amount: result.order.total_amount,
       },
     });
-    void sendOrderCreatedEmail(result.order.id);
+    /*
+     * 訂單已經 commit、201 也即將送出 —— 通知信是 best-effort 副作用，刻意不 await。
+     * 用 `dispatchBestEffort` 而不是 `void`：`sendOrderCreatedEmail()` 一開頭就
+     * `await loadOrderEmailContext()`，那個查詢在任何 catch 之外，資料庫一有狀況就會 reject。
+     * 裸 `void` 會讓它變成 unhandled rejection 而終止整個 process（`REL-02`）。
+     */
+    dispatchBestEffort(() => sendOrderCreatedEmail(result.order.id), {
+      operation: "order_created email",
+      reference: result.order.id,
+    });
 
     return res.status(201).json({
       message: "Order created successfully",
@@ -266,7 +276,11 @@ async function uploadProofHandler(req, res) {
       uploadIdempotencyCache.set(idemCacheKey, Date.now());
       setTimeout(() => uploadIdempotencyCache.delete(idemCacheKey), 10 * 60 * 1000);
     }
-    void sendProofUploadedEmail(orderId);
+    // 憑證已寫入，通知信為 best-effort 副作用（`REL-02`）。
+    dispatchBestEffort(() => sendProofUploadedEmail(orderId), {
+      operation: "proof_uploaded email",
+      reference: orderId,
+    });
     return res.status(201).json({
       proofs: createdProofs,
       proof: createdProofs[0] || null,

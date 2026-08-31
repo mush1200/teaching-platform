@@ -3,6 +3,7 @@ const workflow = require("../utils/materialWorkflow");
 const { writeActivityLog } = require("../utils/activityLog");
 const materialFileService = require("./materialFile.service");
 const { sendMaterialPublishedEmail, sendMaterialChangesRequestedEmail } = require("./emailService");
+const { dispatchBestEffort } = require("../utils/bestEffortDispatch");
 
 /**
  * 教材上架審核的服務層（Material Review MVP Phase 1）。
@@ -223,7 +224,15 @@ async function approveMaterial(materialId, adminUser, { note = null } = {}) {
     });
   }
 
-  void sendMaterialPublishedEmail(material.id);
+  /*
+   * 這兩支教材信目前**自己**包了 try/catch，所以現在不會 reject。
+   * 仍然改用 `dispatchBestEffort`：不變條件應該由「分離 promise 的這一行」保證，
+   * 而不是靠「每一支 sender 的作者都記得包 try/catch」（`REL-02`）。
+   */
+  dispatchBestEffort(() => sendMaterialPublishedEmail(material.id), {
+    operation: "material_published email",
+    reference: material.id,
+  });
 
   return { ok: true, material, firstPublish, fileApproved: Boolean(extra?.promoted) };
 }
@@ -265,7 +274,11 @@ async function requestChanges(materialId, adminUser, { reasonCode, note } = {}) 
     },
   });
 
-  void sendMaterialChangesRequestedEmail(material.id);
+  // 同上：邊界放在分離點，不依賴 sender 的內部寫法（`REL-02`）。
+  dispatchBestEffort(() => sendMaterialChangesRequestedEmail(material.id), {
+    operation: "material_changes_requested email",
+    reference: material.id,
+  });
 
   return { ok: true, material };
 }
