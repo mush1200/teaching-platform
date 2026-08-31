@@ -91,7 +91,10 @@
 > OWNER DECISION TRACK
 >   PRE-01 / O-19 / OPS-01
 >   READY FOR OWNER DECISION
->   ※ 2026-08-31 決策資料已備妥，見 docs/owner-decision-packet-2026-08-31.md
+>   ※ 2026-08-31 Round 2 決策資料（架構方向）
+>     見 docs/owner-decision-packet-2026-08-31.md
+>   ※ 2026-08-31 Round 3 供應商研究（具體選項 ＋ 成本 ＋ 法律事實輸入）
+>     見 docs/owner-decision-round-3-provider-selection-2026-08-31.md
 > ```
 >
 > **Owner Decision Track 為 2026-08-31 新增的第三軌（decision-prep only，未實作任何選項）。**
@@ -101,6 +104,17 @@
 > （`docs/legal-drafts/review-handoff.md:78-79`），因此決定這兩項會同時推進工程與法律兩條軌。
 > `OPS-01` 只有**技術清理面**可即刻決定；涉及新期限揭露／通知／取消語意者
 > 維持 **BLOCKED BY `PRE-03` / `P1-09`**。
+>
+> **Round 3（2026-08-31，research-only）已把三項收斂到具體選項**，見 `docs/owner-decision-round-3-provider-selection-2026-08-31.md`：
+> `PRE-01` 建議 **Render**（DigitalOcean App Platform 因官方明文不支援 volume 而硬性淘汰；
+> Railway 的 Postgres 是自管容器且無內建自動備份；Fly.io 的 Managed Postgres 最低 $38/月，
+> 且其「每個 app 至少兩顆 volume」的官方建議與本 repo 的單一寫入者儲存實作衝突）／
+> `O-19` 建議 **Resend**（唯一同時具備 465 implicit TLS —— 現有 `secure = (port === 465)`
+> 零改動即保證 TLS —— 與 ≥30 天送信紀錄；Postmark 為接近的次選）／
+> production 資料庫建議 **FRESH DB**（匯入現有資料會帶進 50–63 個 admin 帳號、
+> 99% 以上的合成帳號、九成上架但交付不出的教材，以及零 `consent_records`）。
+> **三項狀態一律維持 `READY FOR OWNER DECISION`，未標 DONE，未實作任何選項。**
+> 若 production 從空庫開始，**`OPS-01` 即不再是 MVP launch blocker**（legacy 母體 = 0）。
 >
 > **為什麼不再寫「`P1-09` implementation in progress」（`DOC-01`，2026-08-30）：**
 > `P1-09` 的 engineering foundation —— Gate 1～7／14 的 schema、述詞與寫入端、`legal_documents` registry、
@@ -5097,6 +5111,7 @@ UI 沿用「教學回饋」的稱呼，但資料模型是 review。**討論範�
 
 | 日期 | 說明 |
 |------|------|
+| **2026-08-31（Owner Decision Round 3）** | **部署與郵件供應商研究（RESEARCH-ONLY，0 行 production code）。** 產出 `docs/owner-decision-round-3-provider-selection-2026-08-31.md`，research date 2026-08-31，所有供應商事實皆附官方來源 URL，無法自官方來源取得者一律標記 `CURRENT PRICE NOT VERIFIED`（未猜測）。**未部署、未設定 SMTP、未註冊任何服務、未建立 production 資料庫、未匯入資料、未啟動 `REL-03`。****部署：** DigitalOcean App Platform **硬性淘汰**（官方明文 "App Platform does not support volumes"，本機檔案系統於部署後永久遺失 —— 正是 `config/privateFileStorage.js` fail-closed 拒絕的情境）。shortlist 為 Render／Railway／Fly.io，三家的 volume **都不需要改任何程式碼**，且**都強制單一 instance** —— 與 `routes/order.js:27` 的 process 內 `uploadIdempotencyCache` 前提恰好吻合。**建議 Render**：三家中唯一同時具備 fully managed Postgres 與「每 24 小時自動快照、保留 ≥ 7 天」且兩者都不需 Owner 記得啟用；Singapore region；約 $21–25/月。Railway 次之 —— 其 Postgres **不是受管服務**（官方文件自述為從 image 部署的容器、無內建自動備份）；Fly.io 第三 —— Managed Postgres 最低 **$38/月**，且官方「每個 app 至少配置兩顆 volume」的建議與 `LocalPrivateFileStorage` 的單一寫入者模型衝突。**郵件：** shortlist 為 Resend／Postmark／Mailgun；**Brevo 未納入**，理由如實記錄 —— 其 SMTP 說明頁 403、定價頁為 JS 渲染，本輪無法自官方來源驗證，依證據標準不放入比較表。**建議 Resend**：唯一同時具備 **465 implicit TLS**（現有 `secure = (port === 465)` 零改動即保證 TLS，不必等 `REL-03`）與 ≥30 天送信紀錄，Free 3,000 封/月可做上線前完整演練、Pro $20/月 50,000 封。Postmark 為接近的次選（45 天紀錄保留更佳，但僅 STARTTLS）；Mailgun 第三（Free／Basic 僅 **1 天** log 保留，而本平台自身的郵件可觀測性只有 `REL-02` 的 `console.error` ＋ `activity_logs`）。**production 資料庫：建議 FRESH DB。** 唯讀體檢兩個現有資料庫：dev 217 個帳號中 **215 個為合成 email**、**50 個 admin**、93 個 published 教材中**只有 2 個有 `approved_file_id`**；security-test 為 958／956／63／326 中 271。兩庫 `consent_records` 皆為 **0**、`legal_documents` 皆為 **0**、憑證 `storage_status = legacy_public` 皆為 **0**。匯入會一次繞過 CLAUDE.md §3 的 admin 建立控制、在 production 製造不存在的人及其個資、並讓九成商品上架卻交付不出（第四條不變條件，銷售路徑回 409）。**若 production 從空庫開始，`OPS-01` 即不再是 MVP launch blocker**（legacy 母體 = 0，且付款期限對每一筆新訂單皆生效），降級為文件性關閉；`PRE-02` 亦同步簡化。另記錄一項時序限制：**production 網域必須在第一筆真實素材上傳前定案**（`materialMedia.service.js:90` 會把含 host 的絕對 URL 寫進資料列）。**`PRE-01`／`O-19`／`OPS-01` 三項狀態維持 `READY FOR OWNER DECISION`，未標 DONE。****未修改 production code／schema／migration／legal wording；未 push／PR／merge。** |
 | **2026-08-31（Owner Decision Round 2）** | **三項 Owner／營運決策的決策資料備妥（DECISION-PREP ONLY，0 行 production code）。** 產出 `docs/owner-decision-packet-2026-08-31.md`，涵蓋 `PRE-01`（部署平台 ＋ 持久化私有儲存）／O-19（production SMTP 供應商）／`OPS-01`（legacy `pending_payment` 處置），各三個選項並附工程成本與風險比較。**未選定任何供應商、未註冊服務、未部署、未設定 SMTP、未搬移資料、未修改任何 legacy 訂單。****四項新證據：**（1）**必須持久化的只有 PostgreSQL 與 `private-storage/`**（實測 1,073 檔／5.7 MB）—— 整個 Backend 的檔案系統寫入點只有兩處且都在 storage 層內，`Backend/uploads/` 實測 0 檔；（2）**物件儲存完全未實作** —— `createSignedUrl` 只存在於註解、無 S3／R2 SDK 依賴，因此「換個 driver 就好」的部署方案不成立，掛載 volume 才是零改動選項；（3）**`PRE-01` 與 O-19 不依賴法律審查，是法律審查依賴它們** —— Privacy §5.3 在等 O-19、§5.4 在等 O-20／`PRE-01`；（4）**`OPS-01` 的母體已證明封閉**（無期限訂單止於 `2026-08-26T15:12Z`、有期限訂單始於同日 `15:42Z`），且 179 是測試庫數字（其中 129 筆為本月測試產生），**目前不存在 production 資料庫**，因此其實際規模取決於「production 是否從空庫開始」這個尚未回答的 Owner 事實；另複驗這些訂單**無 entitlement／下載後果**（交付要求 `orders.status='approved'`）。新增 **`REL-03`**（`P3`，blocked on O-19）：`SMTP_*` 缺失無啟動時檢查，production 會靜默不寄信。`PRE-01`／O-19／`OPS-01` 三項 Status 改為 `READY FOR OWNER DECISION`，§1 新增 **Owner Decision Track**。**未修改 production code／schema／migration／legal wording；未 push／PR／merge。** |
 | **2026-08-31（`PRE-05`）** | **全新資料庫 provisioning 已實測可行 —— 但先修掉一個真實缺陷。** `READINESS-02` 只驗到「26/26 張表」，本輪擴到欄位／型別／預設／可空性／PK／FK／UNIQUE／CHECK／索引／部分索引／trigger／function，並實際啟動 Backend、跑 canonical seed 與 smoke。**發現：** `bootstrapModel.js` 把 `materials.file_key` 建成 `NOT NULL`，與 canonical `db/db_schema.sql`（明載可為空）不符；後果只在全新庫出現（既有庫早已 nullable，且 `CREATE TABLE IF NOT EXISTS` 不改既存表），實測 `POST /materials` → **500**，**全新部署的平台完全無法上架教材**。修法為改回 `TEXT`，不影響既有庫；以第三個全新空庫從零重驗，**smoke 73 項全過**。**另一個重要結論：多數結構差異其實是「既有參考庫」的歷史漂移**（含重複 FK），以 `db_schema.sql` 裁決後全新庫反而更接近 canonical。**刻意未於全新庫執行 DB 套件／Postman／E2E** —— 它們硬釘 security test DB，那是刻意護欄，不為本輪削弱。殘留 2 處 parity 缺口 ＋ 8 個熱路徑索引歸屬問題已另立 **`PRE-06`**（`P3`）。unit **230/230**、DB **470/470**；既有兩庫結構指紋 **byte-identical**，`legal_documents`／`consent_records` 維持 0；三個可拋棄庫已全部 DROP。 |
 | **2026-08-31（`DX-21`）** | **完整套件的間歇性登入失敗已定位並修正 —— 不是產品缺陷。** 根因：`page.goto()` 之後、React hydration 完成之前送出的點擊會**靜默失效** —— 按鈕在 SSR HTML 中已可見，Playwright 點得下去且回報成功，但那一刻還沒有 `onClick`，因此**連登入請求都沒發出**。instrumented 重現 1/80，失敗當下 `loginRequests: 0`、無 console/page error，決定性排除了 cookie／middleware race、mock 契約、backend 與帳號密碼等假設。修法為新增 `helpers/hydration.ts`，等待 React 把 props 掛到該節點（`__reactProps$`），`critical-acceptance.spec.ts` 中 6 個「goto 後第一個 React 互動」改用 `clickWhenHydrated`。**A/B 在完全相同條件下由 1/80 失敗變 80/80 通過**；另加 `hydration-guard.spec.ts` 釘住機制本身（含反向證明 helper 會確實逾時而非靜默通過）。**未用 skip／fixme／waitForTimeout／retries／timeout 放寬／workers 調降／serial，未弱化任何斷言。** **production 程式碼 0 改動。** `verify:web` exit 0、完整 E2E **615 passed / 39 skipped / 0 failed**。 |
