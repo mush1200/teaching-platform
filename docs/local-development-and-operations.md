@@ -363,6 +363,112 @@ npm run verify:web
 > `npm run smoke` 與 `npm run postman` **不受影響** —— 它們仍需要自行啟動的 backend
 > （見下一節），且仍必須自行確認 `PGDATABASE`。
 
+### 法律文件發布 runbook（`OPS-05`）
+
+> **⚠️ 目前不得執行「發布」那一步。** 四份草稿仍為
+> `DRAFT — NOT LAWYER APPROVED` / `NOT FOR PRODUCTION PUBLICATION`；
+> 律師與會計師審閱皆為 `PENDING`，`legal_documents` 在兩個資料庫皆為 **0 列**。
+> 本節記錄的是**程序**，不是現在要做的事。
+
+#### 前置條件（全部成立才可進入寫入步驟）
+
+```text
+[ ] 外部律師審閱完成，且有可稽核的核准參照
+[ ] 需要時，外部會計師審閱完成（PRE-03 / T-* 相關者）
+[ ] Owner 已核准最終條文來源檔案
+[ ] 版本號已指派（DEC-LEGAL-05：整數序號，每個 document_type 各自獨立）
+[ ] 生效日已確認（YYYY-MM-DD）
+[ ] requiresReconsent 已由 Owner 顯式決定（不得由發布理由推導）
+[ ] 發布理由代碼已選定（other 需附說明）
+```
+
+**來源檔案不得再帶有草稿標記。** 前置檢查會掃描
+`DRAFT — NOT LAWYER APPROVED` 與 `NOT FOR PRODUCTION PUBLICATION`，
+命中即判定 blocked ——**即使其他欄位全部填對、即使 operator 勾了確認旗標**。
+
+#### 步驟 1：技術前置檢查（dry-run，唯一可以現在跑的步驟）
+
+```bash
+npm run legal:preflight --prefix Backend -- --help
+```
+
+```bash
+node Backend/scripts/legal-publication-preflight.js   --type terms   --version 1   --source <approved-source-file>   --effective-date 2026-09-15   --requires-reconsent false   --reason-code editorial_update   --lawyer-approval-ref "<auditable reference>"   --acknowledge-external-review
+```
+
+**這支腳本沒有寫入路徑** —— 它不 import `publish()`、不發 POST、對資料庫只有一次唯讀查詢。
+無論參數怎麼下都不可能發布任何東西，結尾一律印出
+`DRY RUN — NO LEGAL DOCUMENT WAS PUBLISHED`。
+
+輸出刻意分成**兩條互不合併的判定線**：
+
+| 區塊 | 意義 |
+| --- | --- |
+| `TECHNICAL VALIDATION` | 型別／版本／正文非空／生效日格式／顯式 boolean／理由代碼 —— 程式能判斷的部分 |
+| `EXTERNAL APPROVAL` | **程式不能判斷。**只記錄 operator 提供的核准參照，並在來源仍是草稿時擋下 |
+
+`TECHNICAL VALIDATION: PASSED` **不代表可以發布**。exit code 只有兩條線都成立才是 `0`。
+
+#### 步驟 2：寫入前的人工覆核
+
+```text
+目標資料庫是否正確（腳本會印出 database 名稱）
+current version 是誰（腳本會印出；發布後它會轉為 superseded）
+target version 是否未被使用過（同型別 version 唯一）
+document_type 正確
+effective_date 正確
+requiresReconsent 與發布理由是**兩個獨立**的決定
+核准參照可被第三方查證
+```
+
+#### 步驟 3：建立 → 核可 → 發布（**目前不得執行**）
+
+發布本身是需要 admin token 的明確 API 呼叫，**刻意不包進腳本**：
+發布是一次性、**無自動 rollback** 的動作，多一個 `--publish` 旗標就多一條誤觸路徑。
+
+```text
+POST   /admin/legal-documents                    建立 draft
+PATCH  /admin/legal-documents/:id                修改 draft
+POST   /admin/legal-documents/:id/approve        draft → approved
+POST   /admin/legal-documents/:id/publish        approved → published（舊版原子轉 superseded）
+```
+
+`publish` 的 body（步驟 1 會原樣印出）：
+
+```json
+{ "requiresReconsent": false, "reasonCode": "editorial_update", "note": "僅 other 需要" }
+```
+
+全部端點皆 `requireAuth` + `requireRole("admin")`。
+
+#### 步驟 4：發布後驗證
+
+```text
+legal_documents 出現該版本，publication_status = 'published'
+同型別的舊版 publication_status = 'superseded'，且 superseded_by_id 指向新版
+GET /legal/documents/:type 回 200（先前為 404）
+public route /terms /privacy /creator-agreement /refund 顯示新版
+activity_logs 有 legal_document.published：who / when / type / version /
+  content_hash / requiresReconsent / justificationCode / supersededIds
+若 requiresReconsent = true，re-consent 的實際強制仍屬 Gate 5（尚未接線）
+```
+
+#### Rollback / 事故處理
+
+```text
+NO AUTOMATED ROLLBACK
+```
+
+repo **沒有** unpublish 或 rollback 端點，這是刻意的：
+`TRANSITIONS` 中 `published` 與 `superseded` 都是終態，
+且 `published` 的正文／版本／雜湊／生效日由 DB trigger 鎖死（不可竄改）。
+
+因此事故的唯一前進路徑是**再發一版**：建立新 draft → approve → publish，
+舊版自動轉 `superseded`。歷史版本**必須保留** —— 既有的 consent 證據會指向它。
+**不得**以直接 SQL 修改或刪除已發布的列來「復原」。
+
+---
+
 #### Git 的 text / binary 分類（`DX-20`，2026-08-30 起）
 
 > **repo 根目錄有 `.gitattributes`，把 `*.pdf` / `*.png` / `*.jpg` / `*.ico` 宣告為 `binary`。**

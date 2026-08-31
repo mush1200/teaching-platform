@@ -32,12 +32,9 @@ const db = require("../config/db");
 const { validatePublishJustification } = require("../utils/legalDocumentPublishPolicy");
 
 /** `DEC-04`（2026-08-27 Owner 拍板）。與 DB CHECK 保持一致。 */
-const DOCUMENT_TYPES = Object.freeze([
-  "terms",
-  "privacy",
-  "creator_agreement",
-  "refund_policy",
-]);
+// canonical allowlist 住在無 I/O 相依的模組，讓純函式（例如 OPS-05 的發布前置檢查）
+// 可以重用同一份定義而不必連帶要求資料庫設定。這裡原樣 re-export，呼叫端不受影響。
+const { DOCUMENT_TYPES } = require("../utils/legalDocumentTypes");
 
 const PUBLICATION_STATUSES = Object.freeze(["draft", "approved", "published", "superseded"]);
 
