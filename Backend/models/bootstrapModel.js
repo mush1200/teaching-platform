@@ -1662,7 +1662,16 @@ function ensureCoreTables() {
           demo_video_url TEXT,
           teacher_id TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending_review',
-          file_key TEXT NOT NULL,
+          -- PRE-05: this column must stay NULLABLE.
+          -- It is a legacy placeholder; the canonical deliverable pointers are
+          -- approved_file_id / pending_file_id, and POST /materials always writes NULL.
+          -- db/db_schema.sql documents the same. It previously said NOT NULL, which was
+          -- invisible on the two existing databases (already nullable, and CREATE TABLE
+          -- IF NOT EXISTS never alters an existing table) and only broke brand-new ones:
+          -- measured 2026-08-31 on a disposable database, creating a material returned 500
+          -- with a not-null violation on file_key, so a freshly provisioned platform could
+          -- not publish any material at all.
+          file_key TEXT,
           ip_declaration_accepted BOOLEAN NOT NULL DEFAULT FALSE,
           ip_declaration_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
