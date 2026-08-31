@@ -182,11 +182,17 @@ Draft.
 
 5.3 電子郵件通知係透過平台設定之郵件傳送服務發出。
 
-> `[OWNER DECISION REQUIRED — O-19 / 郵件傳送服務供應商之身分揭露]`
+> `[LAWYER REVIEW REQUIRED — O-19 / 郵件傳送服務供應商之身分揭露：條文表述]`
 >
-> **狀態（2026-08-27，Owner Decision Round 2）：`FACT UNKNOWN —
-> OWNER / DEPLOYMENT INPUT REQUIRED`。** Owner 表示 production email provider
-> **尚未決定**；待實際確定後再填入本節。
+> **狀態（2026-08-31，Owner 拍板 `DEC-14`）：`FACT KNOWN`。**
+> production 交易郵件供應商為 **Resend**（法人 **Plus Five Five, Inc.**），
+> 整合方式為 nodemailer 經通用 SMTP relay。事實明細與供應商文件連結見
+> `review-handoff.md` §「O-19 — 事實已補齊」。
+>
+> **本節條文本文本輪未修改。** 是否揭露供應商名稱、如何表述、是否需揭露分包商層級，
+> 屬定稿判斷 —— `LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。
+>
+> **（2026-08-27 原狀態為 `FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED`，已由本次拍板取代。）**
 >
 > repository 佐證：`.env.example` 之 `SMTP_HOST`／`SMTP_USER`／`SMTP_PASS`／
 > `SMTP_FROM` 皆為空白，transporter 為**通用** SMTP 設定（未使用任何
@@ -198,8 +204,15 @@ Draft.
 
 > `[LAWYER REVIEW REQUIRED — 法定揭露條款之表述]`
 
-> `[OWNER DECISION REQUIRED — 部署環境（主機、儲存服務）之委外處理者揭露]`
-> 部署平台尚未決定（`PRE-01`／`PRE-02`）。
+> `[LAWYER REVIEW REQUIRED — 部署環境（主機、儲存服務）之委外處理者揭露：條文表述]`
+>
+> **狀態（2026-08-31，Owner 拍板 `DEC-13`）：部分事實已知。**
+> 部署平台為 **Render**（Web Service、Managed PostgreSQL、Persistent Disk）；
+> 私有檔案儲存 driver 維持 `local`，**不使用任何物件儲存供應商**。
+> **仍未齊備：production 網域與主機名稱（`PENDING`），以及 Render 之法人名稱與
+> DPA／分包商／資料所在地文件（尚未查證）。**
+>
+> **本節條文本文本輪未修改。** `LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。
 
 ---
 
@@ -394,9 +407,9 @@ Draft.
 | `T-14` | 稅務憑證保存年限 | §6.2 |
 | `SCHEMA-02` | 帳號刪除技術語意 | §9.2 |
 | `DEC-LEGAL-01` | 重大變更定義 | §11.1 |
-| `PRE-01`／`PRE-02` | 部署環境委外處理者 | §5.4 |
+| `PRE-01`／`PRE-02` | 部署環境委外處理者 —— **部分已知（2026-08-31 `DEC-13`：Render）；production 網域與主機名稱仍 `PENDING`** | §5.4 |
 | `O-21` | 當事人權利之**受理作業流程**與法定回覆期限（管道已定，見下） | §8.3 |
-| `O-19` | 郵件供應商揭露 —— **`FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED`**（2026-08-27 確認） | §5.3 |
+| ~~`O-19`~~ | 郵件供應商揭露 —— **✅ 事實已補齊（2026-08-31 `DEC-14`：Resend／Plus Five Five, Inc.）。**條文如何表述仍待定稿：`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW` | §5.3 |
 
 **已拍板（不再是未解決事項）**
 

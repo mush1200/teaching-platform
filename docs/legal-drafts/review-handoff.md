@@ -75,8 +75,8 @@ Production consent wiring     : NONE
 | O-16 | **退款案件處理時限** | Refund §7.1 | **草稿刻意未填天數** | Refund 定稿 |
 | O-17 | 帳號凍結後之申訴／解除流程 | Terms §2.5 | **部分決定** —— 內部 operating model ✅ `DEC-LEGAL-10`（single-admin ＋ 標準化 reason ＋ Admin UI；實作未開始，tracker `OPS-02`）。**對外申訴時限／法定回覆日數仍未決** | Terms 定稿（對外側） |
 | O-18 | 平台停止營運計畫（四組處置） | Terms §13.3 | 未訂定 | Gate 10、併同 `L-15` |
-| O-19 | 郵件服務供應商揭露 | Privacy §5.3 | **FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED**（2026-08-27 確認：repo 與 CI 皆無可辨識證據；Owner 表示尚未決定） | Privacy 定稿 |
-| O-20 | 部署環境委外處理者揭露 | Privacy §5.4 | `PRE-01`／`PRE-02` 未決 | Privacy 定稿 |
+| O-19 | 郵件服務供應商揭露 | Privacy §5.3 | **✅ FACT NOW KNOWN（2026-08-31，Owner 拍板 `DEC-13`／`DEC-14` 之 `DEC-14`）** —— 交易郵件供應商 **Resend**，法人 **Plus Five Five, Inc.**，整合方式為 **nodemailer 經通用 SMTP relay**。供應商文件：DPA `resend.com/legal/dpa`；分包商清單 `resend.com/legal/subprocessors`；隱私政策 `resend.com/legal/privacy-policy`；該 DPA 載明主要處理作業位於美國並納入 SCCs。**以上皆為事實陳述。`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW` —— 本 repo 不判斷 DPA、SCCs、分包商、隱私條款或資料所在地是否於法充分。**（2026-08-27 原記載為 `FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED`，已由本次拍板取代。**production 郵件尚未啟用** —— DNS／網域驗證未完成，且寄件網域待 production 網域鎖定。） | Privacy 定稿 |
+| O-20 | 部署環境委外處理者揭露 | Privacy §5.4 | **⚠️ 部分事實已知（2026-08-31，`DEC-13`）** —— 基礎建設供應商為 **Render**（Frontend／Backend Web Service、Managed PostgreSQL、Persistent Disk 皆由其提供；私有檔案儲存 driver 維持 `local`，**不使用任何物件儲存供應商** —— S3／R2 明確不屬於 MVP）。`PRE-01` 已拍板；`PRE-02` 已由 `DEC-15`（fresh DB）簡化為驗證性工作。**仍未齊備者：production 網域與主機名稱（`PENDING OWNER DECISION / PURCHASE`）**，以及 Render 之法人名稱、DPA／分包商／資料所在地文件（本輪未查證，屬 `PRE-07` 落地時補齊）。**以上皆為事實陳述。`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。** | Privacy 定稿 |
 | **O-21** | **當事人權利之受理作業流程** | Privacy §8.3 | **部分決定** —— 內部受理模型 ✅ `DEC-LEGAL-13`（Round 3：重用 case-management，獨立分類；實作未開始，tracker `OPS-04`）；**法定回覆期限與身分驗證標準仍未決** | Privacy §8 定稿（法律側） |
 | **O-22** | **帳號刪除之技術語意與流程**（`SCHEMA-02`） | Privacy §9.2 | 未解決之設計問題；**BLOCKED ON `L-21`** | Privacy §9、刪除權實作 |
 
@@ -306,7 +306,40 @@ Sidebar 得沿用既有 fallback（「使用者」），**不得**為了保留�
 
 ---
 
-### O-19 — 未解決事實
+### O-19 — 事實已補齊（2026-08-31）
+
+```text
+FACT KNOWN — OWNER DECISION LOCKED 2026-08-31 (DEC-14)
+LEGAL SUFFICIENCY: PENDING LAWYER REVIEW
+```
+
+**事實（僅事實，無法律判斷）：**
+
+| 欄位 | 內容 |
+| --- | --- |
+| 交易郵件供應商 | **Resend** |
+| 法人名稱 | **Plus Five Five, Inc.** |
+| 使用之服務 | 交易郵件寄送（SMTP relay） |
+| 整合方式 | **nodemailer 經通用 SMTP relay**（`smtp.resend.com`）；**未使用供應商 SDK** |
+| DPA | `https://resend.com/legal/dpa` |
+| 分包商清單 | `https://resend.com/legal/subprocessors` |
+| 隱私政策 | `https://resend.com/legal/privacy-policy` |
+| 資料所在地（依其 DPA 記載） | 主要處理作業位於**美國**；納入 Standard Contractual Clauses |
+
+> **本 repo 不對上述任何一項作法律評價。**
+> 是否符合《個人資料保護法》之委外監督要求、國際傳輸是否適法、
+> DPA／SCCs／分包商安排是否充分 —— **全部屬律師判斷**，標記
+> `LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。
+>
+> **本輪僅提供事實，未將任何供應商名稱填入《隱私權政策》§5.3 的條文本文。**
+> 條文如何表述、是否需揭露分包商層級，由律師於定稿時決定。
+
+**尚未完成者（與上述事實無關，屬營運前置）：**
+production 郵件**尚未啟用** —— 寄件網域驗證與 SPF／DKIM／DMARC 尚未設定，
+且寄件網域取決於仍為 `PENDING` 的 production 網域。
+
+<details>
+<summary>2026-08-27 原記載（已由本次拍板取代，保留供稽核）</summary>
 
 ```text
 FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED
@@ -324,6 +357,8 @@ Owner 表示 production email provider **尚未決定**。
 本輪只確認變數已設定，未讀取其值）。
 
 **待補事實（僅此一項）：** production 寄信所使用之 email service provider 名稱。
+
+</details>
 
 ---
 

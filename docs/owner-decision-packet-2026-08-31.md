@@ -1,5 +1,25 @@
 # Owner Decision Packet — 生產上線營運決策（2026-08-31）
 
+> ## ✅ DECISION LOCKED — 2026-08-31
+>
+> Owner 已審閱本文件並拍板（canonical 記錄見 `docs/pending-work-tracker.md`
+> §1「Owner Decision Lock — Round 6」，Decision ID `DEC-13`／`DEC-14`／`DEC-15`）：
+>
+> ```text
+> PRE-01        → Render        （DEC-13）
+> O-19          → Resend SMTP   （DEC-14）
+> Production DB → FRESH DATABASE（DEC-15）
+> OPS-01        → 非 MVP launch blocker（production legacy pending_payment = 0）
+> Production domain → PENDING OWNER DECISION / PURCHASE
+> ```
+>
+> **鎖定的是「選誰」，不是「已經設定好了」。**
+> deployment configuration 與 SMTP configuration **兩者皆尚未開始**
+> （實作項 `PRE-07`～`PRE-11`，全部 NOT STARTED）。
+>
+> **🚩 LAUNCH GUARDRAIL：在 production Backend hostname 鎖定之前，
+> 不得進行任何真實 production 素材上傳**（`mediaUrl()` 會把含 host 的絕對 URL 寫進資料列）。
+
 > **本文件是 decision preparation，不是實作。** 本輪未修改任何 production code、schema、
 > migration 或 legal wording，未選定任何供應商，未註冊任何服務，未部署，未設定 SMTP，
 > 未搬移資料，未修改任何 legacy 訂單。
