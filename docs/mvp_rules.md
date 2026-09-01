@@ -2829,6 +2829,18 @@ storage key 由平台產生（`material-files/<uuid>`，無副檔名），
 `MATERIAL_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION=true` 一律**啟動失敗**
 （與 `JWT_SECRET` 同一種取捨）。
 
+**兩個 driver（`PRE-13`，2026-08-31）。** `PRIVATE_FILE_STORAGE_DRIVER` 接受
+`local`（本機開發）與 **`s3`**（production，`DEC-16`）。後者是 generic S3-compatible driver，
+**不綁定任何供應商** —— 換供應商是改五個環境變數，不是改程式碼。
+兩個 driver 的行為逐項等價（key 產生、SHA-256、Range、不合法 key 拒絕、
+namespace 隔離），由 `Backend/tests/privateFileStorageParity.test.js` 以同一組斷言釘住。
+
+`driver=s3` 時：五個 `PRIVATE_FILE_STORAGE_S3_*` 必填值缺任一即**啟動失敗**；
+**bucket 必須是 private**（Backend 是唯一授權入口，presigned URL 刻意未實作）；
+`PRIVATE_FILE_STORAGE_PATH` 與 `ALLOW_LOCAL_IN_PRODUCTION` 不使用、也不應設定。
+上面那條 local fail-closed **未被放寬**。
+canonical 見 `docs/material-file-storage-and-delivery.md` §20.2。
+
 ## 21A.3 檔案型別與大小
 
 allowlist：`.pdf` `.zip` `.pptx` `.docx` `.xlsx`；上限 `MAX_MATERIAL_FILE_BYTES`（預設 100 MB）。

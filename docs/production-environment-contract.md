@@ -1,5 +1,33 @@
 # Production Environment Contract（`PRE-09`）
 
+> ## ⚠️ 2026-08-31 — 儲存章節已被 `DEC-16` 更新（`PRE-13`）
+>
+> 本文件成稿時，production 的私有儲存是 **Render Persistent Disk ＋ `local` driver**（`DEC-13`）。
+> Owner 已於同日改採 **NT$0 MVP 部署目標**，`local` driver 因此**不再是 production 路徑** ——
+> 免費方案一律不提供 persistent volume。canonical 決策見
+> **`docs/mvp-nt0-deployment-decision-2026-08-31.md`**。
+>
+> **對本文件的具體影響（其餘章節不受影響，仍然有效）：**
+>
+> | 變數 | 本文件原本的分類 | 現況（`DEC-16` 之後） |
+> | --- | --- | --- |
+> | `PRIVATE_FILE_STORAGE_DRIVER` | `OPTIONAL`（production 必須維持 `local`） | **production ＝ `s3`**。`local` 僅供本機開發 |
+> | `PRIVATE_FILE_STORAGE_PATH` | `REQUIRED — FAIL CLOSED` | **僅 `local` driver 適用。driver=s3 時不使用，且不應設定** |
+> | `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION` | `REQUIRED — FAIL CLOSED` | **同上 —— NT$0 production 不需要、也不應設定** |
+> | `PRIVATE_FILE_STORAGE_S3_BUCKET` / `_ENDPOINT` / `_REGION` | 尚不存在 | **新增，`REQUIRED — FAIL CLOSED`** |
+> | `PRIVATE_FILE_STORAGE_S3_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | 尚不存在 | **新增，`REQUIRED — FAIL CLOSED` ＋ SECRET** |
+> | `PRIVATE_FILE_STORAGE_S3_FORCE_PATH_STYLE` | 尚不存在 | **新增，`OPTIONAL`**（預設 true） |
+>
+> **§5 的 secret 清單因此多兩項**：`PRIVATE_FILE_STORAGE_S3_ACCESS_KEY_ID` 與
+> `PRIVATE_FILE_STORAGE_S3_SECRET_ACCESS_KEY`。§5 的五條規則原封適用。
+>
+> **`local` driver 的三條 fail-closed 完全未被放寬**，且已由
+> `Backend/tests/privateFileStorageConfig.test.js` 釘住（`PRE-13`）。
+>
+> §4（資料庫只有一條 production 路徑）的技術結論**完全不變**，
+> 但 provider 由 Render Postgres 改為 **Neon**（Render 免費 Postgres 建立 30 天後到期）。
+> `sslmode=require` 仍然適用 —— Neon 使用公開 CA 簽發的憑證。
+
 > **這份文件定義「應用程式需要什麼設定」，不定義「Render 上怎麼給」。**
 > 後者是 `PRE-07` 的工作，邊界見 §8。
 >
@@ -380,12 +408,22 @@ DATABASE
   [R] DATABASE_URL（含明確 sslmode）             ← SECRET；production 唯一路徑（§4）
   [ ] 確認未使用離散 PG*（那條路徑無法加密）
 
-PRIVATE STORAGE
-  [ ] PRIVATE_FILE_STORAGE_DRIVER = local        ← DEC-13
-  [R] PRIVATE_FILE_STORAGE_PATH                  ← Render persistent disk mount path
-  [ ] PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION = true
+PRIVATE STORAGE（2026-08-31 依 DEC-16 改寫；舊的 local-disk 版本見本節下方）
+  [ ] PRIVATE_FILE_STORAGE_DRIVER = s3           ← DEC-16
+  [R] PRIVATE_FILE_STORAGE_S3_BUCKET             ← 必須是 PRIVATE bucket
+  [R] PRIVATE_FILE_STORAGE_S3_ENDPOINT
+  [R] PRIVATE_FILE_STORAGE_S3_REGION
+  [R] PRIVATE_FILE_STORAGE_S3_ACCESS_KEY_ID      ← SECRET
+  [R] PRIVATE_FILE_STORAGE_S3_SECRET_ACCESS_KEY  ← SECRET
+  [ ] 確認 bucket 沒有開啟任何 public access
+  [ ] 確認未設定 PRIVATE_FILE_STORAGE_PATH 與 ALLOW_LOCAL_IN_PRODUCTION（s3 不需要）
   [ ] 確認未同時設定 MATERIAL_FILE_STORAGE_*（值不同會拒絕啟動）
-  [ ] 確認該路徑確實掛在持久化磁碟上（不是容器本機磁碟）
+
+PRIVATE STORAGE — local driver（**僅本機開發**；production 不走這條）
+  ——  PRIVATE_FILE_STORAGE_DRIVER = local
+  ——  PRIVATE_FILE_STORAGE_PATH                  ← 必須是真正的持久化磁碟
+  ——  PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION = true
+      （這兩條 fail-closed 未被移除，只是 NT$0 production 不再走這條路徑）
 
 PUBLIC URLS
   [P] PUBLIC_BACKEND_URL                         ← 素材 URL 會連 host 寫進資料列

@@ -1,5 +1,23 @@
 # Owner Decision Round 3 — Provider Selection Research（2026-08-31）
 
+> ## ⚠️ PARTIALLY SUPERSEDED — 2026-08-31（`DEC-16` / `DEC-17`）
+>
+> **本文件通篇假設一個「約 $21–25 USD／月」的付費架構。**
+> Owner 已於同日改採 **NT$0 MVP 部署目標**，因此下列部分**不再是 canonical**：
+>
+> | 本文件的內容 | 狀態 |
+> | --- | --- |
+> | §3 持久化 volume 比較、§9「私有檔案 ＝ Persistent Disk、driver 維持 `local`」 | ❌ **SUPERSEDED** —— 免費方案不提供 volume，production driver 改為 `s3` |
+> | §4 Managed PostgreSQL 比較、§9「Database ＝ Render Postgres」 | ❌ **SUPERSEDED** —— Render **免費** Postgres 建立 30 天後到期，改用 **Neon Free** |
+> | §7 成本模型（Render 約 $21–25／月） | ❌ **SUPERSEDED** —— 目標為 NT$0，全部使用免費層 |
+> | §6 網域策略「先買網域再上傳第一筆素材」 | ⚠️ **修訂** —— MVP 封閉測試允許使用 provider hostname，代價與修補程序見新文件 §6 |
+> | §5 前後端同一家 PaaS 的理由 | ✅ **維持** |
+> | §1 需求盤點（單一 instance、無法 static export、持久化為硬需求） | ✅ **維持** |
+> | §10 O-19 郵件供應商研究（`DEC-14` Resend） | ✅ **維持** |
+>
+> **canonical 決策：`docs/mvp-nt0-deployment-decision-2026-08-31.md`。**
+> 本文件保留作為 **provider research 的歷史紀錄與比較方法**，不再作為部署架構的依據。
+
 > ## ✅ DECISION LOCKED — 2026-08-31
 >
 > Owner 已審閱本文件並拍板（canonical 記錄見 `docs/pending-work-tracker.md`

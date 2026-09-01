@@ -320,7 +320,21 @@ CREATE UNIQUE INDEX uq_material_files_one_candidate
 **Token 設計**：隨機 32 bytes（不含個資）、存 DB 或記憶體 TTL 表、單次使用、
 只授權「這一個 file id」。它出現在 URL 中，因此**必須短命且單次**（access log 洩漏也無法重放）。
 
-### 6.2 未來：object storage
+### 6.2 Object storage 與 presigned URL
+
+> **2026-08-31（`PRE-13`）更新：object storage driver 已實作並成為 production driver
+> （§20.2、`DEC-16`），但 presigned URL **刻意沒有**跟著實作。**
+>
+> 兩件事是可以分開的，而且應該分開：
+>
+> * **儲存後端**換成 S3 相容物件儲存 —— **已完成**。
+> * **交付方式**改成雲端 presigned URL —— **仍為 future**。
+>
+> 目前交付一律維持 §6.1 的「授權 → 一次性 token → backend streaming」。
+> `S3PrivateFileStorage` **沒有**實作 `createSignedUrl()`，因此下面那條分支不會被觸發。
+> 這是刻意的：presigned URL 會把交付授權移出 backend，
+> 而 §7 的三個授權模型（購買授權／訂單擁有權／教材 status）目前都在 backend 裡判斷。
+> 在 MVP 階段換掉那個邊界沒有好處，只有風險。
 
 `createSignedUrl` 存在時，`GET /download/:materialId` 直接回傳雲端 presigned URL，
 `/download/file/:token` 端點自然退場。**業務 API 與前端完全不變。**
@@ -840,8 +854,9 @@ legacy `file_key` 的 409 處理｜稽核事件｜測試矩陣。
 `GET /materials/:id` 停止外流 `file_key`｜checksum 一致性巡檢指令｜下載失敗的使用者訊息細化。
 
 **Future**
-PDF inline preview｜antivirus / ClamAV｜object storage driver 與 presigned URL｜
-resumable / multipart upload｜CDN｜版本歷史 UI｜教材更新審核 workflow｜
+PDF inline preview｜antivirus / ClamAV｜~~object storage driver~~（**已於 2026-08-31 `PRE-13` 完成，見 §20.2**）｜
+presigned URL 交付（仍為 future，見 §6.2）｜
+resumable upload｜CDN｜版本歷史 UI｜教材更新審核 workflow｜
 revocation 的完整 trust & safety 流程｜下載次數限制／浮水印。
 
 ---
@@ -879,9 +894,12 @@ revocation 的完整 trust & safety 流程｜下載次數限制／浮水印。
 
 | 變數 | 預設 | 說明 |
 | --- | --- | --- |
-| `PRIVATE_FILE_STORAGE_DRIVER` | `local` | 目前只有 `local`；其他值**明確拒絕啟動**，不會靜默退回 local |
-| `PRIVATE_FILE_STORAGE_PATH` | `Backend/private-storage` | 私有根目錄。**production 必填**（見下） |
-| `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION` | 未設定 | production 用 local driver 的**明確 opt-in** |
+| `PRIVATE_FILE_STORAGE_DRIVER` | `local` | `local`（本機開發）或 **`s3`**（production，見 §20.2）；其他值**明確拒絕啟動**，不會靜默退回 local |
+| `PRIVATE_FILE_STORAGE_PATH` | `Backend/private-storage` | **僅 `local` driver**。該 driver 在 production 必填（見 §20.1） |
+| `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION` | 未設定 | **僅 `local` driver**：production 用它的**明確 opt-in** |
+| `PRIVATE_FILE_STORAGE_S3_BUCKET` / `_ENDPOINT` / `_REGION` | 無 | **僅 `s3` driver，全部必填**（見 §20.2） |
+| `PRIVATE_FILE_STORAGE_S3_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | 無 | **僅 `s3` driver，全部必填。SECRET** |
+| `PRIVATE_FILE_STORAGE_S3_FORCE_PATH_STYLE` | `true` | 僅 `s3` driver。只有 `0`/`false`/`no`/`off` 會關閉 |
 | `MAX_MATERIAL_FILE_BYTES` | `104857600`（100 MB） | 非正數即拒絕啟動 |
 | `MAX_PAYMENT_PROOF_BYTES` | `10485760`（10 MB） | 單張付款憑證上限 |
 | `MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS` | `300` | 下載票存活時間 |
@@ -901,6 +919,63 @@ local driver 會在下一次部署時把所有已售出的教材一起刪掉，*
 
 **同一組檢查涵蓋付款憑證**：兩種資產共用同一個 driver 與同一個 root，
 因此不可能出現「教材檔案 fail closed、付款憑證默默寫進 ephemeral disk」。
+
+### 20.2 `s3` driver（`PRE-13`，2026-08-31）
+
+`Backend/storage/s3PrivateFileStorage.js`。**production 的 driver**
+（`DEC-16`，見 `docs/mvp-nt0-deployment-decision-2026-08-31.md`）。
+
+**為什麼提前到 MVP。** §23 原本把 object storage 列為 future consideration，前提是
+production 會有一顆持久化磁碟。NT$0 部署目標讓那個前提消失 ——
+**所有免費方案都不提供 persistent volume**（Render 官方明文
+"Free web services cannot use persistent disks"；Railway／Fly.io／Koyeb／Northflank 同樣沒有）。
+於是 §20.1 的 fail-closed 會在免費方案上直接拒絕啟動，而那是**正確**的行為。
+要在免費方案上誠實地跑起來，唯一的解法是讓位元組離開容器磁碟。
+
+**它是 generic S3，不是某一家的 driver。** B2、R2、Supabase Storage、iDrive e2
+講的是同一套 API，差別只在五個環境變數。因此**換供應商是設定變更，不是程式碼變更**。
+Owner 選定 Backblaze B2（建立帳號不需信用卡、可設每日 $ 上限），
+Cloudflare R2 為已核可的 fallback。
+
+**與 local driver 逐項等價**（`tests/privateFileStorageParity.test.js` 以同一組斷言跑兩個 driver）：
+
+| 方法 | 對齊的行為 |
+| --- | --- |
+| `put()` | key 由這一層產生；串流計算 SHA-256 與大小；空檔案丟 `EMPTY_FILE` 並清掉殘骸；超過 partSize 自動走 multipart |
+| `openReadStream()` | **同步**回傳 Readable；不合法 key **同步** throw；物件不存在時由 stream 發出 `error`；支援含端點的 byte range |
+| `stat()` | 任何失敗（含不合法 key）都回 `{ exists: false, sizeBytes: 0 }` |
+| `exists()` | `= stat().exists` |
+| `delete()` | 不合法 key → throw；不存在 → `false`；刪掉 → `true`（先 HeadObject 才能分辨，S3 的 DeleteObject 是冪等的） |
+
+**兩個 driver 層的最佳化，`business logic` 完全未動：**
+
+1. `routes/materials.js` 的素材端點會先開一次取 `totalBytes`、立刻 `destroy()`，
+   再帶 Range 開第二次。對 local 那只是開關一次檔案句柄；對 object storage 那會是一次真實的
+   GetObject。driver 因此用 `AbortController`：**stream 在 GetObject 回來之前被 destroy 就中止請求，
+   位元組從來不會離開供應商。**
+2. Range 一律轉成 `Range: bytes=a-b` 交給供應商切片，不是下載完再切
+   （有專門的測試釘住，因為兩者功能上看起來一樣、成本天差地遠）。
+
+**Security invariants（與 local driver 相同，不得放寬）：**
+
+```text
+1. bucket 必須是 PRIVATE。Backend 是唯一授權入口 ——
+   教材看購買授權、憑證看訂單擁有權、素材看所屬教材的 status。
+   把 bucket 開成 public 會同時繞過這三個模型。
+2. 不使用 presigned URL。交付一律經過 backend streaming，
+   因此 §6.1 的一次性下載票語意完全不變。
+3. object key ＝ storage key ＝ `^<已登記 namespace>/<UUID>$`。
+   這個形狀結構上裝不下 `..`、前導 `/` 或任何使用者可控字串，
+   所以不需要第二套跳脫；讀寫前一律重驗形狀。
+4. 磁碟／物件上不留任何使用者可控字串：檔名是 UUID、無副檔名。
+   原始檔名與 MIME 只存在 DB metadata。
+5. `storage_key` / `checksum` / `uploaded_by` 不得出現在任何 API 回應或 log（未變）。
+```
+
+**fail-closed：** 五個 `PRIVATE_FILE_STORAGE_S3_*` 必填值缺任一（含空白字串）
+即拒絕啟動。理由與 §20.1 相同：設定到一半的物件儲存會在**每一次上傳**時 runtime 失敗，
+而那時已經有人在用了。`tests/privateFileStorageConfig.test.js` 釘住整個矩陣，
+**包含 §20.1 的 local fail-closed 未被本輪弱化**。
 
 `Backend/private-storage/` 已加入 `.gitignore`，且**不在** `express.static` 的服務範圍內
 （`index.js` 只公開 `uploads/`）。
