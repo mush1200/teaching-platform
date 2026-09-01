@@ -264,13 +264,46 @@ async function main() {
       }
       const populated = counts.filter(([, n]) => n > 0);
 
-      if (populated.length === 0) {
-        pass(`no business data in any of ${counts.length} tables — DEC-15 satisfied after bootstrap`);
+      /*
+       * `users` 需要單獨判讀，其餘表不用。
+       *
+       * `PRE-07` STEP 4 會**刻意**建立一個 admin，所以從那之後 `users = 1` 是**預期狀態**，
+       * 不是「匯進了測試資料」。但那個豁免只對 admin 成立 —— 出現任何 buyer／creator
+       * 就代表有人在 production 註冊或匯入了帳號，那仍然是 `DEC-15` 要擋的事。
+       * 因此這裡看的是**角色組成**，不是單純的列數。
+       */
+      let userRoles = [];
+      if (present.has("users")) {
+        const r = await client.query(
+          "SELECT role, COUNT(*)::int AS n FROM users GROUP BY role ORDER BY role"
+        );
+        userRoles = r.rows.map((x) => [x.role, x.n]);
+      }
+      const nonAdminUsers = userRoles.filter(([role]) => role !== "admin");
+      const adminCount = (userRoles.find(([role]) => role === "admin") || [, 0])[1];
+      const otherPopulated = populated.filter(([t]) => t !== "users");
+
+      if (userRoles.length > 0) {
+        console.log(`        users by role= ${userRoles.map(([r, n]) => `${r}=${n}`).join(", ")}`);
+      }
+
+      if (otherPopulated.length === 0 && nonAdminUsers.length === 0) {
+        if (adminCount === 0) {
+          pass(`no business data in any of ${counts.length} tables — DEC-15 satisfied after bootstrap`);
+        } else {
+          pass(
+            `only ${adminCount} admin account(s) and no other business data — ` +
+              "expected state after PRE-07 STEP 4"
+          );
+        }
       } else {
+        const detail = [
+          ...otherPopulated.map(([t, n]) => `${t}=${n}`),
+          ...nonAdminUsers.map(([role, n]) => `users(role=${role})=${n}`),
+        ].join(", ");
         warn(
-          "business data present after bootstrap: " +
-            populated.map(([t, n]) => `${t}=${n}`).join(", ") +
-            ". DEC-15 forbids importing dev/test content — confirm where these rows came from."
+          `unexpected business data present: ${detail}. DEC-15 forbids importing dev/test ` +
+            "content, and production accounts other than the initial admin are not expected yet."
         );
       }
 
