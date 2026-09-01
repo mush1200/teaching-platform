@@ -51,12 +51,25 @@
 #   * 單一 instance，不可水平擴充 —— 這與 `routes/order.js:27` 的
 #     `uploadIdempotencyCache`（process 內狀態）需求一致。
 
+# ## 服務名稱必須與實際已建立的 service 一致（2026-09-01）
+#
+# Backend 於 STEP 3 是**以 dashboard 手動建立**的（因為 Blueprint 會一次建立本檔
+# 宣告的**全部**服務，而 STEP 3 的範圍只有 Backend）。實際服務名為
+# `teaching-platform-backend`，本檔原本寫的是 `teaching-platform-api`。
+#
+# 名稱不一致不是美觀問題：**若日後直接套用這份 Blueprint，Render 會把名稱對不上的
+# 項目當成新服務再建一個**，於是同一份程式碼跑兩個 service、共用同一個 750 free
+# instance hours 額度，而且只有一個掛著正確的環境變數。因此這裡對齊為實際名稱。
+#
+# `teaching-platform-web` 尚未建立（STEP 5），維持預期名稱；建立時若 Render 因名稱
+# 被占用而配發不同 hostname，必須回頭同步本檔與 `API_BASE_URL`／`PUBLIC_WEB_URL`。
+
 services:
   # ---------------------------------------------------------------------------
   # Backend — Node / Express 5 / 單一 instance
   # ---------------------------------------------------------------------------
   - type: web
-    name: teaching-platform-api
+    name: teaching-platform-backend
     runtime: node
     plan: free
     region: singapore

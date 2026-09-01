@@ -238,11 +238,47 @@ async function main() {
             "verifyCriticalSchema() will refuse to start the backend"
         );
       }
-      const rows = await client.query("SELECT COUNT(*)::int AS n FROM users");
-      if (rows.rows[0].n > 0) {
+      /*
+       * Business-data census.
+       *
+       * 一旦 bootstrap 跑過，「資料庫是不是空的」就不再是有意義的問題 —— 表一定存在了。
+       * 此時該問的是**另一個**問題：除了 schema 之外，有沒有任何業務資料被帶進來？
+       * `DEC-15` 禁止匯入 dev／test 內容，而最容易發生的失誤是「順手跑了 smoke 或
+       * 匯了一份備份」——那不會破壞 schema，只會安靜地多出幾百列。
+       *
+       * `promotions` 是**唯一**預期非零的表：`runIdempotentMigrations()` 會 seed
+       * `WELCOME100` 與 `MAY10` 兩筆（`bootstrapModel.js`）。那是產品預設，不是測試資料。
+       */
+      const BUSINESS_TABLES = [
+        "users", "materials", "material_files", "material_media_files",
+        "orders", "order_items", "manual_payment_proofs",
+        "reports", "review", "consumer_complaints", "cart_items",
+        "activity_logs", "legal_documents", "consent_records", "privacy_requests",
+      ];
+
+      const counts = [];
+      for (const table of BUSINESS_TABLES) {
+        if (!present.has(table)) continue;
+        const r = await client.query(`SELECT COUNT(*)::int AS n FROM ${table}`);
+        counts.push([table, r.rows[0].n]);
+      }
+      const populated = counts.filter(([, n]) => n > 0);
+
+      if (populated.length === 0) {
+        pass(`no business data in any of ${counts.length} tables — DEC-15 satisfied after bootstrap`);
+      } else {
         warn(
-          `users table already has ${rows.rows[0].n} row(s). ` +
-            "DEC-15 requires production to start from an EMPTY database — confirm this is intended."
+          "business data present after bootstrap: " +
+            populated.map(([t, n]) => `${t}=${n}`).join(", ") +
+            ". DEC-15 forbids importing dev/test content — confirm where these rows came from."
+        );
+      }
+
+      // 預期由 bootstrap seed 的資料，單獨列出以免被誤判為「匯進來的測試資料」。
+      if (present.has("promotions")) {
+        const promos = await client.query("SELECT COUNT(*)::int AS n FROM promotions");
+        console.log(
+          `        promotions   = ${promos.rows[0].n} (bootstrap seeds WELCOME100 + MAY10; 2 is expected)`
         );
       }
     } else {
