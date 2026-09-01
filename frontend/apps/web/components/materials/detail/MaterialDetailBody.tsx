@@ -144,7 +144,8 @@ export function MaterialDetailBody({
         <div className="space-y-3">
           {hasReviews ? (
             latestReviews.map((review) => (
-              <ReviewItem key={review.id} review={review} compact showRoleBadge={false} />
+              // 作者名稱關閉：API 沒有提供作者身分（`COR-04`）。
+              <ReviewItem key={review.id} review={review} compact showRoleBadge={false} showAuthorName={false} />
             ))
           ) : (
             <div className="rounded-ds-card border border-dashed border-ds-border bg-ds-surfaceSubtle px-4 py-8 text-center">

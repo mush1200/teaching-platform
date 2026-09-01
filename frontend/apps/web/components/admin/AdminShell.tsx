@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch } from "../../lib/api-client";
 import { AdminSidebar } from "./AdminSidebar";
 import { MobileNavBar, NavDrawer } from "../layout/NavDrawer";
 import { CONTENT_OFFSET_CLASS } from "../layout/shell-constants";
@@ -25,6 +26,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeNav = useCallback(() => setNavOpen(false), []);
   const openNav = useCallback(() => setNavOpen(true), []);
+
+  /*
+   * Admin 外殼的 session 探測（`DX-04` 的 opt-in 點）。
+   *
+   * `RoleShell` 對 `/admin/*` early return，所以 creator／buyer 那兩個探測都不會跑到 ——
+   * 少了這一段，Admin 是三個角色裡唯一在 token 失效時不會被導回登入頁的。
+   * `authExpiry: "recover"` 只在**帶著 token 卻收到 401** 時才動作。
+   */
+  useEffect(() => {
+    void apiFetch("auth/me", undefined, { authExpiry: "recover" }).catch(() => {
+      /* 網路錯誤不是 session 失效；沿用各頁既有的錯誤處理。 */
+    });
+  }, []);
+
 
   return (
     <div className="min-h-dvh bg-gradient-to-br from-[#F4F1FF] via-white to-[#F4F1FF] font-sans text-[#1F2937] antialiased">

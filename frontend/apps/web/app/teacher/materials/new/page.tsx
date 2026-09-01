@@ -7,6 +7,15 @@ import Link from "next/link";
 import type { Material } from "../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../lib/api-client";
 import { MaterialMediaFields } from "../../../../components/teacher/MaterialMediaFields";
+import { MaterialFileField } from "../../../../components/teacher/MaterialFileField";
+import type { UploadedMaterialFile } from "../../../../lib/material-file";
+import { MATERIAL_CATEGORIES } from "../../../../lib/material-categories";
+import {
+  MaterialContentsField,
+  cleanMaterialContents,
+  toContentRows,
+  type MaterialContentRow,
+} from "../../../../components/teacher/MaterialContentsField";
 import { MaterialFeaturesSelector } from "../../../../components/materials/MaterialFeaturesSelector";
 import {
   flattenSelectedMaterialFeatures,
@@ -20,7 +29,6 @@ type FormValue = {
   price: string;
   category: string;
   ageRange: string;
-  fileKey: string;
   teachingObjective: string;
   teachingMethodsText: string;
   usageDuration: string;
@@ -41,7 +49,6 @@ const INITIAL_FORM: FormValue = {
   price: "",
   category: "",
   ageRange: "",
-  fileKey: "",
   teachingObjective: "",
   teachingMethodsText: "",
   usageDuration: "",
@@ -106,8 +113,18 @@ function isValidUrl(value: string): boolean {
 export default function CreatorMaterialNewPage() {
   const router = useRouter();
   const [form, setForm] = useState<FormValue>(INITIAL_FORM);
+  /*
+   * 教材本體檔案不放在 `form` 裡：它不是一個文字欄位，而是一個**已經上傳到後端的物件**。
+   * 使用者選檔的當下就完成上傳，這裡保存的是後端回傳的 `fileId`（不是 URL，也不是路徑）。
+   */
+  const [materialFile, setMaterialFile] = useState<UploadedMaterialFile | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /*
+   * 教材內容改成結構化列（`P1-10`）。Backend 本來就收 `{type,name,count,description}[]`，
+   * 管線字串從頭到尾只是 UI 的產物，因此這裡不需要任何 adapter。
+   */
+  const [contentRows, setContentRows] = useState<MaterialContentRow[]>(() => toContentRows(null));
 
   function update<K extends keyof FormValue>(key: K, value: FormValue[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -138,8 +155,8 @@ export default function CreatorMaterialNewPage() {
       setMessage("價格需為大於 0 的數字。");
       return;
     }
-    if (!form.fileKey.trim()) {
-      setMessage("請輸入檔案 key。");
+    if (!materialFile) {
+      setMessage("請先上傳教材檔案。");
       return;
     }
     if (!form.teachingObjective.trim()) {
@@ -159,9 +176,9 @@ export default function CreatorMaterialNewPage() {
       setMessage("教學玩法至少 1 筆。");
       return;
     }
-    const contents = parseContents(form.contentsText);
+    const contents = cleanMaterialContents(contentRows);
     if (contents.length < 1) {
-      setMessage("教材內容至少 1 筆。格式：type|name|count|description");
+      setMessage("請至少填寫 1 項教材內容。");
       return;
     }
     if (contents.some((c) => !c.type || !c.name)) {
@@ -209,7 +226,7 @@ export default function CreatorMaterialNewPage() {
           price,
           category: form.category.trim() || undefined,
           age_range: form.ageRange.trim() || undefined,
-          file_key: form.fileKey.trim(),
+          fileId: materialFile.fileId,
           teaching_objective: form.teachingObjective.trim(),
           teaching_methods: teachingMethods,
           usage_duration: form.usageDuration.trim(),
@@ -256,8 +273,48 @@ export default function CreatorMaterialNewPage() {
             placeholder="教材內容簡介"
             disabled={saving}
           />
-          <InputField id="new-price" label="價格 *" value={form.price} onChangeText={(v) => update("price", v)} placeholder="199" disabled={saving} />
-          <InputField id="new-category" label="分類" value={form.category} onChangeText={(v) => update("category", v)} placeholder="math" disabled={saving} />
+          {/*
+            價格改成數值輸入（`P1-10`）。先前是 `type="text"`：行動版不會叫出數字鍵盤，
+            也接受任何字串。Backend 仍然是唯一的驗證權威（`price must be greater than 0`），
+            這裡只是不要讓使用者一開始就打得出不合法的值。
+          */}
+          <label htmlFor="new-price" className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-800">價格 *（NT$）</span>
+            <input
+              id="new-price"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              value={form.price}
+              onChange={(e) => update("price", e.target.value)}
+              placeholder="199"
+              disabled={saving}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50"
+            />
+          </label>
+          {/*
+            分類改成選單（`P1-10`）。先前是自由文字、placeholder 還是內部值 `math` ——
+            實測 dev DB 已經因此存進 `語文`／`56` 這種買家永遠篩不到的值。
+            選項來自 `lib/material-categories.ts`（唯一來源）：畫面顯示中文，送出 canonical 值。
+          */}
+          <label htmlFor="new-category" className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-800">分類 *</span>
+            <select
+              id="new-category"
+              value={form.category}
+              onChange={(e) => update("category", e.target.value)}
+              disabled={saving}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50"
+            >
+              <option value="">請選擇分類</option>
+              {MATERIAL_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <InputField id="new-age-range" label="適齡" value={form.ageRange} onChangeText={(v) => update("ageRange", v)} placeholder="7-10" disabled={saving} />
           <InputField
             id="new-teaching-objective"
@@ -269,14 +326,7 @@ export default function CreatorMaterialNewPage() {
           />
           <InputField id="new-usage-duration" label="使用時間 *" value={form.usageDuration} onChangeText={(v) => update("usageDuration", v)} placeholder="約 2 堂課，每堂 30 分鐘" disabled={saving} />
           <InputField id="new-activity-steps" label="教學步驟 *" value={form.activitySteps} onChangeText={(v) => update("activitySteps", v)} placeholder="1. ... 2. ... 3. ..." disabled={saving} />
-          <InputField
-            id="new-file-key"
-            label="檔案 Key *"
-            value={form.fileKey}
-            onChangeText={(v) => update("fileKey", v)}
-            placeholder="materials/math/worksheet-bundle.zip"
-            disabled={saving}
-          />
+          <MaterialFileField uploaded={materialFile} onUploaded={setMaterialFile} disabled={saving} />
           <label htmlFor="new-teaching-methods" className="text-sm font-medium text-slate-800">
             教學玩法 *（每行 1 筆，最多 4 筆）
           </label>
@@ -288,17 +338,7 @@ export default function CreatorMaterialNewPage() {
             disabled={saving}
             className="min-h-20 rounded-xl border border-slate-300 px-3 py-2 text-sm"
           />
-          <label htmlFor="new-contents" className="text-sm font-medium text-slate-800">
-            教材內容 *（每行：type|name|count|description）
-          </label>
-          <textarea
-            id="new-contents"
-            value={form.contentsText}
-            onChange={(e) => update("contentsText", e.target.value)}
-            placeholder={"flashcard|地點圖卡|4|醫院/消防局/警察局\nflashcard|物品圖卡|24|"}
-            disabled={saving}
-            className="min-h-24 rounded-xl border border-slate-300 px-3 py-2 text-sm"
-          />
+          <MaterialContentsField idPrefix="new" rows={contentRows} onChange={setContentRows} disabled={saving} />
           <InputField id="new-short-description" label="簡短介紹" value={form.shortDescription} onChangeText={(v) => update("shortDescription", v)} placeholder="一句話介紹教材" disabled={saving} />
           <InputField id="new-extension-value" label="延伸活動 / 練習單" value={form.extensionValue} onChangeText={(v) => update("extensionValue", v)} placeholder="回家作業延伸建議" disabled={saving} />
 

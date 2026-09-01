@@ -38,6 +38,26 @@ function isRejectionReason(value) {
 }
 
 /**
+ * **憑證的 canonical 排序：哪一筆是「目前這一筆」。**
+ *
+ * 一張訂單可以有多筆憑證（買家被退件後重新上傳）。判斷「現在的付款進度」時，
+ * 唯一有意義的是**最新一筆**，不是歷史上是否曾出現過某種 review_status。
+ *
+ *   - `COALESCE(uploaded_at, created_at)`：資料庫中存在 `uploaded_at IS NULL` 的舊憑證，
+ *     只用 `uploaded_at` 排序會把它們排到最後，導致 latest 指向舊憑證。
+ *   - `id DESC`：同一個 effective timestamp 時的 deterministic tie-break，
+ *     不依賴 SQL 的 incidental ordering。
+ *
+ * Admin（`services/adminOrders.service.js`）與 Buyer（`services/buyerOrders.service.js`）
+ * **共用這一份排序**。兩者的 state vocabulary 不同（operational_status vs
+ * order_progress_state），但「哪一筆是最新憑證」必須是同一個答案，
+ * 否則同一張訂單在兩邊會講出互相矛盾的故事。
+ *
+ * 使用前提：憑證表的別名必須是 `m`。
+ */
+const LATEST_PROOF_ORDER_BY_SQL = "ORDER BY COALESCE(m.uploaded_at, m.created_at) DESC, m.id DESC";
+
+/**
  * @returns {{ ok: true, reason: string, note: string|null } | { ok: false, message: string }}
  */
 function parseRejection(body = {}) {
@@ -58,6 +78,7 @@ function parseRejection(body = {}) {
 
 module.exports = {
   REJECTION_REASONS,
+  LATEST_PROOF_ORDER_BY_SQL,
   REASON_REQUIRING_NOTE,
   REJECTION_REASON_TEXT,
   isRejectionReason,

@@ -17,7 +17,7 @@ export function Input({ label, id, error, rightSlot, inputClassName = "", ...res
       <div className="relative flex items-stretch">
         <input
           id={id}
-          className={`w-full rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus:shadow-[0_0_0_3px_rgba(108,99,255,0.12)] focus:outline-none ${rightSlot ? "pr-12" : ""} ${inputClassName}`.trim()}
+          className={`w-full rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus ${rightSlot ? "pr-12" : ""} ${inputClassName}`.trim()}
           {...rest}
         />
         {rightSlot ? (

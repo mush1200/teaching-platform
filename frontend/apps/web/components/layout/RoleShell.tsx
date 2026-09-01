@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { clearClientSession } from "../../lib/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, getStoredRole } from "../../lib/api-client";
@@ -9,6 +10,7 @@ import { MobileNavBar, NavDrawer } from "./NavDrawer";
 import { CreatorSidebar, SimpleNavSidebar } from "./CreatorSidebar";
 import type { CreatorSection } from "./CreatorSidebar";
 import { CONTENT_OFFSET_CLASS } from "./shell-constants";
+import { ADMIN_NAV_ITEMS, navPathOf } from "../../lib/admin-nav";
 
 type RoleKind = "public" | "parent" | "teacher" | "creator" | "admin";
 type NavItem = { href: string; label: string; exact?: boolean };
@@ -39,16 +41,17 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/creator/materials/new", label: "新增教材" },
     { href: "/creator/sales", label: "我的銷售" },
   ],
-  admin: [
-    { href: "/admin", label: "儀表板", exact: true },
-    { href: "/admin/materials", label: "教材審核" },
-    { href: "/admin/orders", label: "訂單管理" },
-    { href: "/admin/users", label: "用戶管理" },
-    { href: "/admin/reviews-hub", label: "教學回饋管理" },
-    { href: "/admin/reports", label: "檢舉管理" },
-    { href: "/admin/activity-logs", label: "活動紀錄" },
-    { href: "/admin/settings", label: "系統設定" },
-  ],
+  /**
+   * Admin 在**非** `/admin` 路由（例如 `/materials`、`/`）上看到的側欄。
+   *
+   * 這是一份**回到 Admin 主控台的 cross-role 捷徑**，不是第二套 IA —— 因此它
+   * 直接衍生自 `lib/admin-nav.ts`，與 `AdminSidebar` 用的是同一份資料（`IA-08`）。
+   * 以前這裡是獨立抄寫的第二份清單，於是 `IA-01`（教學回饋）與 `IA-07`（用戶管理／
+   * 系統設定）移除的三個入口在這個 surface 上原封不動地活著 —— 收斂只在 `/admin/*` 生效。
+   *
+   * `SimpleNavSidebar` 沒有分組也沒有 icon，所以取扁平化的 `ADMIN_NAV_ITEMS` 並剔除 `icon`。
+   */
+  admin: ADMIN_NAV_ITEMS.map(({ href, label, exact }) => ({ href, label, exact })),
 };
 
 /**
@@ -116,9 +119,14 @@ function getRoleByPath(pathname: string, storedRole: RoleKind | null): RoleKind 
   return "public";
 }
 
+/**
+ * Admin 的捷徑帶著 query 預設（`/admin/materials?status=pending_review`），所以比對只看
+ * pathname。其他角色的 href 沒有 query，`navPathOf()` 對它們是 identity。
+ */
 function isActive(pathname: string, item: NavItem) {
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const path = navPathOf(item.href);
+  if (item.exact) return pathname === path;
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 function getCreatorActiveId(
@@ -195,7 +203,12 @@ export function RoleShell({ children }: { children: ReactNode }) {
     let active = true;
     void (async () => {
       try {
-        const meRes = await apiFetch("auth/me");
+        /*
+         * Creator 外殼的 session 探測（`DX-04` 的 opt-in 點）。
+         * 一個外殼探一次，該區域所有頁面就有一致的過期行為 ——
+         * 不需要在 43 個呼叫端各加一次，也不必承擔全域攔截的風險。
+         */
+        const meRes = await apiFetch("auth/me", undefined, { authExpiry: "recover" });
         if (!meRes.ok) return;
         const mePayload = (await meRes.json()) as { user?: { id?: string } };
         const meId = mePayload.user?.id;
@@ -246,9 +259,16 @@ export function RoleShell({ children }: { children: ReactNode }) {
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/explore")) {
     return <>{children}</>;
   }
-  /** Auth pages should not render any global sidebar chrome. */
+  /**
+   * Auth pages should not render any global sidebar chrome.
+   *
+   * 但它們仍然需要一個 main landmark（`COR-06`）——先前這裡回傳 fragment，
+   * 而 `/login`／`/register` 兩個頁面自己也沒有 `<main>`，
+   * 於是那兩條路由**完全沒有** main landmark。
+   * 這裡只補語意，不補外殼：`<main>` 是 block 容器，版面與先前的 fragment 一致。
+   */
   if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
-    return <>{children}</>;
+    return <main>{children}</main>;
   }
   /** Admin routes use AdminShell in /app/admin/layout.tsx. */
   if (pathname.startsWith("/admin")) {
@@ -274,14 +294,8 @@ export function RoleShell({ children }: { children: ReactNode }) {
   }
 
   function handleLogout() {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("tp_token");
-      localStorage.removeItem("tp_role");
-      localStorage.removeItem("tp_user_email");
-      localStorage.removeItem("tp_display_name");
-      document.cookie = "tp_token=; path=/; max-age=0; samesite=lax";
-      document.cookie = "tp_role=; path=/; max-age=0; samesite=lax";
-    }
+    // 與 401 session 恢復共用同一份清單（`DX-04`）—— 兩者對「什麼算已登入」必須一致。
+    clearClientSession();
     setStoredRole(null);
     setMobileOpen(false);
     router.push("/login");
@@ -359,6 +373,21 @@ export function RoleShell({ children }: { children: ReactNode }) {
         {sidebar("drawer")}
       </NavDrawer>
 
+      {/*
+        **外殼是 main landmark 的唯一擁有者**（`COR-06`）。
+
+        HTML 規範只允許一份文件有一個非 hidden 的 `main`；先前外殼與頁面各渲染一個，
+        於是每個非 Admin 路由都有兩個巢狀 main —— 螢幕閱讀器的 landmark 導覽會看到
+        重複目標，任何 landmark-based 的選取也必須靠 `.first()` 迴避。
+
+        收斂方向選「外殼擁有」而不是「頁面擁有」，是因為 repo 現況本來就偏向前者：
+        **36 條路由沒有 page-level `<main>`**（Admin／Creator／Teacher／`(parent)` group
+        以及 `/downloads`、`/favorites`、`/my-reviews` 等），只有 12 個頁面自己渲染一個。
+        因此 page component **一律不得**再渲染 `<main>`；需要容器就用 `<div>`／`<section>`。
+
+        同一個 ownership model 由三個外殼實作：本檔、`components/dashboard/ParentAppShell.tsx`、
+        `components/admin/AdminShell.tsx`。三者互斥（`/admin` 與 `(parent)` group 在上方 early return）。
+      */}
       <div className={CONTENT_OFFSET_CLASS}>
         <main className="min-h-dvh">{children}</main>
       </div>

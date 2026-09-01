@@ -9,7 +9,7 @@ function newId() {
   return `rep_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** 建立檢舉：status 固定為 pending（已建立，管理員尚未標記已讀）。 */
+/** 建立檢舉：status 固定為 pending（案件已建立，尚未被 Admin 接手；流程見 docs/mvp_rules.md §6）。 */
 router.post("/", requireAuth, requireRole("parent"), async (req, res) => {
   try {
     const body = req.body || {};

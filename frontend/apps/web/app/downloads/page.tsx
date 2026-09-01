@@ -89,9 +89,23 @@ export default function DownloadsPage() {
         return;
       }
       const data = (await res.json()) as DownloadLinkResponse;
-      if (data.signedUrl) {
-        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      if (!data.signedUrl) {
+        setDownloadError((prev) => ({ ...prev, [materialId]: "下載連結取得失敗，請稍後再試。" }));
+        return;
       }
+      /*
+       * 用隱藏的 <a download> 觸發，而不是 window.open。
+       *
+       * 回應帶 `Content-Disposition: attachment`，所以瀏覽器不會離開目前頁面；
+       * 新分頁的做法會被彈出視窗攔截器擋掉，而且成功時也只是閃過一個空白分頁。
+       */
+      const anchor = document.createElement("a");
+      anchor.href = data.signedUrl;
+      if (data.filename) anchor.download = data.filename;
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
     } catch {
       setDownloadError((prev) => ({ ...prev, [materialId]: "連線失敗" }));
     } finally {

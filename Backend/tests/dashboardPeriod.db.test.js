@@ -216,7 +216,7 @@ test("dashboard period metrics", async (t) => {
 
     const snapshotKeys = [
       "ordersCount", "usersCount", "materialsCount", "reviewsCount",
-      "revenueAmount", "pendingProofsCount", "pendingReportsCount",
+      "revenueAmount", "pendingProofsCount", "pendingReportsCount", "actionableReportsCount",
     ];
     for (const key of snapshotKeys) {
       const values = results.map((r) => r[key]);

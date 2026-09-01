@@ -13,3 +13,5 @@ export { DataToolbar, SearchField, FilterTabs } from "./DataToolbar";
 export type { SearchFieldProps, FilterTabOption } from "./DataToolbar";
 
 export { PageHeader, StatusPill, DetailField, DetailGrid } from "./PageHeader";
+
+export { RefreshControl } from "./RefreshControl";

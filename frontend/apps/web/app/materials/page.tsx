@@ -102,13 +102,13 @@ export default function MaterialsPage() {
           </aside>
         </>
       ) : null}
-      <main className="mx-auto max-w-[1440px] px-4 pb-8 pt-4 sm:px-6">
+      <div className="mx-auto max-w-[1440px] px-4 pb-8 pt-4 sm:px-6">
         <Suspense
           fallback={<div className="py-12 text-center text-sm text-[#6B7280]">載入中…</div>}
         >
           <ExplorePage />
         </Suspense>
-      </main>
+      </div>
     </AppShell>
   );
 }

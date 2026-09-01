@@ -32,6 +32,7 @@ if (process.env.PGDATABASE !== EXPECTED_DB) {
 
 const db = require("../config/db");
 const service = require("../services/adminMaterials.service");
+const materialWorkflow = require("../utils/materialWorkflow");
 
 const PREFIX = "tp_amqtest_";
 const id = (name) => `${PREFIX}${name}`;
@@ -121,7 +122,16 @@ test("statusCounts 是全表計數，不受 status / q / 分頁影響", async ()
   assert.ok(counts.pending_review >= ourCounts.pending_review);
   assert.ok(counts.published >= ourCounts.published);
   assert.ok(counts.unpublished >= ourCounts.unpublished);
-  assert.equal(counts.total, counts.pending_review + counts.published + counts.unpublished);
+
+  /*
+   * total 必須等於**所有**狀態的加總。
+   *
+   * 這裡刻意迭代 canonical 的狀態清單而不是寫死三個欄位：教材審核 workflow 新增
+   * `changes_requested` 之後，寫死的版本會在資料庫出現第一筆該狀態時才突然失敗，
+   * 而那時的錯誤訊息（194 !== 193）完全看不出是「少算了一個狀態」。
+   */
+  const sum = materialWorkflow.MATERIAL_STATUSES.reduce((acc, status) => acc + (counts[status] ?? 0), 0);
+  assert.equal(counts.total, sum, "statusCounts.total 必須涵蓋所有教材狀態");
 
   // 拿一頁的 items 自己數是**錯的**——這正是這個欄位存在的理由。
   const onePage = await service.listMaterials({ limit: 20 });

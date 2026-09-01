@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { BACKEND_PREREQUISITE } from "./tests/e2e/helpers/backend-prerequisite";
 import { getTestBaseUrl } from "./tests/e2e/helpers/base-url";
 
 const baseURL = getTestBaseUrl();
@@ -12,9 +13,25 @@ const port = Number(new URL(baseURL).port || 3010);
  * 就要 5–30 秒，會產生一堆與程式無關的偽失敗。production build 沒有這個階段，
  * 因此 **acceptance threshold 也不該為了 dev 而永久放寬** —— 見下方 timeout 設定。
  *
- *   npm run build && E2E_SERVER=production npx playwright test
+ *   npm run verify:web && E2E_SERVER=production npx playwright test
  */
 const isProductionServer = process.env.E2E_SERVER === "production";
+
+/**
+ * Production E2E 的建置產物目錄必須與**驗收 build 寫進去的那一個**一致（`DX-05`）。
+ *
+ * `verify:web`（`frontend/scripts/verify-web.mjs`）預設把 build 寫到 `.next-verify`，
+ * 讓驗收不會弄壞另一個 session 在 3010 執行中的 `next dev`（那個 dev server 用 `.next`）。
+ * 這裡若不跟著設，`next start` 會回頭去讀 `.next` —— 也就是 dev 的產物 ——
+ * 於是要嘛啟動失敗、要嘛測到的根本不是剛驗收過的那份 build。
+ *
+ * 兩邊共用同一個環境變數與同一個預設值；呼叫端已設定時**尊重呼叫端**。
+ * dev server 模式（未設 `E2E_SERVER`）完全不受影響，仍用預設的 `.next`。
+ */
+const DEFAULT_VERIFY_DIST_DIR = ".next-verify";
+if (isProductionServer && !process.env.NEXT_DIST_DIR?.trim()) {
+  process.env.NEXT_DIST_DIR = DEFAULT_VERIFY_DIST_DIR;
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -50,11 +67,60 @@ export default defineConfig({
       use: { ...devices["Pixel 5"], browserName: "chromium", viewport: { width: 390, height: 844 } },
     },
   ],
-  webServer: {
-    // production 需要先 `npm run build`；`next start` 不會自己編譯。
-    command: isProductionServer ? `npm run start -- --port ${port}` : `npm run dev -- --port ${port}`,
-    url: baseURL,
-    reuseExistingServer: true,
-    timeout: 180 * 1000,
-  },
+  /*
+   * `DX-19` —— live-backend 前置條件的驗證層。
+   *
+   * Playwright 1.59 先啟動 `webServer`、**再**跑 `globalSetup`（2026-08-30 以拋棄式
+   * config 實測確認），因此這裡可以放心假設兩個 server 都已就緒，只負責「驗證並誠實報錯」。
+   */
+  globalSetup: "./tests/e2e/global-setup.ts",
+  webServer: [
+    /*
+     * `DX-19` —— backend 由 harness 自己管生命週期。
+     *
+     * 在這之前 backend :3000 是**人工**前置條件，於是 backend 沒開時會出現兩種
+     * 都無法自我解釋的結果（實測紀錄見 `tests/e2e/global-setup.ts` 檔頭）：
+     * `api-proxy` 報 "Expected: 200 / Received: 500" 的假紅燈，
+     * 以及 `legal-publication-security` 四條 public route 全綠的**假綠燈**。
+     *
+     * ## 資料庫安全（`CLAUDE.md` §7）
+     *
+     * `PGDATABASE` 在 spawn 時**寫死**注入測試資料庫，因此正確性**由建構保證** ——
+     * 不依賴任何人記得 `export PGDATABASE`。`Backend/config/db.js` 未設 `DATABASE_URL`
+     * 時使用 `PG*` 變數，而 dotenv 不覆寫已存在的環境變數，所以這裡的值優先於 `Backend/.env`。
+     *
+     * ## 為什麼預設**不**重用既有 backend
+     *
+     * 開發者常態會在 3000 跑 `npm run dev`（nodemon，連**開發**資料庫）。
+     * 若預設 `reuseExistingServer: true`，整套 E2E 會安靜地打在開發資料庫上並寫入資料。
+     * 需要重用時以 `E2E_REUSE_BACKEND=1` 明確表態，`global-setup.ts` 會同時印出
+     * 「無法從外部證明對方連的是哪個資料庫」的警告。
+     */
+    {
+      command: "node Backend/index.js",
+      cwd: BACKEND_PREREQUISITE.repoRoot,
+      url: `${BACKEND_PREREQUISITE.baseUrl}/health`,
+      reuseExistingServer: BACKEND_PREREQUISITE.reused,
+      timeout: 60 * 1000,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        PGDATABASE: BACKEND_PREREQUISITE.expectedDb,
+        PORT: String(new URL(BACKEND_PREREQUISITE.baseUrl).port || 3000),
+      },
+    },
+    {
+      // production 需要先 `npm run build`；`next start` 不會自己編譯。
+      command: isProductionServer ? `npm run start -- --port ${port}` : `npm run dev -- --port ${port}`,
+      url: baseURL,
+      reuseExistingServer: true,
+      timeout: 180 * 1000,
+      /*
+       * 前端的 server-side fetch（`/materials/:id`、四條 legal route）要打到
+       * 上面那台 backend。不指定時 `API_BASE_URL` 會落到預設的 `http://localhost:3000`，
+       * 在只有 IPv6 loopback 解析的環境下會變成 `ECONNREFUSED ::1:3000`（實測見 `DX-19`）。
+       */
+      env: { API_BASE_URL: BACKEND_PREREQUISITE.baseUrl },
+    },
+  ],
 });

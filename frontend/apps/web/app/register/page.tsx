@@ -11,7 +11,9 @@ import { mapStatusMessage } from "../../lib/auth";
 
 const registerSchema = z
   .object({
-    name: z.string().min(1, "請輸入姓名"),
+    // `DEC-06 = A`（2026-08-27 Owner 決定，Round 2 再次確認）：
+    // **註冊不蒐集姓名。** 這裡刻意沒有 name/nickname/display_name 規則，
+    // 也不得以其他欄位替代或從 email 推導 —— 那只是換個名字繼續蒐集。
     email: z.string().email("Email 格式不正確"),
     password: z.string().min(6, "密碼至少 6 個字元"),
     confirm: z.string().min(1, "請再次輸入密碼"),
@@ -39,15 +41,6 @@ function LockIcon() {
   );
 }
 
-function UserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4 text-[#94A3B8]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 19a7 7 0 0114 0" />
-    </svg>
-  );
-}
-
 function ArrowRightIcon() {
   return (
     <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -59,7 +52,6 @@ function ArrowRightIcon() {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -70,7 +62,6 @@ export default function RegisterPage() {
 
   async function submit() {
     const parsed = registerSchema.safeParse({
-      name,
       email,
       password,
       confirm,
@@ -103,7 +94,8 @@ export default function RegisterPage() {
       localStorage.setItem("tp_user_email", payload.user.email);
       document.cookie = `tp_token=${encodeURIComponent(payload.token)}; path=/; max-age=86400; samesite=lax`;
       document.cookie = `tp_role=${payload.user.role}; path=/; max-age=86400; samesite=lax`;
-      if (name) localStorage.setItem("tp_display_name", name);
+      // `DEC-06 = A`：**不寫入 `tp_display_name`**，也不建立任何替代 key。
+      // Sidebar 的顯示名稱改由既有 fallback 鏈負責（email local-part → 「使用者」）。
       setMessage("註冊成功，正在導向首頁…");
       router.push("/");
     } catch {
@@ -128,22 +120,6 @@ export default function RegisterPage() {
             </div>
 
             <div className="mt-8 space-y-4">
-              <label htmlFor="reg-name" className="block text-base font-medium text-[#0F172A]">
-                姓名
-              </label>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-                  <UserIcon />
-                </span>
-                <input
-                  id="reg-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={loading}
-                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
-                />
-              </div>
-
               <label htmlFor="reg-email" className="block text-base font-medium text-[#0F172A]">
                 Email
               </label>

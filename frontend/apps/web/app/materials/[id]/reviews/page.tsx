@@ -63,7 +63,7 @@ export default function MaterialReviewsPage() {
         }
       />
 
-      <main className="mx-auto max-w-2xl space-y-6 px-4 pb-12 sm:px-6">
+      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-12 sm:px-6">
         {loading ? <LoadingState title="教學回饋載入中…" /> : null}
         {!loading && !material ? (
           <EmptyState title="找不到教材" description="請確認網址是否正確，或返回教材列表。" actionLabel="返回列表" onAction={() => router.push("/materials")} />
@@ -114,7 +114,8 @@ export default function MaterialReviewsPage() {
 
             <div className="space-y-3">
               {reviews.map((rev) => (
-                <ReviewItem key={rev.id} review={rev} />
+                // 作者名稱關閉：API 沒有提供作者身分（`COR-04`）。
+                <ReviewItem key={rev.id} review={rev} showAuthorName={false} />
               ))}
               {reviews.length === 0 ? (
                 <EmptyState
@@ -127,7 +128,7 @@ export default function MaterialReviewsPage() {
             </div>
           </>
         ) : null}
-      </main>
+      </div>
     </AppShell>
   );
 }

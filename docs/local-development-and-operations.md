@@ -95,7 +95,12 @@ cp Backend/.env.example Backend/.env
 | `JWT_SECRET` | **required** | 見 §4。**無 fallback**，缺少即拒絕啟動 |
 | `JWT_EXPIRES_IN` | optional | token 效期，未設定時為 `7d` |
 | `PORT` | optional | Backend 監聽 port，未設定時為 `3000` |
-| `PUBLIC_BACKEND_URL` / `API_PUBLIC_URL` | optional | 產出上傳檔 URL 用的公開網域。非本機部署務必設定 |
+| `PUBLIC_BACKEND_URL` / `API_PUBLIC_URL` | optional | 產出上傳檔 URL 與**教材下載連結**用的公開網域。非本機部署務必設定 |
+| `MATERIAL_FILE_STORAGE_DRIVER` | optional | 教材本體儲存 driver，預設 `local`。其他值目前**明確拒絕啟動** |
+| `PRIVATE_FILE_STORAGE_PATH` | optional（**production required**） | 教材本體**與付款憑證**的私有根目錄，預設 `Backend/private-storage`。舊名 `MATERIAL_FILE_STORAGE_PATH` 仍為有效別名。見 §3.1 |
+| `MATERIAL_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION` | **production opt-in** | production 使用 local driver 的明確同意。見 §3.1 |
+| `MAX_MATERIAL_FILE_BYTES` | optional | 教材本體大小上限，預設 `104857600`（100 MB） |
+| `MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS` | optional | 買家下載票效期，預設 `300` |
 | `SMTP_HOST` | optional | 交易信件（訂單／憑證通知） |
 | `SMTP_PORT` | optional | 同上 |
 | `SMTP_USER` | optional | 同上 |
@@ -112,6 +117,93 @@ SMTP 未設定時服務仍可啟動，但交易信件會失敗；失敗會寫入
 
 > 🔒 **不得**把任何真實 credential 寫入 `.env.example`、本文件、測試腳本、
 > Postman collection／environment 或任何進版控的檔案。
+
+### 3.1 私有檔案儲存（production fail-closed）
+
+**兩種資產共用同一個私有儲存**，根目錄 `Backend/private-storage/`（**已 gitignore**）：
+
+```text
+private-storage/
+  material-files/    教材本體（買家付費取得的商品）
+  payment-proofs/    付款憑證（敏感交易檔案）
+```
+
+刻意**不在** `Backend/uploads/` 底下 —— 後者由 `express.static` 無條件公開，
+把付費教材放進去等於任何知道 URL 的人都能不付款下載；把付款憑證放進去
+等於任何知道檔名的人都能看到別人的匯款畫面（這正是 2026-08-23 修掉的問題）。
+
+`NODE_ENV=production` + `PRIVATE_FILE_STORAGE_DRIVER=local` 時，
+**兩個條件缺一就啟動失敗**：
+
+1. `PRIVATE_FILE_STORAGE_PATH` 必須明確指定（指向持久化磁碟）
+2. `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION=true`
+
+理由與 `JWT_SECRET` 相同：如果 production 跑在 ephemeral filesystem 上，
+local driver 會在下一次部署時把**所有已售出的教材與所有付款憑證**一起刪掉，
+而且沒有任何錯誤訊息 —— 直到買家點下載、或 Admin 打開一筆爭議訂單才發現。
+寧可起不來，也不要在看起來正常、實際不安全的狀態下運行。
+
+> 兩種資產共用**同一個 driver、同一組檢查**，因此不可能出現
+> 「教材檔案 fail closed、付款憑證默默寫進 ephemeral disk」。
+
+**環境變數相容**：三個 `PRIVATE_FILE_STORAGE_*` 各自都接受舊名
+`MATERIAL_FILE_STORAGE_*` 作為別名（教材檔案 milestone 已發出去的設定不會失效）。
+兩個都設且值不同時**拒絕啟動**，不猜哪個才是真的。
+
+| 設定 | 預設 | 說明 |
+| --- | --- | --- |
+| `PRIVATE_FILE_STORAGE_DRIVER` | `local` | 目前只有 `local`；其他值直接拒絕啟動，不靜默退回 |
+| `PRIVATE_FILE_STORAGE_PATH` | `Backend/private-storage` | production 必填 |
+| `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION` | 未設 | production + local 時必須明確 opt-in |
+| `MAX_MATERIAL_FILE_BYTES` | `104857600`（100 MB） | 教材本體單檔上限 |
+| `MAX_PAYMENT_PROOF_BYTES` | `10485760`（10 MB） | 單張付款憑證上限 |
+
+### 3.1.1 付款憑證的 legacy 搬移（一次性）
+
+2026-08-23 之前的憑證存在公開的 `Backend/uploads/payment-proofs/`。搬移腳本：
+
+```bash
+npm run migrate:payment-proofs --prefix Backend
+```
+
+預設是 **dry run**（只報告，不寫入）。實際執行與清理公開副本：
+
+```bash
+npm run migrate:payment-proofs --prefix Backend -- --apply
+```
+
+```bash
+npm run migrate:payment-proofs --prefix Backend -- --apply --delete-public
+```
+
+順序**不可調換**：複製到私有儲存 → 讀回來驗 SHA-256 → 更新 DB 指標 →
+（獨立的旗標）才刪公開檔。反過來任何一步失敗都會讓憑證永久消失，
+而憑證是人工核帳的唯一證據。
+
+- **先 backup**（`pg_dump` + 複製 `uploads/payment-proofs/`，放專案外部）。
+- 腳本**可重入**：已經是 `private` 的列一律跳過，重跑不會產生第二份副本。
+- 找不到來源檔的列標記為 `legacy_missing` 並在報告中列出 order id / proof id，
+  **不靜默丟棄**。
+- **兩個資料庫共用同一個 `uploads/` 目錄**，所以要先對 `teaching_platform` 與
+  `teaching_platform_security_test` 都跑完 `--apply`，才可以加 `--delete-public`。
+- `--purge-orphans` 才會刪「沒有任何 DB 列引用」的公開檔，預設不動。
+
+### 3.2 孤兒檔案清理
+
+上傳流程是 upload-first：檔案先進儲存拿到 `fileId`，之後才在建立／更新教材時被認領。
+使用者上傳完就關掉視窗是正常的事，那些檔案會留著。沒有背景排程框架，由維運執行：
+
+```bash
+npm run cleanup:material-files --prefix Backend -- --dry-run
+```
+
+```bash
+npm run cleanup:material-files --prefix Backend
+```
+
+預設清掉 24 小時以上未被認領的上傳（`--hours=` 可調），
+同時清掉過期超過一天的下載票。孤兒檔案**不影響正確性**（買家永遠拿不到
+`unattached` 的檔案），只佔空間。
 
 ---
 
@@ -211,6 +303,201 @@ npm run verify:web
 ```
 
 `verify:web` = `lint:web` → `typecheck:web` → `build:web`，三者皆通過才算過。
+
+> **`verify:web` 跑在隔離的建置產物目錄上，不會動到 dev server 的 `.next`（`DX-05`）。**
+>
+> `.next` 是一個沒有 per-consumer 隔離的共用可變目錄，而 dev 與 production 的產物版面**不相容**：
+> build 會換掉 `BUILD_ID` 與各種 manifest，同一棵樹上執行中的 `next dev` 下一個請求就會開始**整站回 500**；
+> 反過來 dev 持有 `.next` 時 build 會倒在 `EPERM: open '.next\trace'`，而且是**寫壞之後才失敗**。
+>
+> 因此 `verify:web`（`frontend/scripts/verify-web.mjs`）三個階段一律注入
+> `NEXT_DIST_DIR=.next-verify`，production E2E 的 `next start` 由 `playwright.config.ts`
+> 套用**同一個**預設值。實務上的意思是：
+>
+> - **不需要先停掉 3010 的 dev server** 才能驗收，兩者可以同時跑。
+> - `npm run dev:web:3010` **維持預設的 `.next`**，行為完全不變。
+> - 要臨時指定別的目錄時設 `NEXT_DIST_DIR` 即可，呼叫端的值優先（`.next` 會被明確拒絕）。
+>
+> Production E2E 的順序是先 `npm run verify:web`（產出 `.next-verify`），
+> 再 `E2E_SERVER=production npx playwright test`（`next start` 讀同一份產物）。
+
+#### E2E 的 backend 前置條件（`DX-19`，2026-08-30 起）
+
+> **不需要再自己開 backend。** `playwright.config.ts` 的 `webServer` 現在同時管理
+> **backend :3000** 與 **frontend :3010** 兩台，並在 spawn backend 時**寫死**
+> `PGDATABASE=teaching_platform_security_test`。因此：
+>
+> ```bash
+> cd frontend && npm run verify:web          # 產出 .next-verify
+> cd apps/web && E2E_SERVER=production npx playwright test
+> ```
+>
+> 這兩行就是完整的 production E2E —— 兩台 server 由 harness 啟動與關閉。
+>
+> **為什麼要有這一層：** 這套 E2E 有一部分必須打到真的 backend
+> （`api-proxy`／`payment-proof-security`／`material-media-security`／
+> `legal-publication-security` 的 backend contract case），
+> 而 `/materials/:id` 與四條 legal route 是 **server-side fetch**，`page.route()` 攔不到。
+> 在 `DX-19` 之前 backend 是**人工**前置條件，沒開時會出現兩種都無法自我解釋的結果（實測）：
+>
+> | 症狀 | 實際錯誤 |
+> | --- | --- |
+> | **假紅燈** | `api-proxy` 報 `Expected: 200 / Received: 500`、`SyntaxError: Unexpected end of JSON input` —— 看起來像 proxy 壞了；真正的 `ECONNREFUSED ::1:3000` 只出現在交錯的 `[WebServer]` stdout 裡 |
+> | **假綠燈**（更危險） | `legal-publication-security` 的四條 public route case **4/4 通過** —— 因為 `fetchPublished()` 對 fetch 失敗一律 `return null` 而 `notFound()`。頁面「看起來正確」，但證明的是「連不上」而不是「沒有發布」 |
+>
+> 現在兩者都不可能：`tests/e2e/global-setup.ts` 會在**任何 product assertion 之前**
+> 驗證 backend 可達、身分正確（`/health` 回 `{"status":"ok"}`）、
+> 且資料庫連得上並含有 migration seed `mat_detail_seed_1`。
+> 失敗時印出 `E2E BACKEND PREREQUISITE NOT SATISFIED` 與具體補救方式，**不執行任何 test**。
+>
+> **資料庫安全（`CLAUDE.md` §7）：**
+> `E2E_BACKEND_DB` 只接受 `teaching_platform_security_test`；
+> 給任何其他值（例如開發資料庫 `teaching_platform`）會在 **config 載入時**就 throw ——
+> **不會啟動任何 server，也不會執行任何 test**。這個保護不依賴任何人記得 export 環境變數。
+>
+> **`E2E_REUSE_BACKEND=1`（少用）：** 重用已經在 3000 上跑的 backend。
+> harness **無法**從外部證明對方連的是哪一個資料庫（backend 沒有、也不該有
+> 對外揭露資料庫名稱的 endpoint），因此這個模式會印出明確警告，風險由操作者承擔。
+> 預設路徑（不設此變數）較安全，請優先使用。
+>
+> `npm run smoke` 與 `npm run postman` **不受影響** —— 它們仍需要自行啟動的 backend
+> （見下一節），且仍必須自行確認 `PGDATABASE`。
+
+### 法律文件發布 runbook（`OPS-05`）
+
+> **⚠️ 目前不得執行「發布」那一步。** 四份草稿仍為
+> `DRAFT — NOT LAWYER APPROVED` / `NOT FOR PRODUCTION PUBLICATION`；
+> 律師與會計師審閱皆為 `PENDING`，`legal_documents` 在兩個資料庫皆為 **0 列**。
+> 本節記錄的是**程序**，不是現在要做的事。
+
+#### 前置條件（全部成立才可進入寫入步驟）
+
+```text
+[ ] 外部律師審閱完成，且有可稽核的核准參照
+[ ] 需要時，外部會計師審閱完成（PRE-03 / T-* 相關者）
+[ ] Owner 已核准最終條文來源檔案
+[ ] 版本號已指派（DEC-LEGAL-05：整數序號，每個 document_type 各自獨立）
+[ ] 生效日已確認（YYYY-MM-DD）
+[ ] requiresReconsent 已由 Owner 顯式決定（不得由發布理由推導）
+[ ] 發布理由代碼已選定（other 需附說明）
+```
+
+**來源檔案不得再帶有草稿標記。** 前置檢查會掃描
+`DRAFT — NOT LAWYER APPROVED` 與 `NOT FOR PRODUCTION PUBLICATION`，
+命中即判定 blocked ——**即使其他欄位全部填對、即使 operator 勾了確認旗標**。
+
+#### 步驟 1：技術前置檢查（dry-run，唯一可以現在跑的步驟）
+
+```bash
+npm run legal:preflight --prefix Backend -- --help
+```
+
+```bash
+node Backend/scripts/legal-publication-preflight.js   --type terms   --version 1   --source <approved-source-file>   --effective-date 2026-09-15   --requires-reconsent false   --reason-code editorial_update   --lawyer-approval-ref "<auditable reference>"   --acknowledge-external-review
+```
+
+**這支腳本沒有寫入路徑** —— 它不 import `publish()`、不發 POST、對資料庫只有一次唯讀查詢。
+無論參數怎麼下都不可能發布任何東西，結尾一律印出
+`DRY RUN — NO LEGAL DOCUMENT WAS PUBLISHED`。
+
+輸出刻意分成**兩條互不合併的判定線**：
+
+| 區塊 | 意義 |
+| --- | --- |
+| `TECHNICAL VALIDATION` | 型別／版本／正文非空／生效日格式／顯式 boolean／理由代碼 —— 程式能判斷的部分 |
+| `EXTERNAL APPROVAL` | **程式不能判斷。**只記錄 operator 提供的核准參照，並在來源仍是草稿時擋下 |
+
+`TECHNICAL VALIDATION: PASSED` **不代表可以發布**。exit code 只有兩條線都成立才是 `0`。
+
+#### 步驟 2：寫入前的人工覆核
+
+```text
+目標資料庫是否正確（腳本會印出 database 名稱）
+current version 是誰（腳本會印出；發布後它會轉為 superseded）
+target version 是否未被使用過（同型別 version 唯一）
+document_type 正確
+effective_date 正確
+requiresReconsent 與發布理由是**兩個獨立**的決定
+核准參照可被第三方查證
+```
+
+#### 步驟 3：建立 → 核可 → 發布（**目前不得執行**）
+
+發布本身是需要 admin token 的明確 API 呼叫，**刻意不包進腳本**：
+發布是一次性、**無自動 rollback** 的動作，多一個 `--publish` 旗標就多一條誤觸路徑。
+
+```text
+POST   /admin/legal-documents                    建立 draft
+PATCH  /admin/legal-documents/:id                修改 draft
+POST   /admin/legal-documents/:id/approve        draft → approved
+POST   /admin/legal-documents/:id/publish        approved → published（舊版原子轉 superseded）
+```
+
+`publish` 的 body（步驟 1 會原樣印出）：
+
+```json
+{ "requiresReconsent": false, "reasonCode": "editorial_update", "note": "僅 other 需要" }
+```
+
+全部端點皆 `requireAuth` + `requireRole("admin")`。
+
+#### 步驟 4：發布後驗證
+
+```text
+legal_documents 出現該版本，publication_status = 'published'
+同型別的舊版 publication_status = 'superseded'，且 superseded_by_id 指向新版
+GET /legal/documents/:type 回 200（先前為 404）
+public route /terms /privacy /creator-agreement /refund 顯示新版
+activity_logs 有 legal_document.published：who / when / type / version /
+  content_hash / requiresReconsent / justificationCode / supersededIds
+若 requiresReconsent = true，re-consent 的實際強制仍屬 Gate 5（尚未接線）
+```
+
+#### Rollback / 事故處理
+
+```text
+NO AUTOMATED ROLLBACK
+```
+
+repo **沒有** unpublish 或 rollback 端點，這是刻意的：
+`TRANSITIONS` 中 `published` 與 `superseded` 都是終態，
+且 `published` 的正文／版本／雜湊／生效日由 DB trigger 鎖死（不可竄改）。
+
+因此事故的唯一前進路徑是**再發一版**：建立新 draft → approve → publish，
+舊版自動轉 `superseded`。歷史版本**必須保留** —— 既有的 consent 證據會指向它。
+**不得**以直接 SQL 修改或刪除已發布的列來「復原」。
+
+---
+
+#### Git 的 text / binary 分類（`DX-20`，2026-08-30 起）
+
+> **repo 根目錄有 `.gitattributes`，把 `*.pdf` / `*.png` / `*.jpg` / `*.ico` 宣告為 `binary`。**
+>
+> 這個 repo 的 `core.autocrlf` 是 `true`。在 `.gitattributes` 存在之前，Git 只能靠內容啟發式
+> （掃前 8000 bytes，看到 NUL 就當二進位）判斷檔案型別 —— 對真正的圖片會猜對，
+> 但對 Postman 的**合成** PDF fixture 會猜錯：那兩個檔是刻意做到最小的合法 PDF，
+> **全部是 ASCII、沒有 NUL**，於是被當成文字並套用行尾轉換。
+>
+> **這不是理論風險，已實測：** 在隔離的 repo 裡設 `core.autocrlf=true` 做 fresh checkout，
+> `material-a.pdf` / `material-b.pdf` 由 **125 bytes 變成 130 bytes**（SHA-256 改變）；
+> 加上 `.gitattributes` 後，同一個實驗的 checkout 位元組與 repository blob **完全一致**。
+> 上傳測試正是靠這些位元組（magic bytes）驗證型別政策，所以這會讓 Windows 上的 clone 出現假失敗。
+>
+> **實務上要注意的兩件事：**
+>
+> - 新增二進位測試素材時，若副檔名不在上面四類，請在 `.gitattributes` 補一行；
+>   **只加實際存在的類型**，不要預防性地列一堆 repo 裡沒有的副檔名。
+> - `*.svg` **刻意不列** —— SVG 是 XML，本來就是文字，標成 binary 會失去可讀 diff。
+>
+> **`.gitattributes` 刻意沒有 `* text=auto`。** 實測（temporary index ＋ temporary attributes
+> file，未動到真 index）：加上它會讓 `git add --renormalize` 涵蓋 **531 個檔案**，
+> 那是整個 repo 規模的行尾重寫。若日後真要做全域正規化，應獨立成一張 ticket 單獨執行。
+>
+> **另一個相關陷阱（同輪修掉）：** 原始碼裡若嵌入 literal NUL，
+> Git 的**轉換層**（whole-buffer 判定）會把整個檔案當二進位而**跳過 CRLF 正規化**，
+> 於是該檔會以 CRLF 存進 repository，成為全 repo 唯一的例外
+> （實測 68 個 `.ts`/`.tsx` blob 中有 67 個是 LF，只有它是 CRLF）。
+> 需要 NUL 之類的控制位元組時，請用逸出序列（`\x00`）在 runtime 建構，不要嵌入原始位元組。
 
 ### Backend / API（需先啟動 Backend，並提供 test admin 憑證）
 
@@ -354,6 +641,9 @@ db/db_schema.sql
 
 > 本節只收**工程債**。需要產品決策才能開工的項目（新功能、新 schema、範圍未定）
 > 一律記在 `docs/pending-work-tracker.md`，不要在這裡開第二份清單。
+>
+> **優先序以 `docs/pending-work-tracker.md` 為準**（它是 active backlog 的唯一 source of truth）。
+> 本表只保留工程債的技術說明，不在這裡維護第二套 priority。
 
 | 項目 | 優先序 | 說明 |
 | --- | --- | --- |
@@ -361,8 +651,9 @@ db/db_schema.sql
 | localStorage JWT → HttpOnly cookie migration | **Phase 2** | token 存於 localStorage，XSS 可竊取；另 cookie `max-age` 24h 與 `JWT_EXPIRES_IN` 7d 不一致，cookie 先過期會被登出 |
 | 7 個 `@next/next/no-img-element` warning | **P2** | 前端使用 `<img>` 而非 `next/image`。`verify:web` 仍為 0 error |
 | `manual_payment_proofs.reviewed_by` 重複 FK | **P2** | 同欄位上有 `manual_payment_proofs_reviewed_by_fkey` 與 `mpp_reviewed_by_fkey` 兩個功能相同的約束，為 bootstrap 重複建立所致，不影響行為 |
-| Buyer / public E2E 規格缺陷 | **P1** | Production build 上跑完整套件為 228 passed / 18 failed（exit 1）。18 個失敗全在 `public.spec.ts`、`parent.spec.ts` 與 `critical-acceptance.spec.ts` 的兩個 buyer check；Admin / Creator / shell 全綠。已用 `HEAD` baseline 實測確認為既有問題（同樣 4 passed / 14 failed）。`parent.spec.ts` 只設 localStorage 不設 cookie，被 `middleware.ts` 導向 `/login`。詳見 `docs/pending-work-tracker.md` §7.7 |
-| `/admin/reviews-hub` 的 60 筆 N+1 | **P2** | 先取 60 份教材再逐份取 reviews，最多 61 個請求。修它需要 admin 端彙總 API，而端點形狀取決於教學回饋管理的 MVP 範圍決策。詳見 `docs/pending-work-tracker.md` §7.4 F-4 |
+| Buyer / public E2E 規格缺陷 | **P1（需重新測定）** | 2026-08-22 的觀察為 228 passed / 18 failed（exit 1），根因記為「`parent.spec.ts` 只設 localStorage 不設 cookie」。**2026-08-23 盤點發現該根因已不成立**：`critical-acceptance.spec.ts` 的 `setAuthState()` 已同時設 cookie 與 localStorage，6-1 依賴的 mock 亦齊備，最近一次 Playwright 執行為 passed / 0 failed（範圍不明）。需在 production build 上跑一次完整套件重新取得 baseline。追蹤：`docs/pending-work-tracker.md` `DX-01` |
+| `/uploads` 靜態目錄沒有認證（行銷素材） | **P1** | `Backend/uploads/` 由 `express.static` 公開。教材**本體**已不在此列（`Backend/private-storage/`）。**付款憑證已於 2026-08-23 完全移出**（`Backend/index.js` 在 static 之前掛了拒絕 handler；實體檔案已搬入 `private-storage/payment-proofs/`，公開副本已刪除 —— `SEC-01` DONE）。剩餘風險是**未上架教材**的行銷素材仍只靠隨機檔名保護 —— 追蹤：`SEC-02` |
+| `/admin/reviews-hub` 的 60 筆 N+1 | **P2** | 先取 60 份教材再逐份取 reviews，最多 61 個請求。修它需要 admin 端彙總 API，而端點形狀取決於教學回饋管理的 MVP 範圍決策。詳見 `docs/pending-work-tracker.md` `FUT-T5`（若教學回饋 contextualize 後該頁不再是主入口，此項自動消失） |
 
 ---
 
@@ -372,6 +663,8 @@ db/db_schema.sql
 | --- | --- |
 | `docs/teaching-platform-mvp-spec-v1.4.md` | 產品／API 契約（canonical） |
 | `docs/mvp_rules.md` | 規則、角色邊界、授權邊界（canonical） |
+| `docs/material-review-workflow.md` | 教材上架審核狀態機、退回原因、稽核事件（canonical） |
+| `docs/admin-information-architecture.md` | Admin IA：每頁 JTBD、sidebar 分組、Refresh rule、Review Workspace pattern |
 | `db/db_schema.sql` | Schema 參考（canonical） |
 | `docs/db-backup-and-migration.md` | 備份／還原／跨機搬遷步驟 |
 | `docs/postman/README.md` | Postman / Newman 執行與 fixtures |

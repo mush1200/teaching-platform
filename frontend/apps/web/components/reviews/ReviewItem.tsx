@@ -22,8 +22,14 @@ const roleBadgeMap: Record<MockReview["audienceRole"], string> = {
   teacher: "bg-violet-50 text-violet-700 border-violet-100",
 };
 
+/*
+ * 徽章文案。**key 是內部 role 常數，value 才是 UI 文案** ——
+ * key 不得改（DB / API / 權限契約用的是 `parent` / `teacher`，見
+ * `docs/ui-role-naming-checklist.md` 的 Scope），value 一律用 canonical 稱呼：
+ * 購買者／創作者，不得出現「家長」「老師」（CLAUDE.md §2、`COR-04`）。
+ */
 const roleLabelMap: Record<MockReview["audienceRole"], string> = {
-  parent: "家長",
+  parent: "購買者",
   teacher: "創作者",
 };
 

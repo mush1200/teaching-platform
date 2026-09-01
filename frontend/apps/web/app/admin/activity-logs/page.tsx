@@ -9,7 +9,8 @@ import type {
 } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 import { useListQueryState } from "../../../lib/useListQueryState";
-import { actorRoleLabel, describeActivity } from "../../../lib/admin-labels";
+import { actionLabel, actorRoleLabel, groupActions } from "../../../lib/admin-labels";
+import { ActivityLogCard } from "../../../components/admin/ActivityLogCard";
 import {
   DataToolbar,
   EmptyState,
@@ -41,14 +42,12 @@ import { useRouter, useSearchParams } from "next/navigation";
  *
  * `actor_id` / `target_id` / `meta` 一個都沒少，只是收進每列的「詳細資訊」摺疊區，
  * 以及既有的單筆詳情頁。降低 technical terminology 的 prominence ≠ 移除它。
+ *
+ * ## 三層資訊架構共用同一個元件（IA-02）
+ *
+ * 每一列的渲染在 `components/admin/ActivityLogCard`，與單筆詳情頁及三個 entity
+ * 紀錄頁**共用**。這一頁只負責搜尋／篩選／分頁，不再自己排版一筆紀錄長什麼樣子。
  */
-
-function formatDateTime(value?: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" });
-}
 
 function AdminActivityLogsContent() {
   const router = useRouter();
@@ -150,16 +149,6 @@ function AdminActivityLogsContent() {
       <PageHeader
         title="活動紀錄"
         description="搜尋使用者 Email、教材名稱或訂單編號，查看平台上發生過的操作。"
-        action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-4 text-sm font-medium text-ds-heading transition-colors hover:bg-edu-page disabled:opacity-50"
-          >
-            重新整理
-          </button>
-        }
       />
 
       <DataToolbar
@@ -185,13 +174,18 @@ function AdminActivityLogsContent() {
                 className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
               >
                 <option value="all">全部</option>
-                {(filterMeta?.actions ?? []).map((row) => (
-                  <option key={row.action} value={row.action}>
-                    {describeActivity({ action: row.action }).raw
-                      ? row.action
-                      : describeActivity({ action: row.action }).sentence.replace("系統", "").trim()}
-                    （{row.count}）
-                  </option>
+                {/*
+                  分組與文案都來自 `lib/admin-labels` 的同一份 catalog（清單那一句話也用它），
+                  未登記的 action 顯示成「其他（原始 code）」而不是裸 code。
+                */}
+                {groupActions(filterMeta?.actions ?? []).map((bucket) => (
+                  <optgroup key={bucket.group} label={bucket.label}>
+                    {bucket.rows.map((row) => (
+                      <option key={row.action} value={row.action}>
+                        {actionLabel(row.action)}（{row.count}）
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -279,6 +273,13 @@ function AdminActivityLogsContent() {
   );
 }
 
+/**
+ * 一列活動紀錄 = 共用的 `ActivityLogCard`（三層資訊架構）＋ 這一頁專屬的導航。
+ *
+ * 導航只留在這裡：全站列表是「還不知道要看哪個對象時的搜尋入口」（IA §6），
+ * 因此每一列都要能跳進 entity 時間軸；entity 頁本身已經在那條時間軸上，
+ * 不需要再指回自己。
+ */
 function LogRow({
   log,
   expanded,
@@ -288,100 +289,46 @@ function LogRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const described = describeActivity(log);
-
   return (
-    <article
-      data-testid="activity-log-row"
-      className="rounded-ds-card border border-ds-border bg-ds-surface p-4 shadow-ds-card-soft"
-    >
-      <p className={`text-title text-ds-heading ${described.raw ? "font-mono text-sm" : ""}`}>
-        {described.sentence}
-      </p>
-      {described.target ? <p className="mt-0.5 text-body text-ds-body">{described.target}</p> : null}
-      <p className="mt-1 text-meta text-ds-textMuted">{formatDateTime(log.created_at)}</p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-meta">
-        {log.target_type === "material" && log.target_id ? (
+    <ActivityLogCard
+      log={log}
+      expanded={expanded}
+      onToggle={onToggle}
+      links={
+        <>
+          {log.target_type === "material" && log.target_id ? (
+            <Link
+              href={`/admin/materials/${encodeURIComponent(log.target_id)}/activity-logs`}
+              className="font-medium text-edu-primary underline"
+            >
+              此教材紀錄
+            </Link>
+          ) : null}
+          {log.target_type === "order" && log.target_id ? (
+            <Link
+              href={`/admin/orders/${encodeURIComponent(log.target_id)}/activity-logs`}
+              className="font-medium text-edu-primary underline"
+            >
+              此訂單紀錄
+            </Link>
+          ) : null}
+          {log.actor_id ? (
+            <Link
+              href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
+              className="font-medium text-edu-primary underline"
+            >
+              此操作者紀錄
+            </Link>
+          ) : null}
           <Link
-            href={`/admin/materials/${encodeURIComponent(log.target_id)}/activity-logs`}
+            href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
             className="font-medium text-edu-primary underline"
           >
-            此教材紀錄
+            單筆詳情
           </Link>
-        ) : null}
-        {log.target_type === "order" && log.target_id ? (
-          <Link
-            href={`/admin/orders/${encodeURIComponent(log.target_id)}/activity-logs`}
-            className="font-medium text-edu-primary underline"
-          >
-            此訂單紀錄
-          </Link>
-        ) : null}
-        {log.actor_id ? (
-          <Link
-            href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
-            className="font-medium text-edu-primary underline"
-          >
-            此操作者紀錄
-          </Link>
-        ) : null}
-        <Link
-          href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
-          className="font-medium text-edu-primary underline"
-        >
-          單筆詳情
-        </Link>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          data-testid="activity-log-details-toggle"
-          className="font-medium text-ds-textMuted underline"
-        >
-          {expanded ? "隱藏詳細資訊" : "詳細資訊"}
-        </button>
-      </div>
-
-      {expanded ? (
-        /* Technical metadata：保留完整稽核資訊，只是不再是畫面上最顯眼的東西。 */
-        <dl
-          data-testid="activity-log-details"
-          className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 rounded-xl bg-edu-page p-3 font-mono text-xs text-ds-textMuted sm:grid-cols-2"
-        >
-          <div>
-            <dt className="inline">action：</dt>
-            <dd className="inline">{log.action ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="inline">log id：</dt>
-            <dd className="inline">{log.id}</dd>
-          </div>
-          <div>
-            <dt className="inline">actor_id：</dt>
-            <dd className="inline">{log.actor_id ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="inline">actor_role：</dt>
-            <dd className="inline">{log.actor_role ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="inline">target_type：</dt>
-            <dd className="inline">{log.target_type ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="inline">target_id：</dt>
-            <dd className="inline">{log.target_id ?? "—"}</dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt>meta：</dt>
-            <dd>
-              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(log.meta ?? {}, null, 2)}</pre>
-            </dd>
-          </div>
-        </dl>
-      ) : null}
-    </article>
+        </>
+      }
+    />
   );
 }
 

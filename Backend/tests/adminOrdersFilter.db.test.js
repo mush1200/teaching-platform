@@ -9,12 +9,14 @@
  *
  * 所有 fixture id 都帶 `tp_aoftest_` 前綴，測試前後各清一次，因此可重複執行。
  *
- * 這支測試要鎖住的四件事：
+ * 這支測試要鎖住的六件事：
  *   1. 「待付款」只含**尚未上傳憑證**的訂單 —— 不再把待審與被退回的一起收進來
  *   2. 「待審核」由 `manual_payment_proofs.review_status = 'pending'` 衍生，
  *      **不是** `orders.status`（更不是 dead status `paid`）
  *   3. **重新上傳**（舊 rejected + 新 pending）必須分類為 `pending_review`
  *   4. 五個 operational bucket 是 orders 的一個 partition（互斥且涵蓋全部）
+ *   5. `q` 搜尋訂單編號與買家 Email，且 `%` / `_` 是字面值而非萬用字元（IA-06）
+ *   6. 分頁契約與 `utils/adminQuery.js` 一致，且 `total` 是**篩選後**的總數（IA-06）
  */
 
 const path = require("path");
@@ -48,19 +50,19 @@ async function cleanup() {
   await db.query(`DELETE FROM users WHERE id LIKE $1`, [`${PREFIX}%`]);
 }
 
-async function insertUser() {
+async function insertUser(suffix = "buyer") {
   await db.query(
     `INSERT INTO users(id, email, password_hash, role)
      VALUES($1, $2, 'x', 'buyer')`,
-    [`${PREFIX}buyer`, `${PREFIX}buyer@example.test`]
+    [`${PREFIX}${suffix}`, `${PREFIX}${suffix}@example.test`]
   );
 }
 
-async function insertOrder(name, { status, paidAt = null }) {
+async function insertOrder(name, { status, paidAt = null, owner = "buyer" }) {
   await db.query(
     `INSERT INTO orders(id, user_id, status, payment_mode, total_amount, total_price, paid_at)
      VALUES($1, $2, $3, 'manual_transfer', 300, 300, $4::timestamp)`,
-    [oid(name), `${PREFIX}buyer`, status, paidAt]
+    [oid(name), `${PREFIX}${owner}`, status, paidAt]
   );
 }
 
@@ -93,6 +95,8 @@ async function insertProof(orderName, proofName, { reviewStatus, uploadedAt = nu
  */
 async function seed() {
   await insertUser();
+  // 第二個買家：讓「用 Email 搜尋」真的能證明有縮小範圍，而不是剛好全部命中。
+  await insertUser("buyer2");
 
   // Case 1：成立但尚未上傳憑證 → awaiting_payment
   await insertOrder("case1_no_proof", { status: "pending_payment" });
@@ -148,6 +152,15 @@ async function seed() {
 
   // Case 6：legacy 歷史列 → cancelled
   await insertOrder("case6_cancelled", { status: "cancelled" });
+
+  /*
+   * `IA-06` 的搜尋 fixture。兩筆 id 只差一個字元：`wild_a` 與 `wildXa`。
+   * `_` 在 LIKE 裡是「任一字元」，所以搜尋 `wild_a` 若沒有跳脫就會同時命中兩筆 ——
+   * 對 Admin 來說那是「我貼了完整訂單編號，卻跑出別人的訂單」。
+   * 兩筆都掛在第二個買家名下，順便讓 Email 搜尋有東西可以縮。
+   */
+  await insertOrder("wild_a", { status: "pending_payment", owner: "buyer2" });
+  await insertOrder("wildXa", { status: "pending_payment", owner: "buyer2" });
 }
 
 const FIXTURE_IDS = [
@@ -157,6 +170,8 @@ const FIXTURE_IDS = [
   "case4_reupload",
   "case5_approved",
   "case6_cancelled",
+  "wild_a",
+  "wildXa",
 ].map(oid);
 
 /** 只取 fixture 的 id，避免斷言被資料庫既有資料干擾。 */
@@ -164,8 +179,30 @@ function fixtureIds(rows) {
   return rows.map((r) => r.id).filter((id) => id.startsWith(PREFIX));
 }
 
+/**
+ * `listOrders()` 從 `IA-06` 起是分頁的（預設 20 筆／頁）。
+ *
+ * 下面的 partition 與 reconciliation 斷言的是**全表**不變條件；只看第一頁的話，
+ * 一旦測試資料庫的訂單數超過一頁，它們就會變成假性失敗（或更糟：假性通過）。
+ * 因此這裡把所有頁串起來，順便把 `pagination.total` 與實際列數對起來 ——
+ * count 與 list 用的是同一份 `WHERE`，兩者對不上就是 SQL 分歧了。
+ */
+async function listAllOrders(params = {}) {
+  const rows = [];
+  let page = 1;
+  for (;;) {
+    const { items, pagination } = await listOrders({ ...params, page, limit: 100 });
+    rows.push(...items);
+    if (page >= pagination.totalPages) {
+      assert.equal(rows.length, pagination.total, "串接所有頁後的列數必須等於 pagination.total");
+      return rows;
+    }
+    page += 1;
+  }
+}
+
 async function idsFor(status) {
-  return fixtureIds(await listOrders({ status }));
+  return fixtureIds(await listAllOrders({ status }));
 }
 
 test("admin orders operational filter", async (t) => {
@@ -215,7 +252,7 @@ test("admin orders operational filter", async (t) => {
     assert.ok(!rejected.includes(oid("case4_reupload")), "不得停留在付款被退回");
 
     // latest proof 必須靠 COALESCE(uploaded_at, created_at) 才會指向 uploaded_at 為 NULL 的新憑證。
-    const [row] = (await listOrders({ status: "pending_review" })).filter((r) => r.id === oid("case4_reupload"));
+    const [row] = (await listAllOrders({ status: "pending_review" })).filter((r) => r.id === oid("case4_reupload"));
     assert.equal(row.payment_proof_latest_status, "pending", "latest proof 應為新上傳的 pending 憑證");
     assert.equal(row.payment_proof_pending_review_count, 1);
   });
@@ -256,6 +293,69 @@ test("admin orders operational filter", async (t) => {
     }
   });
 
+  await t.test("Case 9 (IA-06) — q 搜尋訂單編號與買家 Email", async () => {
+    // 完整訂單編號：客訴信裡貼過來的那一串，必須恰好命中一筆。
+    const byId = await listAllOrders({ q: oid("case3_rejected") });
+    assert.deepEqual(fixtureIds(byId), [oid("case3_rejected")]);
+
+    // 買家 Email：第二個買家名下只有兩筆，不得把第一個買家的訂單一起撈出來。
+    const byEmail = fixtureIds(await listAllOrders({ q: `${PREFIX}buyer2@example.test` }));
+    assert.deepEqual(byEmail.slice().sort(), [oid("wildXa"), oid("wild_a")].slice().sort());
+
+    // 部分字串（大小寫不敏感）仍可命中 —— ILIKE 不是 `=`。
+    const byPartialEmail = fixtureIds(await listAllOrders({ q: "BUYER2@EXAMPLE.TEST" }));
+    assert.deepEqual(byPartialEmail.slice().sort(), [oid("wildXa"), oid("wild_a")].slice().sort());
+
+    // 搜不到的字串回空集合（不是「回全部」）。
+    assert.deepEqual(fixtureIds(await listAllOrders({ q: `${PREFIX}definitely-not-there` })), []);
+  });
+
+  await t.test("Case 9.1 (IA-06) — buyer_email 是回傳欄位，且 `_` / `%` 是字面值", async () => {
+    const [row] = (await listAllOrders({ q: oid("case1_no_proof") })).filter(
+      (r) => r.id === oid("case1_no_proof")
+    );
+    assert.equal(row.buyer_email, `${PREFIX}buyer@example.test`, "清單必須帶得回買家 Email");
+
+    /*
+     * `_` 未跳脫時是 LIKE 的萬用字元，`wild_a` 會連 `wildXa` 一起命中。
+     * 這一段就是 `toLikePattern()` + `ESCAPE` 的 regression。
+     */
+    const underscore = fixtureIds(await listAllOrders({ q: "wild_a" }));
+    assert.deepEqual(underscore, [oid("wild_a")], "`_` 必須是字面底線，不得當成萬用字元");
+
+    // `%` 同理：不得讓使用者輸入的 `%` 變成「全部」。
+    const percent = fixtureIds(await listAllOrders({ q: "wild%a" }));
+    assert.deepEqual(percent, [], "`%` 必須是字面百分號，不得當成萬用字元");
+  });
+
+  await t.test("Case 10 (IA-06) — 分頁契約與 total 是篩選後的總數", async () => {
+    // `tp_aoftest_` 前綴只屬於本測試的 fixture，因此這組斷言不受資料庫既有資料影響。
+    const all = await listOrders({ q: PREFIX, page: 1, limit: 100 });
+    assert.equal(all.pagination.total, FIXTURE_IDS.length, "total 必須是篩選後的總數，不是全表筆數");
+
+    const first = await listOrders({ q: PREFIX, page: 1, limit: 3 });
+    assert.equal(first.items.length, 3);
+    assert.deepEqual(first.pagination, {
+      page: 1,
+      limit: 3,
+      total: FIXTURE_IDS.length,
+      totalPages: Math.ceil(FIXTURE_IDS.length / 3),
+    });
+
+    const second = await listOrders({ q: PREFIX, page: 2, limit: 3 });
+    const overlap = second.items.filter((r) => first.items.some((f) => f.id === r.id));
+    assert.deepEqual(overlap, [], "相鄰兩頁不得重複 —— ORDER BY 必須是決定性的");
+
+    // 契約邊界沿用 utils/adminQuery.js：非法 page/limit 回落預設，limit 上限 100。
+    const clamped = await listOrders({ q: PREFIX, page: "0", limit: "9999" });
+    assert.equal(clamped.pagination.page, 1);
+    assert.equal(clamped.pagination.limit, 100);
+
+    // 空字串 q 由 route 的 optionalString() 轉成 null；service 端 null = 不篩選。
+    const unfiltered = await listOrders({ q: null, page: 1, limit: 1 });
+    assert.ok(unfiltered.pagination.total >= FIXTURE_IDS.length, "未帶 q 時不得縮小結果集");
+  });
+
   await t.test("五個 bucket 是 orders 的一個 partition（互斥且涵蓋全部）", async () => {
     const totalRes = await db.query(`SELECT COUNT(*)::int AS c FROM orders`);
     const total = totalRes.rows[0].c;
@@ -264,7 +364,7 @@ test("admin orders operational filter", async (t) => {
     const seen = new Map();
     let sum = 0;
     for (const bucket of OPERATIONAL_STATUSES) {
-      const rows = await listOrders({ status: bucket });
+      const rows = await listAllOrders({ status: bucket });
       perBucket[bucket] = rows.length;
       sum += rows.length;
       for (const row of rows) {
@@ -286,7 +386,7 @@ test("admin orders operational filter", async (t) => {
     const proofCountRes = await db.query(
       `SELECT COUNT(*)::int AS c FROM manual_payment_proofs WHERE review_status = 'pending'`
     );
-    const pendingReviewOrders = (await listOrders({ status: "pending_review" })).length;
+    const pendingReviewOrders = (await listAllOrders({ status: "pending_review" })).length;
 
     assert.equal(
       pendingReviewOrders,

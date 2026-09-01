@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
 import { signInAs } from "./helpers/auth";
+import { installShellBootstrapMocks } from "./helpers/shell-bootstrap";
 
 /**
  * Creator Sales 的語意驗收（見 docs/mvp_rules.md §18）。
@@ -195,6 +196,9 @@ async function openNavIfMobile(page: Page) {
 test.describe("Creator Sales", () => {
   test.beforeEach(async ({ page }) => {
     await signInAs(page, "teacher", { email: "creator-e2e@example.com" });
+    // RoleShell 的 creator 分支掛載時會打 `auth/me`（`DX-04` 的 session 探測）。
+    // 本檔自己的 route 只處理 `teacher/sales/*`，其餘會落到真實後端而回 401。
+    await installShellBootstrapMocks(page);
   });
 
   test("creator sales semantics and terminology", async ({ page }) => {

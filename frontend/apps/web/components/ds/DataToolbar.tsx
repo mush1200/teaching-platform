@@ -113,6 +113,14 @@ export type FilterTabOption = {
  *
  * 數字必須是**全表**計數，不是目前這一頁的筆數 —— 這是 Backend 各清單
  * `statusCounts` 存在的理由。
+ *
+ * ## 兩種視覺層級（`variant`）
+ *
+ * 同一頁出現兩層篩選時（檢舉管理：案件範圍 → 處理狀態），兩層**不得長得一樣** ——
+ * 那會讓使用者以為它們是同一個維度的六個互斥選項。
+ *
+ *   `segmented`（第一層）：連成一段的分段控制，形狀本身就說明「這是主切換」
+ *   `pill`（預設、第二層或單層頁）：獨立的圓角 chip，視覺權重較低
  */
 export function FilterTabs({
   options,
@@ -120,17 +128,48 @@ export function FilterTabs({
   onChange,
   ariaLabel,
   disabled = false,
+  testIdPrefix = "filter-tab",
+  variant = "pill",
 }: {
   options: FilterTabOption[];
   value: string;
   onChange: (next: string) => void;
   ariaLabel: string;
   disabled?: boolean;
+  /**
+   * `data-testid` 前綴。同一頁出現兩層篩選時（例如檢舉管理的「案件範圍 → 處理狀態」），
+   * 兩層可能共用同一個 value（`open` 既是第一層也是第二層的「全部」），
+   * 前綴不同才不會產生兩個相同的 testid。
+   */
+  testIdPrefix?: string;
+  variant?: "pill" | "segmented";
 }) {
+  const segmented = variant === "segmented";
+
   return (
-    <div role="tablist" aria-label={ariaLabel} data-testid="filter-tabs" className="flex flex-wrap gap-2">
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      data-testid={segmented ? "filter-segmented" : "filter-tabs"}
+      className={
+        segmented
+          ? "inline-flex flex-wrap items-center gap-1 rounded-xl border border-ds-border bg-ds-surfaceMuted p-1"
+          : "flex flex-wrap gap-2"
+      }
+    >
       {options.map((option) => {
         const active = option.value === value;
+        const base = segmented
+          ? `inline-flex min-h-9 items-center gap-2 rounded-lg px-3.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50 ${
+              active
+                ? "bg-ds-surface font-semibold text-edu-primary shadow-ds-card-soft"
+                : "font-medium text-ds-textMuted hover:text-ds-heading"
+            }`
+          : `inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50 ${
+              active
+                ? "border-edu-primary bg-[#EDE9FE] font-semibold text-edu-primary"
+                : "border-ds-border bg-ds-surface text-ds-textMuted hover:bg-edu-page hover:text-ds-heading"
+            }`;
         return (
           <button
             key={option.value}
@@ -139,18 +178,14 @@ export function FilterTabs({
             aria-selected={active}
             disabled={disabled}
             onClick={() => onChange(option.value)}
-            data-testid={`filter-tab-${option.value}`}
-            className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50 ${
-              active
-                ? "border-edu-primary bg-[#EDE9FE] font-semibold text-edu-primary"
-                : "border-ds-border bg-ds-surface text-ds-textMuted hover:bg-edu-page hover:text-ds-heading"
-            }`}
+            data-testid={`${testIdPrefix}-${option.value}`}
+            className={base}
           >
             <span>{option.label}</span>
             {typeof option.count === "number" ? (
               <span
                 className={`inline-flex min-w-[1.5rem] justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                  active ? "bg-white/70 text-edu-primary" : "bg-[#F3F4F6] text-ds-textMuted"
+                  active ? (segmented ? "bg-edu-page text-edu-primary" : "bg-white/70 text-edu-primary") : "bg-[#F3F4F6] text-ds-textMuted"
                 }`}
               >
                 {option.count}

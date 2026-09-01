@@ -1,10 +1,10 @@
-export const EXPLORE_CATEGORY_OPTIONS = [
-  { id: "all", label: "全部" },
-  { id: "language", label: "語言" },
-  { id: "math", label: "數學" },
-  { id: "science", label: "科學" },
-  { id: "art", label: "藝術" },
-] as const;
+/*
+ * 分類清單的唯一來源是 `lib/material-categories.ts`（見該檔說明：先前三處各寫一份，
+ * 且 `science`／`art` 的中文用字彼此不一致）。這裡只是 re-export，保留既有匯出名稱。
+ */
+import { EXPLORE_CATEGORY_OPTIONS } from "../../lib/material-categories";
+
+export { EXPLORE_CATEGORY_OPTIONS };
 
 type Props = {
   activeId: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getMaterialById, getReviewsForMaterial } from "../../lib/api-repository";
 import type { MockMaterial, MockReview } from "../../lib/view-models";
@@ -20,6 +20,7 @@ import { MaterialDetailGallery } from "./detail/MaterialDetailGallery";
 import { MaterialDetailHeader } from "./detail/MaterialDetailHeader";
 import { MaterialDetailHeroInfo } from "./detail/MaterialDetailHeroInfo";
 import { MaterialDetailPurchasePanel } from "./detail/MaterialDetailPurchasePanel";
+import { MaterialReportDialog } from "./detail/MaterialReportDialog";
 
 type Props = {
   materialId: string;
@@ -36,6 +37,8 @@ export function MaterialDetailPage({ materialId }: Props) {
   const [purchaseQty, setPurchaseQty] = useState(1);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [activeHeroImageUrl, setActiveHeroImageUrl] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const reportTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setRole(getStoredRole());
@@ -117,7 +120,7 @@ export function MaterialDetailPage({ materialId }: Props) {
     async (nextPath?: "/checkout") => {
       if (!material) return;
       if (role !== "parent") {
-        setCartFeedback({ kind: "err", text: "請先以家長帳號登入後再加入購物車。" });
+        setCartFeedback({ kind: "err", text: "請先以購買者帳號登入後再加入購物車。" });
         return;
       }
       setCartBusy(true);
@@ -193,6 +196,7 @@ export function MaterialDetailPage({ materialId }: Props) {
     onIncrease: () => setPurchaseQty((prev) => Math.min(99, prev + 1)),
     onAddToCart: () => void addToCart(),
     onBuyNow: () => void addToCart("/checkout"),
+    purchasable: material.isPurchasable,
   };
 
   return (
@@ -241,10 +245,37 @@ export function MaterialDetailPage({ materialId }: Props) {
               latestReviews={latestReviews}
             />
           </section>
+
+          {/*
+            檢舉入口。刻意「永遠顯示、點開後才擋」—— 與同一頁「加入購物車」對非購買者的處理一致
+            （顯示提示而不是隱藏能力）。真正的授權在 Backend 的 `requireRole("parent")`；
+            這裡的 `role` 來自 `tp_role`，只是 UX hint。
+          */}
+          <section className="mt-6 border-t border-ds-border py-6">
+            <button
+              ref={reportTriggerRef}
+              type="button"
+              data-testid="material-report-trigger"
+              onClick={() => setReportOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-2xl px-2 py-1 text-sm text-ds-textMuted transition-colors hover:text-[var(--color-intent-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6C63FF]"
+            >
+              <span aria-hidden>⚑</span>
+              檢舉這個教材
+            </button>
+          </section>
         </div>
 
         <MaterialDetailPurchasePanel {...purchaseHandlers} layout="sticky" />
       </div>
+
+      <MaterialReportDialog
+        open={reportOpen}
+        materialId={material.id}
+        materialTitle={material.title}
+        role={role}
+        onClose={() => setReportOpen(false)}
+        triggerRef={reportTriggerRef}
+      />
 
       {previewImageUrl ? (
         <button

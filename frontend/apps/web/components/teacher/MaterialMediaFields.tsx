@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Button, InputField } from "@teaching-platform/ui";
 import { uploadMaterialMedia } from "../../lib/upload-material-media";
+import { MediaImage } from "../materials/MediaImage";
 
 type Props = {
   coverImageUrl: string;
@@ -78,8 +79,16 @@ export function MaterialMediaFields({
         </div>
         {coverImageUrl.trim() ? (
           <div className="flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={coverImageUrl.trim()} alt="" className="h-24 w-auto max-w-[200px] rounded-lg object-cover" />
+            {/*
+              * 剛上傳的素材還沒有認領給任何教材，編輯中的教材也多半尚未上架 ——
+              * 兩種情況對匿名請求都是 401，普通 `<img src>` 會破圖。`MediaImage`
+              * 對平台素材走授權 blob fetch，對手貼的外部連結原樣渲染。
+              */}
+            <MediaImage
+              src={coverImageUrl}
+              alt="封面預覽"
+              className="h-24 w-auto max-w-[200px] rounded-lg object-cover"
+            />
           </div>
         ) : null}
         <InputField

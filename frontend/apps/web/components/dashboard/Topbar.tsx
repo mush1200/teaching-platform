@@ -17,18 +17,6 @@ function MenuIcon() {
   );
 }
 
-function BellIcon() {
-  return (
-    <svg className="size-6 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 17h5l-1.4-1.4A2 2 0 0117 14.2V11a5 5 0 00-4-4.9V5a1 1 0 00-2 0v1.1A5 5 0 007 11v3.2a2 2 0 01-.6 1.4L5 17h5m4 0a3 3 0 11-6 0h6z"
-      />
-    </svg>
-  );
-}
-
 function CartIcon() {
   return (
     <svg className="size-6 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden>
@@ -85,16 +73,24 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
               if (e.key === "Enter") pushQuery(q);
             }}
             placeholder="搜尋教材、主題、年齡..."
-            className="w-full rounded-full border border-[#E5E7EB] bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition focus:border-[#6C63FF]/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/15"
+            className="w-full rounded-full border border-[#E5E7EB] bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition focus:border-[#6C63FF]/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
           />
         </label>
       </div>
 
+      {/*
+        通知按鈕與未讀紅點已移除（`BUY-06` / `DEC-12`，2026-08-28）。
+
+        那顆按鈕**沒有 `onClick`**，而紅點在視覺語彙上等於「你有未讀通知」—— 但平台
+        沒有通知系統（`Backend/services/emailService.js` 明載不打算建 notification center），
+        所以那個紅點永遠不可能為真、也永遠不會消失。它比單純點了沒反應更糟：
+        它**主動宣稱一個假事實**。`BUY-04` 已把導覽的「通知設定」移除，這是同一件事的另一半。
+
+        **不得**為了補這個位置新增 dropdown、notification center、preference system，
+        也不得留下 disabled 按鈕或空的 icon 槽 —— 那些都只是把假承諾換個樣子留著。
+        移除後這一區只剩購物車，`gap` 仍由 flex 容器維持，不需要補位元素。
+      */}
       <div className="flex shrink-0 items-center gap-2 md:gap-3">
-        <button type="button" className="relative rounded-xl p-2 hover:bg-[#F4F1FF]" aria-label="通知">
-          <BellIcon />
-          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[#FF6B73]" aria-hidden />
-        </button>
         <Link href="/cart" className="relative rounded-xl p-2 hover:bg-[#F4F1FF]" aria-label="購物車">
           <CartIcon />
           {cartBadge > 0 ? (

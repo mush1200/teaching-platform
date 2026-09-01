@@ -25,8 +25,16 @@ export function materialToMock(m: Material): MockMaterial {
     category: m.category && m.category.length > 0 ? m.category : "language",
     price,
     originalPrice: price,
-    rating: 0,
-    reviewCount: 0,
+    /*
+     * 評分來自清單 API 的 `average_rating` / `review_count`
+     * （與 `GET /materials/:id/rating` 同一個彙總，見 `Backend/routes/materials.js`）。
+     * 先前這兩個欄位被寫死成 0，於是卡片一律顯示 `0.0 (0)`、與詳情頁矛盾，
+     * 而且「評分」排序與「4 星以上」篩選因為全部值相同而永遠無效。
+     */
+    rating: Number(m.average_rating ?? 0) || 0,
+    reviewCount: Number(m.review_count ?? 0) || 0,
+    // 清單 payload 沒有這個欄位；詳情頁會在 getMaterialById() 覆寫成真實值。
+    isPurchasable: true,
     coverGradient: pickGradient(m.id),
     coverImageUrl: m.cover_image_url ?? undefined,
     demoVideoUrl: m.demo_video_url ?? undefined,

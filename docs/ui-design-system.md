@@ -192,9 +192,14 @@ app  →  layout  →  domain  →  ds  →  ui
 | B6 | **Shadow 尺度失控**：`shadow-sm` 48 次、`ds` 三顆合計 14 次，另有約 20 種不同的任意 `shadow-[...]` | 全 app grep |
 | B7 | **content max-width 無共識**：token alias `max-w-wide` 僅 3 次，實際主力是 `max-w-6xl`(17)、`max-w-2xl`(14)、`max-w-7xl`(9)、`max-w-5xl`(7)，另有 `max-w-[1440px]`(5)、`max-w-[720px]`(5) 等 8 種以上任意值 | 全 app grep |
 | B8 | **page padding token 幾乎沒被用**：`px-page-*` 合計 8 次；實際是 `px-3`(86)、`px-4`(66)、`px-5`(29)、`px-6`(19) | 全 app grep |
-| B9 | **硬編碼 hex 廣泛存在**：62 個檔案含 6 位 hex（原 67，admin dashboard 三個 card component 已清零）；最集中為 `app/register/page.tsx`(52)、`app/checkout/page.tsx`(45)、`components/layout/RoleShell.tsx`(40)、`app/login/page.tsx`(39) | 全 app grep |
-| B10 | **`status.*` Tailwind token 幾乎沒被用**：2026-08-19 起 `RecentOrdersTable` 已改用 `status.pendingPayment*` / `status.approved*`，但全 app 也僅此 2 處；其餘狀態徽章仍來自 legacy Tamagui `StatusBadge` | 全 app grep |
+| B9 | **硬編碼 hex 廣泛存在**：**67 個檔案 / 694 處** 6 位 hex（分母：`app` ＋ `components` 下 166 支 `.tsx`）；最集中為 `app/register/page.tsx`(49)、`app/checkout/page.tsx`(44)、`app/login/page.tsx`(38)、`app/orders/[orderId]/payment-proof/page.tsx`(33)、`app/orders/page.tsx`(21)、`app/cart/page.tsx`(15)。**追蹤於 tracker `A11Y-01` 的相鄰 backlog；本表只記錄現況，不啟動 token migration** | 全 app grep（**2026-08-30 `DOC-01` 重新量測**）|
+| B10 | **`status.*` Tailwind token 幾乎沒被用**：2026-08-19 起 `RecentOrdersTable`（**已於 `IA-04` 更名為 `AttentionOrdersTable`；rename 保存於 commit `391ed7b`**）已改用 `status.pendingPayment*` / `status.approved*`，但全 app 也僅此 2 處；其餘狀態徽章仍來自 legacy Tamagui `StatusBadge` | 全 app grep |
 | B11 | **Token 三來源漂移**（見 §4.1） | `tokens.ts` vs `tailwind.config.ts` |
+
+> **B9 的量測沿革（`DOC-01`，2026-08-30）：** 本列先前寫「62 個檔案（原 67，admin dashboard 三個 card component 已清零）」。2026-08-30 重新實測為 **67 檔 / 694 處** —— 與「已清零」的敘述不一致。
+> 本輪**只更正為實測值，未調查差異來源**（可能是後續新頁面重新引入，也可能是原始 62 的分母不同）。
+> `components/layout/RoleShell.tsx` 現為 **5** 處（原記 40），該檔確實已大幅收斂。
+> **本輪不啟動任何 token migration**（`CLAUDE.md` §10.4：不做 broad refactor）。
 
 ### 4.4 C. Missing / Future need（**本輪不建立**）
 
@@ -417,7 +422,7 @@ Admin 與 Creator 的側欄尺寸一律讀 `components/layout/shell-constants.ts
 
 `SIDEBAR_NAV_SCROLL_CLASS` 的 `min-h-0` **不是保險**：flex item 的 `min-height` 預設是
 `auto`（＝內容高度），少了它，可捲動區不會縮小，而是把整條側欄撐出視窗外。
-詳見 `docs/mvp_rules.md` §22.1。
+詳見 `docs/mvp_rules.md` §23.1。
 
 > **[規則] 發現 `missing` 不代表要立刻建立。** 只有當「目前這個 UI 任務真的需要它、且 ≥ 3 處會用」時才建立，並在同一個 PR 更新本文件。
 

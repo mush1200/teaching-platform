@@ -2,18 +2,44 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { EmptyState, ErrorState, LoadingState, Pagination } from "@teaching-platform/ui";
 import Link from "next/link";
-import type { ActivityLog, ActivityLogsResponse } from "../../../../../lib/api-types";
+import type { ActivityLogRow, ActivityLogsListResponse } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
+import { ActivityLogCard } from "../../../../../components/admin/ActivityLogCard";
+import {
+  AccentTextLink,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  Pagination,
+} from "../../../../../components/ds";
 
 const PAGE_SIZE = 20;
 
+/**
+ * 教材的活動時間軸（IA §6 的 entity-centric 主入口之一）。
+ *
+ * ## 修正前（IA-02 criterion 4）
+ *
+ * 每一列的標題是 `{log.action ?? "unknown action"}` —— 也就是畫面上直接出現
+ * `material.changes_requested`；下面接 `角色：{log.actor_role}`，於是 `admin` /
+ * `parent` 這種 role 字面值也直接見人（違反 `docs/ui-role-naming-checklist.md`）。
+ * `meta` 完全沒有顯示，樣式停在 legacy slate / indigo。
+ *
+ * ## 現在
+ *
+ * 與全站列表、單筆詳情共用 `ActivityLogCard` 與 `describeActivity()` /
+ * `describeActivityMeta()`，樣式改用 `components/ds`。同一筆事件在哪一頁看都一樣。
+ *
+ * 資料仍來自既有的 `GET /admin/materials/:materialId/activity-logs`（scoped 路由與
+ * 全站列表共用同一個 service，因此這裡本來就拿得到 `actor_email` / `target_label`）。
+ */
 export default function AdminMaterialActivityLogsPage() {
   const params = useParams();
   const materialId = String(params.materialId ?? "").trim();
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<ActivityLog[]>([]);
+  const [items, setItems] = useState<ActivityLogRow[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -37,7 +63,7 @@ export default function AdminMaterialActivityLogsPage() {
         setError(await parseApiErrorMessage(res));
         return;
       }
-      const data = (await res.json()) as ActivityLogsResponse;
+      const data = (await res.json()) as ActivityLogsListResponse;
       const nextItems = data.items ?? [];
       setItems(nextItems);
       const total = data.pagination?.total ?? nextItems.length;
@@ -58,53 +84,80 @@ export default function AdminMaterialActivityLogsPage() {
 
   if (!materialId) {
     return (
-      <section className="mx-auto w-full max-w-6xl px-4 py-6">
-        <p className="text-sm text-slate-600">缺少教材 ID。</p>
+      <section className="flex w-full flex-col gap-4">
+        <PageHeader title="教材活動紀錄" />
+        <EmptyState title="缺少教材 ID" description="這個網址沒有帶到教材編號，請從教材列表進入。" />
       </section>
     );
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">教材活動紀錄</h1>
-      <p className="text-sm text-slate-600">目標類型為 material、目標 ID 為此教材的紀錄（分頁由後端回傳）。</p>
-      <div className="flex flex-wrap gap-3 text-sm">
-        <Link href="/admin/materials">
-          <span className="font-medium text-indigo-600 underline">← 返回教材列表</span>
-        </Link>
-        <Link href={`/admin/materials/${encodeURIComponent(materialId)}/reports`}>
-          <span className="font-medium text-indigo-600 underline">此教材的檢舉</span>
-        </Link>
-      </div>
+    <section className="flex w-full flex-col gap-4">
+      <PageHeader
+        title="教材活動紀錄"
+        description="這份教材身上發生過的所有操作，由新到舊。"
+        breadcrumb={
+          <div className="flex flex-wrap items-center gap-4">
+            <AccentTextLink href="/admin/materials" className="text-sm">
+              ← 返回教材審核
+            </AccentTextLink>
+            <AccentTextLink
+              href={`/admin/materials/${encodeURIComponent(materialId)}/reports`}
+              className="text-sm"
+            >
+              此教材的檢舉
+            </AccentTextLink>
+          </div>
+        }
+      />
 
       {loading ? <LoadingState title="載入紀錄中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
       {!loading && !error && items.length === 0 ? (
-        <EmptyState title="沒有活動紀錄" description="此教材尚無相關活動紀錄。" />
+        <EmptyState title="沒有活動紀錄" description="這份教材還沒有任何操作紀錄。" />
       ) : null}
 
       {!loading && !error && items.length > 0 ? (
         <div className="space-y-3">
-          <Pagination page={page} totalPages={totalPages} totalItems={totalItems} onPageChange={setPage} />
           {items.map((log) => (
-            <article key={log.id} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <Link href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}>
-                <span className="text-sm font-semibold text-indigo-600 underline">{log.action ?? "unknown action"}</span>
-              </Link>
-              <p className="text-xs text-slate-500">紀錄 ID：{log.id}</p>
-              {log.actor_id ? (
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-slate-500">操作者：</span>
-                  <Link href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}>
-                    <span className="font-medium text-indigo-600 underline">{log.actor_id}</span>
-                  </Link>
-                </div>
-              ) : null}
-              {log.actor_role ? <p className="text-xs text-slate-500">角色：{log.actor_role}</p> : null}
-            </article>
+            <ActivityLogCard key={log.id} log={log} links={<EntryLinks log={log} />} />
           ))}
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageChange={setPage}
+            className="pt-2"
+          />
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * 每一列的導航。這一頁本身就是對象的時間軸，所以**不**再指回自己 ——
+ * 只留「這個人做過什麼」與單筆詳情，兩者都是既有入口，不新增任何 route。
+ */
+function EntryLinks({ log }: { log: ActivityLogRow }) {
+  return (
+    <>
+      {log.actor_id ? (
+        <Link
+          href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
+          className="font-medium text-edu-primary underline"
+        >
+          此操作者紀錄
+        </Link>
+      ) : null}
+      <Link
+        href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
+        className="font-medium text-edu-primary underline"
+      >
+        單筆詳情
+      </Link>
+    </>
   );
 }

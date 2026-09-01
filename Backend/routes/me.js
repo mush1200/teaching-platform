@@ -2,10 +2,26 @@ const express = require("express");
 const db = require("../config/db");
 const { requireAuth } = require("../middlewares/auth");
 const reviewService = require("../services/review.service");
+const buyerOrders = require("../services/buyerOrders.service");
 
 const router = express.Router();
 
-/** GET /me/materials — 已購買且訂單已核准之教材（我的教材庫） */
+/**
+ * GET /me/materials — 已購買且訂單已核准之教材（我的教材庫）
+ *
+ * **列表保留「曾經買過」的事實，但明確標示「現在是否可用」**（P1-09 Gate 14）。
+ *
+ * `entitlementStatus` 為該買家對這份教材目前**最有利**的授權狀態
+ * （同一份教材可能有多筆訂單品項；只要有一筆 `active` 就代表現在可用）。
+ *
+ * **刻意不過濾掉非 active 的教材** —— 授權被暫停不代表購買事實消失，
+ * 讓它從列表無聲蒸發會讓買家失去「我買過這個」的可見性。
+ * 真正的門在下載授權（`materialFile.service.hasPurchaseEntitlement`），
+ * 那裡已經會擋下非 `active` 的存取。
+ *
+ * UI 如何呈現非 active 的項目（灰階／標示／隱藏）是產品決策，屬後續 wave；
+ * 後端先誠實提供狀態。
+ */
 router.get("/materials", requireAuth, async (req, res) => {
   try {
     const result = await db.query(
@@ -15,7 +31,8 @@ router.get("/materials", requireAuth, async (req, res) => {
          MAX(m.cover_image_url) AS cover_image_url,
          MAX(m.updated_at) AS material_updated_at,
          MIN(o.created_at) AS purchased_at,
-         MAX(NULLIF(TRIM(SPLIT_PART(COALESCE(u.email, ''), '@', 1)), '')) AS author_name
+         MAX(NULLIF(TRIM(SPLIT_PART(COALESCE(u.email, ''), '@', 1)), '')) AS author_name,
+         BOOL_OR(oi.entitlement_status = 'active') AS has_active_entitlement
        FROM order_items oi
        INNER JOIN orders o ON o.id = oi.order_id AND o.status = 'approved'
        INNER JOIN materials m ON m.id = oi.material_id
@@ -32,6 +49,8 @@ router.get("/materials", requireAuth, async (req, res) => {
       materialUpdatedAt: row.material_updated_at,
       purchasedAt: row.purchased_at,
       authorName: row.author_name || null,
+      // 目前是否仍可取得平台交付。false 代表已被暫停或撤銷 —— 下載會被拒絕。
+      entitlementActive: row.has_active_entitlement === true,
     }));
     return res.json({ items });
   } catch (err) {
@@ -40,55 +59,16 @@ router.get("/materials", requireAuth, async (req, res) => {
   }
 });
 
-/** GET /me/orders — alias of /orders/my */
+/**
+ * GET /me/orders — alias of /orders/my。
+ *
+ * `order_progress_state`（含 latest-proof 語意）由 `services/buyerOrders.service.js`
+ * 定義；detail 走同一份 SQL，列表與詳情不會再各自演化出不同答案。
+ */
 router.get("/orders", requireAuth, async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT o.id, o.user_id, o.status, o.payment_mode, o.total_amount, o.total_price,
-              o.promo_code, o.discount_amount, o.invoice_type, o.invoice_carrier,
-              o.paid_at, o.cancelled_at, o.created_at, o.updated_at,
-              COALESCE(
-                (SELECT COUNT(*)::int FROM manual_payment_proofs m
-                 WHERE m.order_id = o.id AND m.review_status = 'pending'),
-                0
-              ) AS payment_proof_pending_review_count,
-              COALESCE(
-                (SELECT COUNT(*)::int FROM manual_payment_proofs m
-                 WHERE m.order_id = o.id),
-                0
-              ) AS payment_proof_uploaded_count,
-              (SELECT m.review_status
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id
-               ORDER BY COALESCE(m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_latest_status,
-              (SELECT COALESCE(m.uploaded_at, m.created_at)
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id
-               ORDER BY COALESCE(m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_latest_uploaded_at,
-              CASE
-                WHEN o.status = 'approved' THEN 'approved'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id AND m.review_status = 'rejected'
-                ) THEN 'rejected'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id AND m.review_status = 'pending'
-                ) THEN 'reviewing'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id
-                ) THEN 'proof_uploaded'
-                ELSE 'pending'
-              END AS order_progress_state
-       FROM orders o
-       WHERE o.user_id = $1
-       ORDER BY o.created_at DESC`,
-      [req.user.userId]
-    );
-    return res.json({ items: result.rows });
+    const items = await buyerOrders.listBuyerOrders(req.user.userId);
+    return res.json({ items });
   } catch (err) {
     console.error("list /me/orders failed:", err);
     return res.status(500).json({ message: "server error" });
@@ -99,70 +79,9 @@ router.get("/orders", requireAuth, async (req, res) => {
 router.get("/orders/:orderId", requireAuth, async (req, res) => {
   try {
     const orderId = String(req.params.orderId);
-    const orderResult = await db.query(
-      `SELECT o.id, o.user_id, o.status, o.payment_mode, o.total_amount, o.total_price,
-              o.promo_code, o.discount_amount, o.invoice_type, o.invoice_carrier,
-              o.paid_at, o.cancelled_at, o.created_at, o.updated_at,
-              COALESCE(
-                (SELECT COUNT(*)::int FROM manual_payment_proofs m
-                 WHERE m.order_id = o.id AND m.review_status = 'pending'),
-                0
-              ) AS payment_proof_pending_review_count,
-              COALESCE(
-                (SELECT COUNT(*)::int FROM manual_payment_proofs m
-                 WHERE m.order_id = o.id),
-                0
-              ) AS payment_proof_uploaded_count,
-              (SELECT m.review_status
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id
-               ORDER BY COALESCE(m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_latest_status,
-              (SELECT m.note
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id AND m.review_status = 'rejected'
-               ORDER BY COALESCE(m.reviewed_at, m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_rejected_note,
-              -- 結構化的退件原因 code（見 utils/paymentProofReview.js）。
-              -- note 欄位是自由文字補充；買家 UI 以 code 決定主要文案，note 作為附註。
-              (SELECT m.rejection_reason
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id AND m.review_status = 'rejected'
-               ORDER BY COALESCE(m.reviewed_at, m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_rejected_reason,
-              (SELECT COALESCE(m.uploaded_at, m.created_at)
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id
-               ORDER BY COALESCE(m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_latest_uploaded_at,
-              (SELECT m.reviewed_at
-               FROM manual_payment_proofs m
-               WHERE m.order_id = o.id
-               ORDER BY COALESCE(m.reviewed_at, m.uploaded_at, m.created_at) DESC, m.id DESC
-               LIMIT 1) AS payment_proof_latest_reviewed_at,
-              CASE
-                WHEN o.status = 'approved' THEN 'approved'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id AND m.review_status = 'rejected'
-                ) THEN 'rejected'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id AND m.review_status = 'pending'
-                ) THEN 'reviewing'
-                WHEN EXISTS (
-                  SELECT 1 FROM manual_payment_proofs m
-                  WHERE m.order_id = o.id
-                ) THEN 'proof_uploaded'
-                ELSE 'pending'
-              END AS order_progress_state
-       FROM orders o
-       WHERE o.id = $1
-       LIMIT 1`,
-      [orderId]
-    );
-    if (orderResult.rows.length === 0) return res.status(404).json({ message: "order not found" });
-    if (String(orderResult.rows[0].user_id) !== String(req.user.userId)) {
+    const order = await buyerOrders.getBuyerOrder(orderId);
+    if (!order) return res.status(404).json({ message: "order not found" });
+    if (String(order.user_id) !== String(req.user.userId)) {
       return res.status(403).json({ message: "forbidden" });
     }
     const itemsResult = await db.query(
@@ -174,7 +93,7 @@ router.get("/orders/:orderId", requireAuth, async (req, res) => {
        ORDER BY created_at ASC, id ASC`,
       [orderId]
     );
-    return res.json({ order: orderResult.rows[0], items: itemsResult.rows });
+    return res.json({ order, items: itemsResult.rows });
   } catch (err) {
     console.error("get /me/orders/:orderId failed:", err);
     return res.status(500).json({ message: "server error" });

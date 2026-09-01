@@ -13,8 +13,20 @@
 # testing
 /coverage
 
+# playwright
+# `playwright.config.ts` 就在這一層，未設定 outputDir，因此預設值解析到這裡。
+# `/test-results/`：預設 outputDir（測試失敗時寫入 error-context.md 等產物）。
+# `/playwright-report/`：`--reporter=html` 的輸出（config 預設只有 list reporter，
+# 但這個目錄實際存在於磁碟，任何一次 `--reporter=html` 都會重新填滿它）。
+# 前置 `/` 讓規則只匹配 app 根目錄，不會誤傷 tests/ 底下的任何同名資料夾或 snapshot。
+/test-results/
+/playwright-report/
+
 # next.js
 /.next/
+# 隔離的驗收建置產物（NEXT_DIST_DIR，見 next.config.ts）。
+# 有另一個 session 的 dev server 正在用 /.next/ 時，驗收用的 build 會寫到這裡。
+/.next-*/
 /out/
 
 # production

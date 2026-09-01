@@ -96,7 +96,7 @@ export function ParentHomePage() {
         ) : null}
 
         {!loading && topRated.length > 0 ? (
-          <Section title="高回饋" icon="⭐" subtitle="家長與老師教學回饋最高的教材" actionLabel="查看更多教材 >">
+          <Section title="高回饋" icon="⭐" subtitle="教學回饋評價最高的教材" actionLabel="查看更多教材 >">
             <MaterialGrid materials={topRated} trackRecent />
           </Section>
         ) : null}

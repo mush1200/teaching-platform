@@ -1,5 +1,4 @@
 const express = require("express");
-const db = require("../config/db");
 const { requireAuth, requireRole } = require("../middlewares/auth");
 const { parsePagination, optionalString } = require("../utils/adminQuery");
 const activityLogsService = require("../services/adminActivityLogs.service");
@@ -16,28 +15,16 @@ router.use(requireAuth, requireRole("admin"));
  * scoped 頁面沒有」這種分歧。
  */
 
-function serializeRow(row) {
-  const created =
-    row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at;
-  return {
-    id: String(row.id),
-    actor_id: row.actor_id,
-    actor_role: row.actor_role,
-    action: row.action,
-    target_type: row.target_type,
-    target_id: row.target_id,
-    meta: row.meta && typeof row.meta === "object" ? row.meta : {},
-    created_at: created,
-  };
-}
-
 /**
  * GET /admin/activity-logs
  *
  * Query：
  *   `q`            —— 人類可讀搜尋（操作者 email / 教材標題 / 訂單編號 / 對象 email / action）
  *   `from` / `to`  —— YYYY-MM-DD，含當日
- *   `actor_id` / `actor_role` / `action` / `target_type` / `target_id` —— 精確比對（既有契約）
+ *   `actor_id` / `actor_role` / `target_type` / `target_id` —— 精確比對（既有契約）
+ *   `action`       —— 精確比對；**單值或逗號分隔多值**（`a` 或 `a,b,c`）。
+ *                     單值語意與舊契約完全相同；多值供 Dashboard「需要注意的活動」
+ *                     一次取一組 action 的 latest-N（解析見 service 的 `parseActionFilter`）
  *   `page` / `limit`
  */
 router.get("/activity-logs", async (req, res) => {
@@ -80,23 +67,23 @@ router.get("/activity-logs/filters", async (_req, res) => {
   }
 });
 
-/** GET /admin/activity-logs/:id — matches list item `id`（BIGSERIAL、UUID、TEXT PK 皆以字串對齊） */
+/**
+ * GET /admin/activity-logs/:id — matches list item `id`。
+ * canonical 為 TEXT UUID（`SCHEMA-01`）；一律以字串對齊，因此 BIGSERIAL 的舊環境也相容。
+ *
+ * 與清單**同一個 enriched 形狀**（含 `actor_email` / `target_label` /
+ * `order_buyer_email`）。這是 additive 的：既有欄位一個都沒有改名或移除。
+ *
+ * 為什麼要一致：詳情頁與清單頁用同一個顯示層 formatter（`lib/admin-labels`
+ * 的 `describeActivity()`），少了這幾個欄位，同一筆事件在詳情頁只會剩下 uuid。
+ */
 router.get("/activity-logs/:id", async (req, res) => {
   try {
-    const raw = String(req.params.id || "").trim();
-    if (!raw) {
+    const row = await activityLogsService.getLogById(req.params.id);
+    if (!row) {
       return res.status(404).json({ message: "activity log not found" });
     }
-    // 勿僅允許數字：部分環境 activity_logs.id 為 UUID / TEXT；統一用 id::text 比對
-    const result = await db.query(
-      `SELECT id, actor_id, actor_role, action, target_type, target_id, meta, created_at
-       FROM activity_logs WHERE id::text = $1`,
-      [raw]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "activity log not found" });
-    }
-    return res.json(serializeRow(result.rows[0]));
+    return res.json(row);
   } catch (err) {
     console.error("admin get activity log failed:", err);
     return res.status(500).json({ message: "server error" });

@@ -33,6 +33,17 @@ export type ListQueryConfig = {
   defaultPageSize?: number;
   /** filter 參數名稱，預設 `status`。 */
   filterKey?: string;
+  /**
+   * 換篩選／換搜尋時要一併從 URL 移除的其他參數。
+   *
+   * 用於「屬於這個清單、但不由本 hook 管理」的 URL state —— 例如檢舉管理的
+   * `?case=<id>`（目前選取的案件）。換了條件之後，原本選取的那一筆通常已經不在
+   * 結果集裡，留著它會讓窄螢幕停在一個看不到清單的畫面上。
+   *
+   * 放在這裡而不是讓呼叫端自己再 `router.replace` 一次：兩次 replace 會各自從
+   * **同一份**舊的 searchParams 出發，後者會蓋掉前者。
+   */
+  resetParams?: readonly string[];
 };
 
 export type ListQueryState = {
@@ -92,14 +103,17 @@ export function useListQueryState(basePath: string, config: ListQueryConfig): Li
     [router, searchParams, basePath, filterKey, config.defaultFilter, defaultPageSize]
   );
 
+  const resetParams = config.resetParams;
+
   const setFilter = useCallback(
     (next: string) => {
       push((params) => {
         params.set(filterKey, next);
         params.delete("page"); // 換篩選必須回到第 1 頁
+        for (const key of resetParams ?? []) params.delete(key);
       });
     },
-    [push, filterKey]
+    [push, filterKey, resetParams]
   );
 
   const setSearch = useCallback(
@@ -108,9 +122,10 @@ export function useListQueryState(basePath: string, config: ListQueryConfig): Li
         if (next) params.set("q", next);
         else params.delete("q");
         params.delete("page"); // 換搜尋必須回到第 1 頁
+        for (const key of resetParams ?? []) params.delete(key);
       });
     },
-    [push]
+    [push, resetParams]
   );
 
   const setPage = useCallback(

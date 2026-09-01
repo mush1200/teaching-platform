@@ -129,7 +129,8 @@ This mapping defines how semantic tokens (`intent`, `level`, `status`, `feedback
 
 | UI Element | Intent | Notes |
 | --- | --- | --- |
-| `標記已處理` | `action` | Admin moderation operation |
+| `開始調查` / `要求創作者說明` / `完成處置` | `action` | 檢舉案件流程的動作（`/admin/reports`）；按鈕可見性由後端 `allowedTransitions` 決定 |
+| ~~`標記已處理`~~ | — | **已移除**（legacy `reviewed` 的產品入口）。見 `docs/admin-information-architecture.md` §9.1 |
 
 ### Card Level
 

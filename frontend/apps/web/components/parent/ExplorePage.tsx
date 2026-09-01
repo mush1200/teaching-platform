@@ -137,7 +137,7 @@ export function ExplorePage() {
             <button
               type="button"
               onClick={() => setShowAdvancedFilters(true)}
-              className="h-[42px] rounded-xl border border-[#E5E7EB] bg-white px-4 text-sm font-semibold text-[#374151] shadow-sm transition-colors hover:bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+              className="h-[42px] rounded-xl border border-[#E5E7EB] bg-white px-4 text-sm font-semibold text-[#374151] shadow-sm transition-colors hover:bg-[#F9FAFB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               篩選
             </button>

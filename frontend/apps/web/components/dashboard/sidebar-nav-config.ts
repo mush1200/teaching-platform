@@ -1,10 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Bell,
   BookOpen,
   Heart,
   Home,
   LogOut,
+  MessageSquareWarning,
   Package,
   Search,
   ShoppingCart,
@@ -72,7 +72,27 @@ export const SIDEBAR_NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "其他",
     items: [
-      { id: "notifications", href: "#notifications", label: "通知設定", icon: Bell },
+      /*
+       * **全域申訴入口**（`BUY-02` / `DEC-LEGAL-09`，2026-08-27）。
+       *
+       * 在此之前，申訴功能**只能**從某一張訂單的詳情頁進入 —— 但平台在多處
+       * （結帳失敗、帳號凍結回應）告訴使用者「請聯繫客服」，而那個管道並不存在。
+       * 帳號被凍結的人尤其需要一個不必先找到訂單的入口。
+       *
+       * 這裡刻意**放在既有的「其他」次要區塊**，而不是新建 Footer 或客服中心：
+       * 買家外殼已經有這個層級，塞進主要功能只會稀釋購買動線。
+       * 訂單詳情頁的 contextual CTA **保留不動** —— 它會帶 `orderId`，
+       * 是這個全域入口做不到的事（`DEC-LEGAL-09` 明訂兩者並存）。
+       *
+       * 文案用「申訴與消費爭議」而不是「客服」：平台**沒有**客服系統，
+       * 有的是消費申訴案件流程。
+       */
+      {
+        id: "complaints",
+        href: "/me/complaints",
+        label: "申訴與消費爭議",
+        icon: MessageSquareWarning,
+      },
       { id: "logout", label: "登出", icon: LogOut, action: "logout" },
     ],
   },

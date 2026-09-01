@@ -100,6 +100,25 @@ function serializeRow(row) {
 }
 
 /**
+ * `action` query → action 陣列，或 `null`（不篩選）。
+ *
+ * 接受單值（`order_created`）與逗號分隔多值（`order_created,report_created`）。
+ * 空片段（`a,,b`、結尾逗號）一律丟棄，重複值去重 —— 這些都只影響 SQL 的
+ * 冗餘，不影響結果集，但留著會讓 query plan 與除錯輸出變髒。
+ * 整串都是空白時視為未提供，**不得**變成 `= ANY('{}')`（那會回空集合，
+ * 也就是把「沒有篩選」靜默地變成「篩掉全部」）。
+ */
+function parseActionFilter(raw) {
+  if (raw == null) return null;
+  const values = String(raw)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (values.length === 0) return null;
+  return [...new Set(values)];
+}
+
+/**
  * @param {object} filters actor_id / actor_role / action / target_type / target_id / q / from / to
  * @param {{ page?: number, limit?: number }} pageQuery
  */
@@ -119,9 +138,29 @@ async function listLogs(filters = {}, pageQuery = {}) {
 
   addEq("l.actor_id", filters.actor_id);
   addEq("l.actor_role", filters.actor_role);
-  addEq("l.action", filters.action);
   addEq("l.target_type", filters.target_type);
   addEq("l.target_id", filters.target_id);
+
+  /*
+   * `action` 是**唯一**接受多值的精確比對欄位。
+   *
+   * 單值語意完全不變（`ANY(ARRAY['x'])` ≡ `= 'x'`），既有 caller
+   * （`/admin/activity-logs?action=order_created`、scoped 路由、Postman）行為不動；
+   * 逗號分隔則讓「一次要一組 action」成為 API 能表達的東西。
+   *
+   * 為什麼需要它：Dashboard 的「需要注意的活動」是一組 action 的 latest-N。
+   * 若改成「抓一大頁回前端再自己 filter」，當高頻事件（加入購物車、下載）
+   * 塞滿那一頁時，widget 會顯示「尚無」——但平台上其實有更早的異常事件。
+   * 那是**靜默漏顯示**，不是效能取捨，所以過濾必須發生在有完整資料的這一層。
+   *
+   * 一律走 parameterized array，不做字串拼接。
+   */
+  const actions = parseActionFilter(filters.action);
+  if (actions) {
+    conditions.push(`l.action = ANY($${i}::text[])`);
+    params.push(actions);
+    i += 1;
+  }
 
   if (filters.q) {
     conditions.push(`(
@@ -161,7 +200,7 @@ async function listLogs(filters = {}, pageQuery = {}) {
     `SELECT ${ENRICHED_SELECT}
      ${ENRICHED_FROM}
      ${whereSql}
-     ORDER BY l.created_at DESC, l.id DESC
+     ORDER BY l.created_at DESC, l.id DESC -- id 是 UUID，僅作 deterministic tie-breaker
      LIMIT $${i} OFFSET $${i + 1}`,
     [...params, pagination.limit, pagination.offset]
   );
@@ -171,6 +210,33 @@ async function listLogs(filters = {}, pageQuery = {}) {
     // `totalPages` 是新增欄位；舊版只有 `{ page, limit, total }`，前端已有 fallback。
     pagination: buildPaginationMeta(pagination, total),
   };
+}
+
+/**
+ * 單筆紀錄（`GET /admin/activity-logs/:id`）。
+ *
+ * 與清單共用 `ENRICHED_SELECT` / `serializeRow`。
+ *
+ * 這支端點原本在 route 層自己寫了一段 plain `SELECT` 加一份 local `serializeRow`，
+ * 於是同一筆事件在清單有 `actor_email` / `target_label`、在詳情頁沒有 —— 詳情頁
+ * 因此只能顯示 `actor_id` 與 `target_id` 兩個 uuid，正是「必須先知道內部 id 才看得懂」
+ * 的那個問題。共用之後兩邊的形狀一致，UI 的 `describeActivity()` 在哪裡都組得出同一句話。
+ *
+ * `id` 一律以 `id::text` 比對：canonical schema 為 TEXT UUID（2026-08-26 `SCHEMA-01`），
+ * 而 2026-08-26 之前由新版 bootstrap 建立的環境可能是 BIGSERIAL —— 字串比對兩者皆可。
+ *
+ * @returns 序列化後的紀錄，查無則 `null`（由 route 決定回 404）。
+ */
+async function getLogById(id) {
+  const raw = String(id ?? "").trim();
+  if (!raw) return null;
+  const result = await db.query(
+    `SELECT ${ENRICHED_SELECT}
+     ${ENRICHED_FROM}
+     WHERE l.id::text = $1`,
+    [raw]
+  );
+  return result.rows.length > 0 ? serializeRow(result.rows[0]) : null;
 }
 
 /** ISO 日期（YYYY-MM-DD）；其他格式一律當成未提供，不要把垃圾丟進 `::date` cast。 */
@@ -183,6 +249,8 @@ function parseIsoDate(raw) {
 
 module.exports = {
   listLogs,
+  getLogById,
+  parseActionFilter,
   listDistinctActions,
   listDistinctActorRoles,
   parseIsoDate,

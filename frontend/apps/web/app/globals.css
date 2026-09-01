@@ -107,10 +107,25 @@ html {
   height: 100%;
 }
 
+/*
+ * 橫向溢出的防護 —— 用 `clip` 而不是 `hidden`。
+ *
+ * CSS 規範：`overflow-x: hidden` 搭配 `overflow-y: visible` 時，`overflow-y` 會被
+ * **計算成 `auto`**。那讓 `<body>` 變成一個 scroll container，而實際捲動發生在
+ * `<html>` 上 —— 於是每一個 `position: sticky` 元素的「最近可捲動祖先」都是一個
+ * 永遠不捲動的 body，結果是**全站 sticky 通通失效**：實測捲動 700px 後，
+ * 教材詳情頁的購買面板與兩層 header 都跟著位移 700px（y: 0/64/141 → -700/-636/-559）。
+ *
+ * `overflow-x: clip` 是為這個情境設計的值：一樣裁掉橫向溢出，但**不會**把另一軸
+ * 變成 `auto`，也不會建立 scroll container，因此 sticky 的 containing block 維持不變。
+ *
+ * 保留這道防護而不是直接刪掉：它擋的是個別頁面的橫向溢出，移除會讓那些頁面
+ * 出現整頁橫向捲軸。修的是「用錯值」，不是「不該防」。
+ */
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {

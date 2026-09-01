@@ -1,26 +1,61 @@
+/**
+ * 三步驟輔助流程的目前位置。
+ *
+ * **優先讀 `order_progress_state`**（Backend 的 canonical 買家進度，定義見
+ * `Backend/services/buyerOrders.service.js`）。舊版只有 `orders.status` ＋ pending 憑證數：
+ * 憑證 A 待審、較新的憑證 B 被退回時，`pendingReviews` 仍為真，stepper 會停在
+ * 「審核中」，但同一張卡片的徽章已經是「審核未通過」（`COR-01`）。
+ *
+ * `status` 保留為 fallback：後端沒回進度欄位時（舊 payload）行為不變。
+ */
 export function mapOrderStatusToFlow(
   status: string,
   paymentProofPendingReviewCount = 0,
+  progressState = "",
 ): {
   activeStep: 1 | 2 | 3;
   complete: boolean;
   message: string;
 } {
   const s = status.toLowerCase();
+  const p = progressState.toLowerCase();
   const pendingReviews = paymentProofPendingReviewCount > 0;
 
-  if (s === "approved" || s === "completed" || s === "paid") {
+  if (p === "approved" || s === "approved" || s === "completed" || s === "paid") {
     return {
       activeStep: 3,
       complete: true,
       message: "訂單已完成。",
     };
   }
-  if (s === "rejected") {
+  // 已取消是終態，沒有下一步可走（`COR-03`）。少了這一條會落到最後的通用分支
+  // 而說「訂單處理中」，與徽章的「已取消」互相矛盾。
+  if (p === "cancelled") {
     return {
       activeStep: 1,
       complete: false,
-      message: "請重新上傳付款憑證，或聯絡客服協助。",
+      message: "訂單已取消。",
+    };
+  }
+  if (p === "rejected") {
+    return {
+      activeStep: 1,
+      complete: false,
+      message: "付款憑證未通過，請重新上傳付款憑證。",
+    };
+  }
+  if (p === "reviewing" || p === "proof_uploaded") {
+    return {
+      activeStep: 2,
+      complete: false,
+      message: "已送出憑證，審核完成後即可開通（約 1～2 個工作天）。",
+    };
+  }
+  if (p === "pending") {
+    return {
+      activeStep: 1,
+      complete: false,
+      message: "請完成轉帳並上傳付款憑證。",
     };
   }
   if (s === "pending_payment" && pendingReviews) {
@@ -46,6 +81,8 @@ export function mapOrderStatusToFlow(
 
 type Props = {
   status: string;
+  /** Backend 的 `order_progress_state`；有值時優先於 `status`。 */
+  progressState?: string;
   paymentProofPendingReviewCount?: number;
   className?: string;
 };
@@ -53,8 +90,8 @@ type Props = {
 const STEP_LABELS = ["待付款", "審核中", "已完成"] as const;
 
 /** 輔助流程：總寬約 320–360px、短連線、節點與 label 格線對齊 */
-export function OrderFlowMini({ status, paymentProofPendingReviewCount = 0, className = "" }: Props) {
-  const { activeStep, complete, message } = mapOrderStatusToFlow(status, paymentProofPendingReviewCount);
+export function OrderFlowMini({ status, progressState = "", paymentProofPendingReviewCount = 0, className = "" }: Props) {
+  const { activeStep, complete, message } = mapOrderStatusToFlow(status, paymentProofPendingReviewCount, progressState);
   const segAfter1 = complete || activeStep >= 2;
   const segAfter2 = complete || activeStep >= 3;
 

@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { apiFetch, getStoredToken } from "../../lib/api-client";
 import type { OrdersListResponse } from "../../lib/api-types";
 import { getCartItems } from "../../lib/api-repository";
-import { FloatingHelpButton } from "./FloatingHelpButton";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_EXPANDED } from "./sidebar-constants";
@@ -49,7 +48,8 @@ export function ParentAppShell({ children, cartBadge = 0, ordersBadge = 0 }: Pro
       return;
     }
     try {
-      const res = await apiFetch("orders/my");
+      // Buyer 外殼的 session 探測（`DX-04` 的 opt-in 點）—— 理由同 `RoleShell`。
+      const res = await apiFetch("orders/my", undefined, { authExpiry: "recover" });
       if (!res.ok) {
         setLiveOrdersBadge(0);
         return;
@@ -130,8 +130,6 @@ export function ParentAppShell({ children, cartBadge = 0, ordersBadge = 0 }: Pro
         </Suspense>
         <main className="flex-1 px-4 pb-3 pt-1.5 sm:px-6 md:px-8 md:pb-4 md:pt-2">{children}</main>
       </div>
-
-      <FloatingHelpButton />
     </div>
   );
 }

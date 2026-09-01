@@ -103,7 +103,7 @@ export default function CartPage() {
       <div className="lg:hidden [&>header]:bg-transparent [&>header]:backdrop-blur-0 [&>header]:border-[#E5E7EB]/40">
         <MobileHeader title="購物車" leading="none" right="none" />
       </div>
-      <main className="mx-auto max-w-6xl px-4 pb-12 pt-0 sm:px-6 lg:pt-0">
+      <div className="mx-auto max-w-6xl px-4 pb-12 pt-0 sm:px-6 lg:pt-0">
         <h1 className="mb-1 hidden text-[22px] font-semibold tracking-tight text-[#111827] lg:block">{desktopTitle}</h1>
         {loading ? <p className="py-10 text-center text-sm text-[#6B7280]">載入中…</p> : null}
         {!loading && items.length === 0 ? (
@@ -141,7 +141,7 @@ export default function CartPage() {
             </aside>
           </div>
         ) : null}
-      </main>
+      </div>
 
       {!loading && items.length > 0 ? (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E5E7EB]/90 bg-white/95 px-4 py-4 shadow-[0_-8px_30px_rgba(15,23,42,0.06)] backdrop-blur lg:hidden">

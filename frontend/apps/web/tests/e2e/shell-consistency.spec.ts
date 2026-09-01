@@ -45,25 +45,101 @@ const ROLES = [
   { role: "teacher" as const, route: "/creator/materials", sidebar: "creator-sidebar-desktop" },
 ];
 
+type BoundingBox = NonNullable<Awaited<ReturnType<Locator["boundingBox"]>>>;
+
 /**
  * `boundingBox()` **不會**自動等待：元素還沒 attach 或還是 `display:none` 時它直接回 null。
  *
  * Dev server 慢到讓 `page.goto()` 回來時畫面早就穩定了，所以這個缺口沒有顯現；
  * production build 快到 `goto` 解析時 React 還沒接手，於是同一段程式碼開始間歇失敗。
  * 先等元素可見再量，量到的才是真的版面。
+ *
+ * ## 為什麼 poll 必須「順手把值帶出來」（`DX-06`）
+ *
+ * 這裡原本是三次**各自獨立**的量測：`toBeVisible()` → `expect.poll(box !== null)` →
+ * 再呼叫一次 `boundingBox()` 當結果。poll 只證明「**某一個瞬間**量得到」，
+ * 而最後那一次是全新的 evaluation：locator 會重新解析節點，只要 hydration／
+ * client render 在這兩次讀取之間把節點換掉，第三次就回 `null` ——
+ * 於是整套並行執行時間歇倒在 `element has no bounding box`，單獨重跑卻必過。
+ *
+ * 修法是讓「等到量得到」與「取得最終結果」變成**同一次讀取**：poll 的 callback 把
+ * 量到的 box 存下來，成功那一次的值就是回傳值，**poll 之後不再讀第二次**。
+ * 這不是放寬斷言 —— 回傳的仍是一次真實、完整的 layout box，
+ * 呼叫端的寬度／位移斷言精度完全不變。
  */
-async function boxOf(locator: Locator) {
+async function boxOf(locator: Locator): Promise<BoundingBox> {
   await expect(locator).toBeVisible();
-  /*
-   * 就算剛確認過可見，`boundingBox()` 仍可能回 null：頁面載入後的第一次 client render
-   * 會把節點換掉（Admin dashboard 的非同步區塊尤其明顯），量測正好落在中間就撲空。
-   * 這裡輪詢到真的量得到為止，而不是把偶發的 null 當成版面錯誤。
-   */
-  await expect.poll(async () => (await locator.boundingBox()) !== null).toBe(true);
-  const box = await locator.boundingBox();
+  // 用 holder 而不是 `let`：值在 poll 的 callback 裡寫入，回傳的就是成功那一次量到的 box。
+  const measured: { box: BoundingBox | null } = { box: null };
+  await expect
+    .poll(async () => {
+      measured.box = await locator.boundingBox();
+      return measured.box !== null;
+    })
+    .toBe(true);
+  const box = measured.box;
   if (!box) throw new Error("element has no bounding box");
   return box;
 }
+
+/**
+ * Main landmark 的唯一性（`COR-06`）。
+ *
+ * HTML 規範只允許一份文件有一個非 hidden 的 `main`。先前外殼與頁面**各**渲染一個，
+ * 於是每個非 Admin 路由都有兩個巢狀 main —— 螢幕閱讀器的 landmark 導覽看到重複目標，
+ * 而測試必須靠 `.first()` 才選得到，等於用弱化 selector 蓋掉產品缺陷。
+ *
+ * 這一組**刻意用 `toHaveCount(1)` 而不是 `toBeVisible()`**：
+ * 後者在 `.first()` 之下即使有兩個也會過，鎖不住這條契約。
+ *
+ * 兩個 viewport 都跑：landmark 語意與寬度無關，而 mobile 走的是 drawer 版外殼。
+ */
+test.describe("Accessibility — exactly one main landmark", () => {
+  const PUBLIC_ROUTES = ["/", "/materials", "/materials/mat_mock_001", "/materials/mat_mock_001/reviews", "/403"];
+  // Auth 頁刻意不渲染側欄外殼，但仍必須有 landmark —— 先前這兩條是 **0 個** main。
+  const AUTH_ROUTES = ["/login", "/register"];
+  const BUYER_ROUTES = ["/cart", "/checkout", "/orders", "/me/orders", "/my-reviews", "/downloads"];
+  const CREATOR_ROUTES = ["/creator/materials", "/creator/sales"];
+  const ADMIN_ROUTES = ["/admin", "/admin/materials", "/admin/orders", "/admin/settings"];
+
+  async function expectSingleMain(page: import("@playwright/test").Page, route: string) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("main"), `${route} must have exactly one main landmark`).toHaveCount(1);
+  }
+
+  for (const route of [...PUBLIC_ROUTES, ...AUTH_ROUTES]) {
+    test(`anonymous ${route} has exactly one main`, async ({ page }) => {
+      await stubApi(page);
+      await expectSingleMain(page, route);
+    });
+  }
+
+  for (const route of BUYER_ROUTES) {
+    test(`buyer ${route} has exactly one main`, async ({ page }) => {
+      await signInAs(page, "parent", { email: "parent-e2e@example.com" });
+      await stubApi(page);
+      await expectSingleMain(page, route);
+    });
+  }
+
+  for (const route of CREATOR_ROUTES) {
+    test(`creator ${route} has exactly one main`, async ({ page }) => {
+      await signInAs(page, "teacher", { email: "creator-e2e@example.com" });
+      await stubApi(page);
+      await expectSingleMain(page, route);
+    });
+  }
+
+  // Admin 走的是另一個外殼（`AdminShell`），`RoleShell` 對 `/admin` early return。
+  // 它在 `COR-06` 之前就是正確的 —— 這裡是回歸保護，確認沒有被誤傷。
+  for (const route of ADMIN_ROUTES) {
+    test(`admin ${route} has exactly one main`, async ({ page }) => {
+      await signInAs(page, "admin", { email: "admin-e2e@example.com" });
+      await stubApi(page);
+      await expectSingleMain(page, route);
+    });
+  }
+});
 
 test.describe("Shell consistency — desktop", () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) < 1024, "desktop-only assertions");
@@ -172,6 +248,58 @@ test.describe("Shell consistency — desktop", () => {
         expect(Math.round(box.x), `${route} sidebar x`).toBe(0);
         expect(Math.round((await boxOf(page.getByRole("main"))).x), `${route} main offset`).toBe(240);
       });
+    }
+  });
+
+  /**
+   * `IA-08`：Admin 的導覽在**非** `/admin` 路由上也必須是同一份 IA。
+   *
+   * `RoleShell` 對 `/admin/*` early return，所以它的 admin 清單**只在這裡**看得見 ——
+   * 這正是 `IA-01` 與 `IA-07` 當初漏掉的第二個 surface：側欄仍列出「用戶管理」
+   * 「系統設定」「教學回饋」，點進去是同樣的死路。
+   *
+   * 這支測試鎖的是 **source of truth**，不是三個 label：它把兩個 surface 的目的地
+   * 逐一比對，任何一邊被單獨改動都會失敗。
+   */
+  test("admin nav outside /admin matches the admin sidebar exactly", async ({ page }) => {
+    await signInAs(page, "admin", { email: "admin-e2e@example.com" });
+    await stubApi(page);
+
+    // Surface 1：`/admin/*` 的 AdminSidebar
+    await page.goto("/admin/materials");
+    const adminAside = page.getByTestId("admin-sidebar-desktop");
+    await expect(adminAside).toBeVisible();
+    const adminHrefs = await adminAside.getByRole("link").evaluateAll((nodes) =>
+      nodes.map((n) => (n.getAttribute("href") ?? "").split("?")[0])
+    );
+
+    // Surface 2：非 `/admin` 路由的 RoleShell
+    await page.goto("/materials");
+    const roleAside = page.getByTestId("role-sidebar-desktop");
+    await expect(roleAside).toBeVisible();
+    /*
+     * `RoleShell` 的角色來自 localStorage，第一次 render 時 `storedRole` 還是 `null`，
+     * 側欄會先畫 public 清單，effect 跑完才換成 admin。先等 admin 內容真的出現，
+     * 否則量到的是 public 清單 —— 那不是這支測試要驗的東西。
+     */
+    await expect(roleAside.getByRole("link", { name: "營運總覽" })).toBeVisible();
+    // 這個 surface 只在 admin 身分下才出現；沒出現代表測試根本沒測到目標
+    await expect(page.getByTestId("admin-sidebar-desktop")).toHaveCount(0);
+    const roleHrefs = await roleAside.getByRole("link").evaluateAll((nodes) =>
+      nodes.map((n) => (n.getAttribute("href") ?? "").split("?")[0])
+    );
+
+    expect(roleHrefs).toEqual(adminHrefs);
+
+    // 已下架的三個一級入口不得在任何一個 surface 出現
+    for (const dead of ["/admin/users", "/admin/settings", "/admin/reviews-hub"]) {
+      expect(adminHrefs, `admin sidebar still links ${dead}`).not.toContain(dead);
+      expect(roleHrefs, `role shell still links ${dead}`).not.toContain(dead);
+    }
+
+    // 真正可操作的工作面必須完好 —— 收斂不得順手拿掉別的入口
+    for (const label of ["營運總覽", "教材審核", "付款審核", "訂單管理", "檢舉管理", "活動紀錄"]) {
+      await expect(roleAside.getByRole("link", { name: label })).toBeVisible();
     }
   });
 
@@ -293,6 +421,91 @@ test.describe("Shell consistency — mobile drawer", () => {
       });
     }
   }
+
+  /**
+   * `IA-01`：教學回饋不是 Admin 的一級 destination。
+   *
+   * Desktop 側欄由 `admin.spec.ts` 覆蓋；手機抽屜 render 的是**同一份** `sections`
+   * （`AdminShell` 直接放 `<AdminSidebar variant="drawer" />`），但兩邊都要驗 ——
+   * 手機少一個入口是最容易被漏掉的回歸。
+   */
+  test("admin drawer does not offer teaching feedback as a destination", async ({ page }) => {
+    await signInAs(page, "admin", { email: "admin-e2e@example.com" });
+    await stubApi(page);
+    await page.goto("/admin/materials");
+
+    await page.getByTestId("nav-drawer-trigger").click();
+    const panel = page.getByTestId("nav-drawer-panel");
+    await expect(panel).toBeVisible();
+
+    await expect(panel.getByRole("link", { name: "教學回饋" })).toHaveCount(0);
+    await expect(panel.locator('a[href="/admin/reviews-hub"]')).toHaveCount(0);
+
+    // 其餘導覽必須完好 —— 移除入口不得順手動到別的項目。
+    for (const label of ["營運總覽", "教材審核", "付款審核", "訂單管理", "檢舉管理", "活動紀錄"]) {
+      await expect(panel.getByRole("link", { name: label })).toBeVisible();
+    }
+  });
+
+  /**
+   * `IA-07`：用戶管理與系統設定不是 Admin 的一級 destination。
+   *
+   * 與上一支同樣的理由要在手機驗一次 —— drawer 與桌機側欄 render 的是同一份
+   * `sections`，但「手機少／多一個入口」是最容易被漏掉的回歸。
+   */
+  test("admin drawer does not offer the placeholder users/settings destinations", async ({ page }) => {
+    await signInAs(page, "admin", { email: "admin-e2e@example.com" });
+    await stubApi(page);
+    await page.goto("/admin/materials");
+
+    await page.getByTestId("nav-drawer-trigger").click();
+    const panel = page.getByTestId("nav-drawer-panel");
+    await expect(panel).toBeVisible();
+
+    await expect(panel.getByRole("link", { name: "用戶管理" })).toHaveCount(0);
+    await expect(panel.getByRole("link", { name: "系統設定" })).toHaveCount(0);
+    await expect(panel.locator('a[href="/admin/users"]')).toHaveCount(0);
+    await expect(panel.locator('a[href="/admin/settings"]')).toHaveCount(0);
+
+    // 教學回饋（`IA-01`）不得因為本輪的改動而回到抽屜。
+    await expect(panel.getByRole("link", { name: "教學回饋" })).toHaveCount(0);
+
+    // 真正可操作的工作面必須完好。
+    for (const label of ["營運總覽", "教材審核", "付款審核", "訂單管理", "檢舉管理", "活動紀錄"]) {
+      await expect(panel.getByRole("link", { name: label })).toBeVisible();
+    }
+  });
+
+  /**
+   * `IA-08` 的手機面。
+   *
+   * 桌機與抽屜在**非** `/admin` 路由上是 `RoleShell` 的同一個 `sidebar()`，但「手機少／多
+   * 一個入口」一向是最容易被漏掉的回歸，所以兩邊都驗（與 `IA-01`／`IA-07` 同樣的理由）。
+   */
+  test("admin drawer outside /admin does not offer the delisted destinations", async ({ page }) => {
+    await signInAs(page, "admin", { email: "admin-e2e@example.com" });
+    await stubApi(page);
+    await page.goto("/materials");
+
+    await page.getByTestId("nav-drawer-trigger").click();
+    const panel = page.getByTestId("nav-drawer-panel");
+    await expect(panel).toBeVisible();
+    // 確認測到的是 RoleShell 的抽屜，不是 AdminShell 的
+    await expect(panel.getByTestId("role-sidebar-drawer")).toBeVisible();
+    // 與桌機同理：等 admin 清單真的接手，不要驗到第一次 render 的 public 清單。
+    await expect(panel.getByRole("link", { name: "營運總覽" })).toBeVisible();
+
+    for (const dead of ["/admin/users", "/admin/settings", "/admin/reviews-hub"]) {
+      await expect(panel.locator(`a[href^="${dead}"]`)).toHaveCount(0);
+    }
+    for (const label of ["用戶管理", "系統設定", "教學回饋"]) {
+      await expect(panel.getByRole("link", { name: label })).toHaveCount(0);
+    }
+
+    for (const label of ["營運總覽", "教材審核", "付款審核", "訂單管理", "檢舉管理", "活動紀錄"]) {
+      await expect(panel.getByRole("link", { name: label })).toBeVisible();
+    }
+  });
 
   test("both roles use the same drawer width", async ({ page }) => {
     const widths: number[] = [];

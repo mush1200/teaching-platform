@@ -3,6 +3,22 @@
 /** Keep `teacher` for backend compatibility; prefer `creator` in UI naming. */
 export type UserRole = "parent" | "teacher" | "creator" | "admin";
 
+/** 見 `lib/material-file.ts`；型別在此重述，讓 API 契約集中在一處可讀。 */
+export type MaterialFileInfo = {
+  id: string;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  status?: string;
+  uploadedAt?: string | null;
+  approvedAt?: string | null;
+};
+
+export type MaterialFileSummary = {
+  approvedFile: MaterialFileInfo | null;
+  pendingFile: MaterialFileInfo | null;
+};
+
 export type Material = {
   id: string;
   title: string;
@@ -12,7 +28,17 @@ export type Material = {
   age_range?: string;
   teacher_id?: string;
   status?: string;
+  /**
+   * LEGACY placeholder。教材本體的 canonical 來源是 `material_file`；
+   * 這個欄位**已不在任何公開 / 買家 API 回應中**，新建教材也不再寫入。
+   * 型別保留只為了讀取 milestone 之前建立的舊資料。
+   */
   file_key?: string;
+  /**
+   * 教材本體檔案。**只有 Admin 與教材擁有者**拿得到（公開讀取不含此欄位）。
+   * `pendingFile` 是待審候選檔，買家永遠取不到；`approvedFile` 才是實際交付的版本。
+   */
+  material_file?: MaterialFileSummary | null;
   teaching_objective?: string;
   teaching_methods?: string[];
   usage_duration?: string;
@@ -21,11 +47,25 @@ export type Material = {
   short_description?: string;
   material_features?: string[];
   cover_image_url?: string;
+  /** 評分彙總（清單 API 提供；與 `GET /materials/:id/rating` 同源）。 */
+  average_rating?: number | null;
+  review_count?: number | null;
   demo_video_url?: string;
   detail_images?: MaterialImage[];
   contents?: MaterialContent[];
   created_at?: string;
   updated_at?: string;
+  ip_declaration_accepted?: boolean;
+  ip_declaration_at?: string | null;
+  /**
+   * 最近一次審核決定的快照。Admin 與**教材擁有者**讀得到；
+   * 一般公開讀者只會拿到 published 教材，且回應不含這些欄位。
+   */
+  review_reason_code?: MaterialReviewReasonCode | null;
+  review_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  published_at?: string | null;
 };
 
 export type MaterialContent = {
@@ -87,6 +127,28 @@ export type Order = {
   cancelled_at?: string | null;
   created_at?: string;
   updated_at?: string;
+  /**
+   * 付款期限（`orders.created_at` + 7 個日曆日的末日終了）。
+   *
+   * **實體欄位，不是前端推算** —— 期限是對買家揭露過的承諾（消保法 §18 I(2)），
+   * 政策日後調整時既有訂單必須維持當初的期限。
+   * **legacy 訂單為 `null`：它們從未被揭露過期限，UI 必須誠實顯示「未設定」，
+   * 絕不可在前端自行補算。**
+   */
+  payment_due_at?: string | null;
+  /**
+   * **買家現在是否還能提交付款憑證** —— backend canonical 判準（Wave 2 #12）。
+   *
+   * 前端**不得**自行用日期判斷。特別是逾期但曾在期限內提交過的訂單仍為 `true`
+   * （退件後可重傳）—— 純看日期會把它誤判成不可提交，與 backend enforcement 分家。
+   */
+  payment_submission_allowed?: boolean;
+  /** 付款期限是否已過。legacy（無期限）一律 `false`。**與能否提交是兩件事。** */
+  payment_deadline_expired?: boolean;
+  /** 平台何時被告知買家已付款（人工核帳期限的起算點）。 */
+  payment_info_submitted_at?: string | null;
+  /** 人工核帳期限（`payment_info_submitted_at` + 3 個日曆日的末日終了）。 */
+  review_due_at?: string | null;
   /** Uploaded proofs awaiting admin review (manual_payment_proofs.review_status = pending) */
   payment_proof_pending_review_count?: number;
   payment_proof_uploaded_count?: number;
@@ -94,7 +156,24 @@ export type Order = {
   payment_proof_latest_uploaded_at?: string | null;
   payment_proof_latest_reviewed_at?: string | null;
   payment_proof_rejected_note?: string | null;
-  order_progress_state?: "pending" | "proof_uploaded" | "reviewing" | "approved" | "rejected" | string;
+  /**
+   * 結構化的退件原因代碼（`amount_mismatch` 等）。Backend 早就回傳它，
+   * 但買家端先前完全沒有渲染 —— 而 Admin 的退件表單寫的是「退回原因（必選，購買者會看到）」。
+   * 對照表：`PAYMENT_REJECTION_REASON_LABEL`。
+   */
+  payment_proof_rejected_reason?: string | null;
+  /**
+   * Buyer 視角的訂單進度（僅 `/me/orders` 與 `/me/orders/:orderId` 回傳）。
+   * 由 Backend 衍生，**不是** DB column（`Backend/services/buyerOrders.service.js`）。
+   *
+   * 語意：**最新一筆付款憑證**走到哪一步，而不是歷史上曾出現過哪些憑證。
+   * 因此「舊憑證被退回 → 買家重新上傳」時，這裡是 `reviewing` 而不是 `rejected`。
+   * 已核准的訂單永遠是 `approved`，不會因為 supersede 出來的 rejected 憑證倒退。
+   *
+   * 進度文案、CTA、timeline 一律讀這個欄位，**不要**再自行從 `status` 或
+   * `payment_proof_latest_status` 推導一次。
+   */
+  order_progress_state?: "pending" | "proof_uploaded" | "reviewing" | "approved" | "rejected" | "cancelled" | string;
   /**
    * Admin operational state（僅 `GET /admin/orders` 回傳）。
    * 由 `orders.status` + `manual_payment_proofs.review_status` 在 Backend 衍生，
@@ -104,10 +183,19 @@ export type Order = {
    * （待付款／審核中／審核未通過），這是 admin 視角的處理佇列。
    */
   operational_status?: "awaiting_payment" | "pending_review" | "payment_rejected" | "approved" | "cancelled" | string;
+  /**
+   * 訂單擁有者的 Email（僅 `GET /admin/orders` 回傳，`IA-06`）。
+   *
+   * 它同時是 `?q=` 的搜尋面之一 —— 客訴進來時 Admin 手上就是一個 Email 或一組訂單編號。
+   * 搜尋得到卻看不到，Admin 無從確認自己找對了人，所以它必須是列上顯示的欄位而不只是索引。
+   */
+  buyer_email?: string | null;
 };
 
 export type OrdersListResponse = {
   items: Order[];
+  /** `GET /admin/orders` 自 `IA-06` 起分頁；買家端的 `/me/orders` 不帶這個欄位。 */
+  pagination?: PaginationMeta;
 };
 
 export type OrderItemRow = {
@@ -133,10 +221,20 @@ export type OrderDetailResponse = {
   items: OrderItemRow[];
 };
 
+/**
+ * `GET /download/:materialId` 的授權回應。
+ *
+ * `signedUrl` 是一張**一次性下載票**（短命、單次、綁定使用者），而不是檔案的位址 ——
+ * 它直接指向 Backend 而非 `/api/backend` proxy，因為瀏覽器的下載導航帶不了
+ * `Authorization` header。
+ */
 export type DownloadLinkResponse = {
   materialId: string;
   signedUrl: string;
   expiresInSeconds?: number;
+  /** 原始檔名（給 UI 顯示；實際存檔名由 Content-Disposition 決定）。 */
+  filename?: string;
+  sizeBytes?: number;
 };
 
 export type MyLibraryItem = {
@@ -190,7 +288,18 @@ export type AdminPaymentProof = {
   order_id: string;
   user_id?: string;
   order_status?: string;
-  proof_url?: string;
+  /**
+   * 憑證影像的**受保護**讀取路徑（`/orders/:orderId/payment-proofs/:proofId/file`）。
+   *
+   * 取代了舊契約的 `proof_url` —— 那是一條指向 Backend `/uploads/payment-proofs/`
+   * 的公開網址，任何拿到它的人都能看到別人的匯款畫面。現在讀取仍需 Admin 或
+   * 訂單擁有者身分，因此必須用 `apiFetch` 帶 `Authorization` 取回位元組
+   * （見 `lib/payment-proof.ts`），不能直接放進 `<img src>`。
+   */
+  proof_file_path?: string;
+  /** 有沒有可顯示的影像。legacy 未搬移／檔案遺失的憑證是 false。 */
+  proof_file_available?: boolean;
+  proof_storage_status?: "private" | "legacy_public" | "legacy_external" | "legacy_missing" | string | null;
   proof_mime_type?: string | null;
   proof_size_bytes?: number | null;
   original_filename?: string | null;
@@ -284,7 +393,28 @@ export type AdminDashboardSummary = {
   reviewsCount: number;
   usersCount: number;
   pendingProofsCount: number;
+  /**
+   * @deprecated 字面上的 `reports.status = 'pending'`（新進、尚未有人接手）。
+   * Dashboard 待辦卡請用 `actionableReportsCount` —— 待辦的定義是「球在 Admin 手上」，
+   * 不是「案件還沒結束」。
+   */
   pendingReportsCount: number;
+  /**
+   * 現在需要 Admin 執行下一步的檢舉數（`pending` + `investigating`）。
+   * canonical 定義在 Backend `utils/reportWorkflow.js` 的 `ADMIN_ACTIONABLE_REPORT_STATUSES`；
+   * `awaiting_creator` 不計（球在創作者手上）。
+   */
+  actionableReportsCount: number;
+  /**
+   * 已逾消保法 §43 II 十五日期限、**且仍需處理**的申訴數（`P1-09` Gate 3 / Wave 2 #11）。
+   *
+   * **backend canonical truth** —— 判準是 `consumerComplaint.service.js` 的 `OVERDUE_SQL`，
+   * 與 `/admin/complaints?overdue=1` 回傳的集合必定一致。
+   * `resolved` / `closed` 已排除：已處理完的案件不是待辦告警。
+   *
+   * **前端不得用 `Date.now() > statutoryDueAt` 自行重算** —— 那會產生第二套 SLA。
+   */
+  overdueComplaintsCount: number;
   /**
    * @deprecated 舊的 7 天滾動指標，已由 `newReviewsDeltaPercent` 取代。
    * 沒有任何 caller；保留欄位僅為避免 breaking change。它把「從 0 成長」硬編成 100%，
@@ -412,8 +542,12 @@ export type TeacherSalesListResponse<T> = CreatorSalesListResponse<T>;
  * ------------------------------------------------------------------------- */
 
 /**
- * 檢舉案件狀態。`reviewed` 是 legacy 終態（舊的「標記已讀」），
- * 仍會出現在既有資料中，新流程不再產生。
+ * 檢舉案件狀態。
+ *
+ * `reviewed` 是 **legacy terminal**（舊的「標記已讀」）：仍會出現在既有資料中，
+ * 但**不是**任何合法轉移的目標，正式產品 UI 也不再產生新的。
+ * UI 一律顯示成「舊版已處理」而不是「已處理」—— 它沒有處置紀錄。
+ * 見 `Backend/utils/reportWorkflow.js` 與 `docs/admin-information-architecture.md` §9.1。
  */
 export type ReportCaseStatus =
   | "pending"
@@ -528,8 +662,32 @@ export type AdminPaymentProofRow = AdminPaymentProof & {
   order_payment_mode?: string | null;
   order_created_at?: string | null;
   order_paid_at?: string | null;
-  /** 衍生值（訂單建立 + PAYMENT_DUE_DAYS），不是資料庫欄位。 */
+  /** 付款期限。2026-08-26 起為 `orders.payment_due_at` **實體欄位**；legacy 為 null。 */
   order_payment_due_at?: string | null;
+  /** 人工核帳期限（實體欄位）。legacy 為 null。 */
+  order_review_due_at?: string | null;
+  /** 付款期限是否已過（legacy 一律 false）。 */
+  order_payment_deadline_expired?: boolean;
+  /**
+   * 買家現在是否還能提交付款憑證 —— **backend canonical 判準**（Wave 2 #12）。
+   * Admin 需要知道這件事，否則會叫買家重傳而 backend 拒絕。
+   */
+  order_payment_submission_allowed?: boolean;
+  /** 人工核帳是否已逾時。核准後為 false；legacy（無期限）亦為 false。 */
+  review_overdue?: boolean;
+  /** 平台何時被告知買家已付款（人工審核時鐘的起算點）。 */
+  order_payment_info_submitted_at?: string | null;
+  /** 平台在銀行帳戶**實際觀察到**的入帳時間。由 Admin 明確填寫；不知道就是 null。 */
+  order_payment_received_at?: string | null;
+  /*
+   * **買家申報值 —— 不是平台查證的事實。**
+   * `reported_transfer_at` ≠ `order_payment_received_at`；
+   * `reported_amount` ≠ 平台已確認的入帳金額。UI 必須照此標示。
+   */
+  reported_bank_name?: string | null;
+  reported_account_last4?: string | null;
+  reported_amount?: number | null;
+  reported_transfer_at?: string | null;
   order_proof_count?: number | null;
   reviewed_by_email?: string | null;
   rejection_reason?: PaymentRejectionReason | null;
@@ -550,10 +708,12 @@ export type AdminPaymentProofDetailResponse = {
    */
   otherProofs: Array<{
     id: string;
+    order_id?: string;
     review_status: string;
     note?: string | null;
     rejection_reason?: PaymentRejectionReason | null;
-    proof_url?: string | null;
+    proof_file_path?: string;
+    proof_file_available?: boolean;
     original_filename?: string | null;
     uploaded_at?: string | null;
     reviewed_at?: string | null;
@@ -561,7 +721,47 @@ export type AdminPaymentProofDetailResponse = {
 };
 
 /** `materials.status` 的真實 allowlist —— 沒有 draft / rejected / needs_revision。 */
-export type MaterialReviewStatus = "pending_review" | "published" | "unpublished";
+/**
+ * 教材狀態。與 Backend 的 `utils/materialWorkflow.js` 與 DB 的 `materials_status_check`
+ * 一致（見 docs/material-review-workflow.md）。
+ *
+ * `changes_requested`（需修改）與 `unpublished`（已下架）刻意分開：
+ * 前者從未公開過、球在創作者手上；後者曾經上架、由檢舉處置下架。
+ */
+export type MaterialReviewStatus =
+  | "pending_review"
+  | "published"
+  | "changes_requested"
+  | "unpublished";
+
+/** 退回原因代碼。值域由 Backend `utils/materialWorkflow.js` 定義。 */
+export type MaterialReviewReasonCode =
+  | "incomplete_info"
+  | "media_quality"
+  | "features_mismatch"
+  | "file_problem"
+  | "ip_concern"
+  | "other";
+
+/**
+ * 最近一次審核決定的快照（**不是**完整歷史）。
+ * 完整歷史在 `activity_logs`：`GET /admin/materials/:id/activity-logs`。
+ */
+export type MaterialReviewSnapshot = {
+  review_reason_code?: MaterialReviewReasonCode | null;
+  review_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  /** **首次**成功公開的時間；之後的重新公開時間由 `material.published` 事件保存。 */
+  published_at?: string | null;
+};
+
+/** 審核端點的回應：`POST /admin/materials/:id/approve`、`/request-changes`、`POST /materials/:id/resubmit`。 */
+export type MaterialReviewActionResponse = {
+  material: Material;
+  /** approve 專用：這一次是否為首次公開。 */
+  firstPublish?: boolean;
+};
 
 export type AdminMaterialRow = Material & {
   creator_email?: string | null;
@@ -591,4 +791,71 @@ export type ActivityLogsListResponse = {
 export type ActivityLogFiltersResponse = {
   actions: Array<{ action: string; count: number }>;
   actorRoles: Array<{ actor_role: string; count: number }>;
+};
+
+/* -------------------------------------------------------------------------- */
+/* 消費申訴（P1-09 Gate 3）                                                    */
+/* -------------------------------------------------------------------------- */
+/*
+ * 形狀直接對應 Backend `services/consumerComplaint.service.js` 的回傳。
+ * `overdue` / `daysUntilDue` 是 backend 由 `statutory_due_at` 衍生的欄位
+ * （`utils/complaintSla.js`）—— **前端不得自行計算法定期限**。
+ */
+
+export type ComplaintRow = {
+  id: string;
+  buyer_id: string;
+  order_id?: string | null;
+  order_item_id?: string | null;
+  complaint_type: string;
+  subject: string;
+  statement: string;
+  status: string;
+  submitted_at?: string | null;
+  review_started_at?: string | null;
+  responded_at?: string | null;
+  resolved_at?: string | null;
+  closed_at?: string | null;
+  /** 消保法 §43 II 的法定處理期限。由 backend 計算並持久化。 */
+  statutory_due_at?: string | null;
+  assigned_to?: string | null;
+  reviewed_by?: string | null;
+  resolution_summary?: string | null;
+  related_remedy_case_id?: string | null;
+  created_at?: string | null;
+  /** backend 衍生：未結案且已過法定期限。**前端不得自行推算。** */
+  overdue?: boolean;
+  /** backend 衍生：距離法定末日的台灣日曆日數（負數 = 已逾期）。 */
+  daysUntilDue?: number | null;
+};
+
+export type ComplaintEvent = {
+  id: string;
+  actor_id?: string | null;
+  actor_role?: string | null;
+  event_type: string;
+  message?: string | null;
+  meta?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+/** 證據 metadata。**永遠不含 `storage_key` 與 `checksum_sha256`。** */
+export type ComplaintEvidence = {
+  id: string;
+  complaint_id: string;
+  uploaded_by: string;
+  original_filename?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  external_reference?: string | null;
+  note?: string | null;
+  created_at?: string | null;
+  has_file?: boolean;
+};
+
+export type ComplaintListResponse = { items: ComplaintRow[] };
+export type ComplaintDetailResponse = {
+  complaint: ComplaintRow;
+  events: ComplaintEvent[];
+  evidence: ComplaintEvidence[];
 };

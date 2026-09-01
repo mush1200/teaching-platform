@@ -21,7 +21,9 @@ const PENDING_PROOF = {
   order_created_at: "2026-04-24T10:00:00Z",
   order_payment_due_at: "2026-04-27T10:00:00Z",
   order_proof_count: 1,
-  proof_url: "",
+  proof_file_path: "/orders/ord_mock_001/payment-proofs/prf_mock_001/file",
+  proof_file_available: true,
+  proof_storage_status: "private",
   original_filename: "proof.png",
   proof_size_bytes: 20480,
   uploaded_at: "2026-04-25T10:00:00Z",
@@ -73,6 +75,35 @@ export async function installCoreApiMocks(page: Page) {
       return json(route, { ok: true });
     }
 
+    /*
+     * 收款帳戶（`P1-01`）。結帳 Step 2 現在**必須**拿到已設定的收款帳戶才會放行 ——
+     * 沒有匯款目標就沒有任何可以完成的付款路徑，讓訂單先成立只會製造一張沒人能結掉的
+     * `pending_payment`（規格見 `docs/mvp_rules.md` §12.5）。
+     *
+     * 因此 mock 必須提供它，否則 Step 2 的「下一步」永遠是停用的。
+     * 這裡刻意回**明顯不是真帳號**的值：測試驗的是「有設定就能繼續」，
+     * 不是任何特定帳號字串。
+     */
+    if (method === "GET" && path === "payment/bank-info") {
+      return json(route, {
+        configured: true,
+        bank_name: "E2E MOCK BANK",
+        bank_code: "000",
+        account_number: "E2E-MOCK-ACCOUNT",
+        account_name: "E2E MOCK ACCOUNT",
+      });
+    }
+
+    /*
+     * `GET /cart` 的欄位名必須與 Backend 一致：`Backend/routes/cart.js` 選的是
+     * `c.quantity`（見 `CartResponse` / `CartItem`），**不是** `qty`。
+     *
+     * 這裡原本寫 `qty` —— `/cart` 因為 `lib/api-repository.ts` 有 `Number(row.quantity ?? 1)`
+     * 的預設值而看不出來，但 `/checkout` 直接讀 `item.quantity`，於是
+     * `subtotal = price * undefined = NaN`，送給 `orders/promo/validate` 的 `subtotal`
+     * 被 `JSON.stringify` 轉成 `null` → 折扣算成 0，checkout promo 測試因此失敗。
+     * 那是 fixture 缺陷，不是產品缺陷（`DX-01` 第 3 群）。
+     */
     if (method === "GET" && path === "cart") {
       return json(route, {
         items: [
@@ -80,9 +111,8 @@ export async function installCoreApiMocks(page: Page) {
             id: "ci_mock_001",
             material_id: "mat_demo_1",
             title: "示範教材",
-            qty: 1,
+            quantity: 1,
             price: 199,
-            subtotal: 199,
           },
         ],
       });
@@ -109,6 +139,30 @@ export async function installCoreApiMocks(page: Page) {
       });
     }
 
+    /*
+     * 外殼的 session 探測（`DX-04`）。
+     *
+     * `RoleShell`（creator）與 `AdminShell` 都會在掛載時打一次 `GET auth/me`，
+     * 並以 `authExpiry: "recover"` opt-in —— 沒 mock 它就會落到真實後端，
+     * 假 token 換回 401，整頁被導向 `/login`。
+     * 宣稱「在 mock 環境測 UI」的 spec 就必須把外殼初始化所需的端點補齊，
+     * **不是**把 recovery 關掉。
+     */
+    if (method === "GET" && path === "auth/me") {
+      return json(route, {
+        user: { id: "usr_e2e", role: "parent", email: "parent@example.com", created_at: "2026-05-01T00:00:00.000Z" },
+      });
+    }
+
+    /*
+     * 共用 fixture：**尚未上傳任何憑證**的訂單。
+     *
+     * `order_progress_state` 是 Backend 衍生的 canonical 買家進度，買家 UI 的徽章、
+     * CTA 與 timeline 都讀它 —— mock 少了它，測到的就不是 production 會有的狀態。
+     * 這裡的三個欄位必須自洽（無憑證 → count 0、latest null、progress pending）。
+     * 重新上傳／退件／已核准的組合請見 `buyer-order-progress.spec.ts`，
+     * 那一支自己 mock，不動這份共用 fixture。
+     */
     if (method === "GET" && (path === "orders/my" || path === "me/orders")) {
       return json(route, {
         items: [
@@ -118,8 +172,9 @@ export async function installCoreApiMocks(page: Page) {
             total_amount: 199,
             created_at: "2026-05-01T00:00:00.000Z",
             payment_proof_pending_review_count: 0,
-            payment_proof_uploaded_count: 1,
-            payment_proof_latest_status: "pending",
+            payment_proof_uploaded_count: 0,
+            payment_proof_latest_status: null,
+            order_progress_state: "pending",
           },
         ],
       });
@@ -133,9 +188,10 @@ export async function installCoreApiMocks(page: Page) {
           total_amount: 199,
           created_at: "2026-05-01T00:00:00.000Z",
           payment_proof_pending_review_count: 0,
-          payment_proof_uploaded_count: 1,
-          payment_proof_latest_status: "pending",
+          payment_proof_uploaded_count: 0,
+          payment_proof_latest_status: null,
           payment_proof_rejected_note: null,
+          order_progress_state: "pending",
         },
         items: [
           {
@@ -289,6 +345,31 @@ export async function installCoreApiMocks(page: Page) {
 
     if (method === "GET" && path === "materials/mat_mock_001/reports") {
       return json(route, [{ id: "rep_201", status: "pending", material_id: "mat_mock_001", reason: "教材有誤", reporter_id: "usr_parent_04" }]);
+    }
+
+    /*
+     * 教學回饋脈絡（`MaterialFeedbackContext`）。兩支都是公開端點，
+     * 且**依教材分開**：`mat_mock_001` 有回饋，`mat_mock_002` 沒有 ——
+     * 這樣才驗得到「脈絡跟著教材走」，而不是每頁都顯示同一份資料。
+     */
+    const ratingMatch = /^materials\/([^/]+)\/rating$/.exec(path);
+    if (method === "GET" && ratingMatch) {
+      const id = ratingMatch[1];
+      if (id === "mat_mock_001") return json(route, { average: 3.7, count: 3 });
+      return json(route, { average: null, count: 0 });
+    }
+
+    const reviewsMatch = /^materials\/([^/]+)\/reviews$/.exec(path);
+    if (method === "GET" && reviewsMatch) {
+      const id = reviewsMatch[1];
+      if (id === "mat_mock_001") {
+        return json(route, [
+          { id: "rev_001", rating: 5, comment: "步驟很清楚", created_at: "2026-08-20T03:00:00.000Z", parent_id: "usr_parent_01" },
+          { id: "rev_002", rating: 2, comment: "檔案缺頁", created_at: "2026-08-19T03:00:00.000Z", parent_id: "usr_parent_02" },
+          { id: "rev_003", rating: 4, comment: "整體不錯", created_at: "2026-08-18T03:00:00.000Z", parent_id: "usr_parent_03" },
+        ]);
+      }
+      return json(route, []);
     }
 
     return route.fallback();

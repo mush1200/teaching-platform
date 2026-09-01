@@ -14,7 +14,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
       <section style={{ textAlign: "center", maxWidth: 560 }}>
         <h1 style={{ fontSize: 40, marginBottom: 12 }}>500</h1>
         <p style={{ marginBottom: 16 }}>系統發生未預期錯誤，請稍後再試。</p>
@@ -26,6 +26,6 @@ export default function GlobalError({
           重新嘗試
         </button>
       </section>
-    </main>
+    </div>
   );
 }

@@ -11,6 +11,7 @@ import { AccentTextLink, BrandCtaLink, PrimaryCtaLink, SurfaceCard } from "../..
 import { AppShell } from "../../components/layout/AppShell";
 import { MobileHeader } from "../../components/layout/MobileHeader";
 import { OrderFlowMini } from "../../components/orders/OrderFlowMini";
+import { describePaymentRejection } from "../../lib/payment-rejection";
 import type { Order, OrderDetailResponse, OrderItemRow, OrdersListResponse } from "../../lib/api-types";
 import { apiFetch, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
 import { dismissNotification, readNotifications, type InAppNotification } from "../../lib/notifications";
@@ -23,22 +24,29 @@ type UiOrder = {
   cancelledAt?: string | null;
   paymentProofPendingReviewCount: number;
   progressState: string;
+  /** 退件原因代碼與備註 —— 買家必須看得到自己為什麼被退（`lib/payment-rejection.ts`）。 */
+  rejectedReason?: string | null;
+  rejectedNote?: string | null;
 };
 
 type ListTab = "active" | "history";
 
-function shortOrderLabel(id: string, createdAt: string): string {
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return `#O${id.slice(0, 8)}`;
-  const y = String(d.getFullYear()).slice(2);
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  let n = 0;
-  for (let i = 0; i < id.length; i++) {
-    n = (n * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  const seq = String(n % 1000).padStart(3, "0");
-  return `#O${y}${m}${day}${seq}`;
+/**
+ * 買家看到的訂單編號 —— **就是 Backend 的 `orders.id`**，不做任何轉換。
+ *
+ * 先前這裡用 `建立日期 + id 的 hash % 1000` 現算出一個 `#O260825676` 這樣的編號。
+ * 那個編號有三個問題，每一個單獨都足以讓客服無法運作：
+ *   1. **不存在於資料庫** —— Admin 的訂單查詢吃的是 `ord_*`，買家報的編號查無結果。
+ *   2. **不唯一** —— 每天只有 1000 個可能值，依生日問題約 37 筆訂單就有過半機率碰撞。
+ *   3. **只存在於清單頁** —— 同一張訂單在訂單詳情、付款憑證頁與通知信都顯示 `ord_*`，
+ *      買家在自己的介面上就會看到兩個互相矛盾的「訂單編號」。
+ *
+ * `orders.id` 本來就由 server 產生、唯一且持久化（`orderService.newOrderId()`），
+ * 因此不需要新增 `order_number` 欄位或 migration —— canonical identifier 已經存在，
+ * 缺的只是「前端不要自己再發明一個」。
+ */
+function orderRefLabel(id: string): string {
+  return id;
 }
 
 function isHistoricalOrder(o: UiOrder): boolean {
@@ -54,6 +62,9 @@ function statusChipLabel(o: UiOrder): string {
   if (p === "pending") return "待付款";
   if (p === "rejected") return "審核未通過";
   if (p === "approved") return "已完成";
+  // `cancelled` 是 Backend 的終態之一（`COR-03`）。少了這一條，已取消的訂單會落到
+  // `pending` 而顯示「待付款」，卻同時被 `isHistoricalOrder()` 歸進歷史訂單。
+  if (p === "cancelled") return "已取消";
   const s = String(o.status ?? "").toLowerCase();
   if (s === "approved" || s === "completed" || s === "paid") return "已完成";
   if (s === "cancelled" || s === "canceled") return "已取消";
@@ -66,6 +77,8 @@ function statusChipClass(o: UiOrder): string {
   if (p === "proof_uploaded" || p === "pending") return "border-orange-200 bg-orange-50 text-orange-900";
   if (p === "rejected") return "border-amber-200 bg-amber-50 text-amber-950";
   if (p === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-950";
+  // 與下方 `s === "cancelled"` 的 fallback 同一組灰階：同一個語意不該有兩種視覺。
+  if (p === "cancelled") return "border-[#ececf2] bg-gray-50 text-[#777777]";
   const s = String(o.status ?? "").toLowerCase();
   if (s === "approved" || s === "completed" || s === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-950";
   if (s === "cancelled" || s === "canceled") return "border-[#ececf2] bg-gray-50 text-[#777777]";
@@ -77,33 +90,49 @@ function canShowMaterialsLink(status: string): boolean {
   return s === "approved" || s === "completed" || s === "paid";
 }
 
+/**
+ * 主要 CTA 由 canonical 的 `order_progress_state` 決定。
+ *
+ * 舊版分別解讀 `orders.status` 與 pending 憑證數，於是同一張卡片可以同時出現
+ * 「審核未通過」的狀態徽章與「等待審核中」的 CTA（憑證 A 待審、較新的憑證 B 被退回時）。
+ * 徽章與 CTA 現在讀同一個欄位，講的必然是同一個故事（`COR-01`）。
+ *
+ * `pending_payment` 以外的訂單（已核准／已取消）沒有付款動作，一律不給 CTA。
+ */
 function renderPrimaryAction(o: UiOrder) {
-  const s = o.status.toLowerCase();
-  const reviewing = s === "pending_payment" && (o.paymentProofPendingReviewCount ?? 0) > 0;
-  if (reviewing) {
+  if (o.status.toLowerCase() !== "pending_payment") return null;
+  const p = o.progressState.toLowerCase();
+
+  // 買家已經重新上傳、正在等平台審核 —— 這裡**不得**再叫他上傳一次。
+  if (p === "reviewing") {
     return (
       <span className="inline-flex h-[42px] min-h-[42px] w-full max-w-full items-center justify-center rounded-xl border border-[#ececf2] bg-[#fafafc] px-5 text-center text-sm font-semibold leading-snug text-[#666666] lg:w-auto">
         等待審核中
       </span>
     );
   }
-  if (s === "pending_payment") {
-    return (
-      <BrandCtaLink
-        href={`/orders/${encodeURIComponent(o.id)}/payment-proof`}
-        className="h-[42px] min-h-[42px] w-full shrink-0 justify-center rounded-xl px-5 py-0 text-sm font-semibold lg:inline-flex lg:w-auto lg:max-w-none"
-      >
-        上傳付款憑證
-      </BrandCtaLink>
-    );
-  }
-  if (s === "rejected") {
+  if (p === "rejected") {
+    /*
+     * 退件原因必須跟 CTA 一起出現。只給「重新上傳」而不說原因，買家最合理的行為
+     * 就是把同一張憑證再傳一次 —— 然後再被退一次。Admin 端的表單也明講了
+     * 「退回原因（必選，購買者會看到）」，這裡就是那個「看到」的地方。
+     */
     return (
       <BrandCtaLink
         href={`/orders/${encodeURIComponent(o.id)}/payment-proof`}
         className="h-[42px] min-h-[42px] w-full shrink-0 justify-center rounded-xl px-5 py-0 text-sm font-semibold lg:inline-flex lg:w-auto lg:max-w-none"
       >
         重新上傳付款憑證
+      </BrandCtaLink>
+    );
+  }
+  if (p === "pending" || p === "proof_uploaded") {
+    return (
+      <BrandCtaLink
+        href={`/orders/${encodeURIComponent(o.id)}/payment-proof`}
+        className="h-[42px] min-h-[42px] w-full shrink-0 justify-center rounded-xl px-5 py-0 text-sm font-semibold lg:inline-flex lg:w-auto lg:max-w-none"
+      >
+        上傳付款憑證
       </BrandCtaLink>
     );
   }
@@ -165,6 +194,8 @@ export default function OrdersPage() {
         cancelledAt: item.cancelled_at ?? null,
         paymentProofPendingReviewCount: Number(item.payment_proof_pending_review_count ?? 0) || 0,
         progressState: String(item.order_progress_state || ""),
+        rejectedReason: item.payment_proof_rejected_reason ?? null,
+        rejectedNote: item.payment_proof_rejected_note ?? null,
       }));
       setOrders(list);
     } catch {
@@ -217,7 +248,7 @@ export default function OrdersPage() {
   }
 
   function renderOrderCard(o: UiOrder) {
-    const refLabel = shortOrderLabel(o.id, o.createdAt);
+    const refLabel = orderRefLabel(o.id);
     const chipLabel = statusChipLabel(o);
     const chipCls = statusChipClass(o);
     const dateStr =
@@ -275,12 +306,29 @@ export default function OrdersPage() {
 
           {/* 中：Stepper（窄版輔助資訊） */}
           <div className="flex min-w-0 w-full flex-1 justify-center">
-            <OrderFlowMini status={o.status} paymentProofPendingReviewCount={o.paymentProofPendingReviewCount} />
+            <OrderFlowMini status={o.status} progressState={o.progressState} paymentProofPendingReviewCount={o.paymentProofPendingReviewCount} />
+            {o.progressState.toLowerCase() === "rejected" ? (
+              (() => {
+                const detail = describePaymentRejection(o.rejectedReason, o.rejectedNote);
+                return detail ? (
+                  <p
+                    data-testid="order-rejection-reason"
+                    className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900"
+                  >
+                    退件原因：{detail}
+                  </p>
+                ) : null;
+              })()
+            ) : null}
           </div>
 
           {/* 右：狀態 + CTA 垂直群組、右對齊置中 */}
           <div className="flex w-full flex-col items-end justify-center gap-2.5 lg:w-[220px] lg:shrink-0">
-            <span className={`inline-flex h-8 w-fit shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold ${chipCls}`}>
+            {/* testid：狀態徽章與流程圖的「審核中」文字相同，E2E 需要能只指到徽章。 */}
+            <span
+              data-testid="order-status-chip"
+              className={`inline-flex h-8 w-fit shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold ${chipCls}`}
+            >
               {chipLabel}
             </span>
             {primaryAction ?? null}
@@ -289,9 +337,6 @@ export default function OrdersPage() {
 
         {statusLower === "approved" || statusLower === "completed" || statusLower === "paid" ? (
           <p className="mt-3 text-sm font-medium text-emerald-700">付款已審核通過，教材已開放下載。</p>
-        ) : null}
-        {statusLower === "rejected" ? (
-          <p className="mt-3 text-sm font-medium text-amber-700">付款憑證未通過，請重新上傳。</p>
         ) : null}
 
         {showMaterials ? (
@@ -393,7 +438,7 @@ export default function OrdersPage() {
       <div className="md:hidden">
         <MobileHeader title="我的訂單" backHref="/materials" right="none" />
       </div>
-      <main className="mx-auto w-full max-w-[960px] bg-transparent px-4 pb-20 pt-6 md:px-6">
+      <div className="mx-auto w-full max-w-[960px] bg-transparent px-4 pb-20 pt-6 md:px-6">
         {!token ? (
           <SurfaceCard elevation="raised" className="border-[#ececf2] p-8 text-center shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
             <p className="text-lg font-semibold text-ds-heading">請先登入</p>
@@ -509,7 +554,7 @@ export default function OrdersPage() {
             </div>
           </div>
         ) : null}
-      </main>
+      </div>
     </AppShell>
   );
 }

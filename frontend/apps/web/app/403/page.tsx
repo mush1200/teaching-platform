@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function ForbiddenPage() {
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
       <section style={{ textAlign: "center", maxWidth: 520 }}>
         <h1>403</h1>
         <p style={{ marginBottom: 12 }}>你沒有此操作權限。</p>
@@ -10,7 +10,7 @@ export default function ForbiddenPage() {
           返回首頁
         </Link>
       </section>
-    </main>
+    </div>
   );
 }
 

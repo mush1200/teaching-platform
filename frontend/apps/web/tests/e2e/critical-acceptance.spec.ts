@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clickWhenHydrated } from "./helpers/hydration";
 import { installCoreApiMocks } from "./helpers/mock-api";
 import { getTestCookieUrl } from "./helpers/base-url";
 
@@ -55,7 +56,11 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
 
   test("AUTH | CI | 1) login validation shows required message", async ({ page }) => {
     await page.goto("/login");
-    await page.getByRole("button", { name: "登入", exact: true }).click();
+    /*
+     * `DX-21`：`goto` 在 load 就 resolve，但 React 還沒把 onClick 掛上去。
+     * 這一步驗的是**用戶端**驗證訊息，因此同樣依賴 hydration —— 與下面那條是同一個曝險。
+     */
+    await clickWhenHydrated(page.getByRole("button", { name: "登入", exact: true }));
     await expect(page.getByText("Email 格式不正確")).toBeVisible();
   });
 
@@ -63,7 +68,15 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.goto("/login");
     await page.fill("#login-email", "parent@example.com");
     await page.fill("#login-password", "Password123!");
-    await page.getByRole("button", { name: "登入", exact: true }).click();
+    /*
+     * `DX-21` 的根因就在這一行。
+     *
+     * 舊寫法直接 `.click()`：按鈕在 SSR HTML 裡已經存在且可見，所以 Playwright 點得下去、
+     * 也回報成功 —— 但 hydration 尚未完成時那顆按鈕上沒有 React 的 onClick，
+     * 於是**連 `/api/auth/login` 請求都不會發出**，測試接著在 `/login` 上等到逾時。
+     * 平行負載下實測重現 1 / 80，且失敗當下 loginRequests = 0、無 console error、無 page error。
+     */
+    await clickWhenHydrated(page.getByRole("button", { name: "登入", exact: true }));
     await expect(page).toHaveURL(/\/dashboard|\/admin/, { timeout: 10000 });
     await expect(page.getByRole("heading", { name: "探索適合你的教材" })).toBeVisible();
   });
@@ -93,7 +106,8 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.goto("/checkout");
     await page.getByLabel("姓名").fill("測試家長");
     await page.getByLabel("Email").fill("parent@example.com");
-    await page.getByRole("button", { name: "下一步" }).click();
+    // `DX-21`：同一個 goto→click 曝險，第一次點擊必須等 hydration。
+    await clickWhenHydrated(page.getByRole("button", { name: "下一步" }));
     await page.getByRole("button", { name: "下一步" }).click();
     await expect(page.getByRole("button", { name: /確認送出訂單 · NT\$/ }).first()).toBeVisible();
     await page.getByRole("button", { name: /確認送出訂單/ }).first().click();
@@ -105,7 +119,8 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await page.goto("/checkout");
     await page.getByLabel("姓名").fill("測試家長");
     await page.getByLabel("Email").fill("parent@example.com");
-    await page.getByRole("button", { name: "下一步" }).click();
+    // `DX-21`：同上。
+    await clickWhenHydrated(page.getByRole("button", { name: "下一步" }));
     await page.getByRole("button", { name: "下一步" }).click();
     const ctaBefore = await page.getByRole("button", { name: /確認送出訂單 · NT\$/ }).first().innerText();
     await page.getByPlaceholder("輸入優惠代碼").fill("WELCOME100");
@@ -129,7 +144,11 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await expect(page.getByText("訂單成立").first()).toBeAttached();
     await expect(page.getByText("完成匯款").first()).toBeAttached();
     await expect(page.getByText("上傳付款憑證").first()).toBeAttached();
-    await page.getByRole("button", { name: "送出憑證" }).click();
+    /*
+     * `DX-21`：上面三條 `toBeAttached()` 由 SSR HTML 就能滿足，**不保證 hydration 已完成**，
+     * 因此這是 goto 之後的第一個 React 互動，與登入那條同一個曝險。
+     */
+    await clickWhenHydrated(page.getByRole("button", { name: "送出憑證" }));
     await expect(page.getByText("請至少上傳 1 張憑證圖片。")).toBeVisible();
   });
 
@@ -228,13 +247,18 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await expect(page.getByTestId("payment-review-message")).toContainText("已退回");
   });
 
-  test("ADMIN | NIGHTLY | 15) admin material reports mark reviewed and show feedback", async ({ page }) => {
+  test("ADMIN | NIGHTLY | 15) material reports page is contextual read-only, not a second case handler", async ({ page }) => {
+    /*
+     * 教材檢舉頁是 **contextual read-only**：看得到這份教材被檢舉了什麼，
+     * 但不能在這裡處置 —— 「標記已處理」（legacy `reviewed` 的最後一個產品 writer）
+     * 已移除，所有處置都回 `/admin/reports`。
+     */
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/materials/mat_mock_001/reports");
-    await expect(page.getByRole("heading", { name: "教材檢舉紀錄" })).toBeVisible();
-    await expect(page.getByText("檢舉 rep_101")).toBeVisible();
-    await page.getByRole("button", { name: "標記已處理" }).first().click();
-    await expect(page.getByText("檢舉已標記為已處理。")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "教材檢舉脈絡" })).toBeVisible();
+    await expect(page.getByText("描述不清")).toBeVisible();
+    await expect(page.getByRole("button", { name: "標記已處理" })).toHaveCount(0);
+    await expect(page.getByTestId("material-report-open-case").first()).toBeVisible();
   });
 
   test("JOURNEY | NIGHTLY | 16) full flow end-to-end (login -> shop -> checkout -> upload -> download -> admin review)", async ({ page }) => {
@@ -268,10 +292,19 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
     await expect(dlButton).toBeVisible();
     await dlButton.click();
 
+    /*
+     * Admin 端收尾：走**目前**的檢舉案件流程。
+     *
+     * 舊版這裡按的是「標記已處理」（legacy `PATCH /admin/reports/:id { status: "reviewed" }`），
+     * 那顆按鈕在案件流程改版後就不在 `/admin/reports` 上了 —— 它只是這條 journey 的
+     * 最後一步「Admin 收到並處理了平台事件」，因此改成接手調查，斷言的是同一件事。
+     */
     await setAuthState(page, "admin", "e2e-admin-token");
     await page.goto("/admin/reports", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "檢舉管理" })).toBeVisible();
-    await page.getByRole("button", { name: "標記已處理" }).first().click();
-    await expect(page.getByText("檢舉已標記為已處理。")).toBeVisible();
+    await page.getByTestId("report-case-open").first().click();
+    await expect(page.getByTestId("report-case-detail")).toBeVisible();
+    await page.getByTestId("report-investigate").click();
+    await expect(page.getByTestId("report-case-message")).toContainText("已接手");
   });
 });

@@ -314,7 +314,7 @@ npm run dev:web:3010
 - [ ] `/register` Email 格式錯誤有提示
 - [ ] `/register` 密碼長度不足有提示
 - [ ] `/register` 合法資料可成功送出
-- [ ] `/teacher/materials/new` 必填缺漏（title/price/fileKey）會擋送出
+- [ ] `/teacher/materials/new` 必填缺漏（title/price/教材檔案）會擋送出
 - [ ] `/teacher/materials/new` 非法價格（0/非數字）會顯示提示
 - [ ] `/teacher/materials/new` 合法資料送出成功（可導到 edit）
 

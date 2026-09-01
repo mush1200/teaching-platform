@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getLandingRouteForRole } from "./lib/session";
 
 /**
  * FRONTEND UX GUARD — NOT an authorization boundary.
@@ -61,6 +62,51 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(canonicalUrl, 308);
   }
 
+  /*
+   * Signed-in landing redirect at the site root (`DX-15`).
+   *
+   * ## Why this is here and not (only) in `app/page.tsx`
+   *
+   * The same redirect used to live exclusively in a `useEffect` on the home page, which
+   * means it could only run **after client hydration**. Measured on the production build:
+   * hydration 1.5–1.9s, then the landing RSC fetch 0.03–0.55s — 2.3s at best, 4.2s at
+   * worst. Under a parallel Playwright run (N workers against a single `next start`
+   * process) both of those are load-dependent, so the tail intermittently crossed the
+   * 5s assertion budget. The product was never wrong — a 20s-budget diagnostic redirected
+   * 8/8 times — it was just slower than the assertion under load, which is exactly why the
+   * failure kept migrating between sibling tests and projects and vanished on isolated
+   * reruns. Doing it here removes the hydration dependency entirely: the browser is told
+   * to go elsewhere before the home page is ever served.
+   *
+   * ## This is still a UX landing hint, not a new authorization boundary
+   *
+   * It reads the same forgeable `tp_role` cookie the guards below already use, and sends
+   * the visitor to a route those very guards will then re-check. Forging `tp_role=admin`
+   * lands you on an empty `/admin` shell whose every request returns 403 — identical to
+   * navigating there directly today. No new trust is placed in the cookie.
+   *
+   * ## Destinations come from the single canonical map
+   *
+   * `getLandingRouteForRole` (`lib/session.ts`) is the one source of truth — the same one
+   * `app/page.tsx` and `app/login/page.tsx` use. `DX-17` was caused by that map existing in
+   * two places and drifting; this must not become a third copy. An unrecognised role
+   * returns `null` and therefore **stays on the public homepage**, rather than guessing.
+   *
+   * ## The client-side effect in `app/page.tsx` is deliberately kept
+   *
+   * It is **not** dead code and must not be removed as a duplicate: it triggers on
+   * `localStorage`, this triggers on the cookie, and the two can legitimately disagree —
+   * the cookie is `max-age=86400` (login/register) while the JWT lives 7 days. A visitor
+   * whose cookie expired but whose localStorage survives is invisible here, and the client
+   * effect still gives them their landing route (which then bounces to `/login`, exactly
+   * as it does today). Removing it would silently change that case, so it stays.
+   */
+  if (pathname === "/") {
+    const landing = token && role ? getLandingRouteForRole(role) : null;
+    if (landing) return NextResponse.redirect(new URL(landing, request.url));
+    return NextResponse.next();
+  }
+
   const requiresLogin = LOGIN_REQUIRED_PREFIXES.some((p) => startsWithPrefix(pathname, p));
   if (!requiresLogin) return NextResponse.next();
 
@@ -90,6 +136,11 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Exact site root only (`DX-15`) — `"/"` does not match `/anything` in Next's matcher,
+     * so no other public route starts going through this middleware because of it.
+     */
+    "/",
     "/cart",
     "/cart/:path*",
     "/checkout",

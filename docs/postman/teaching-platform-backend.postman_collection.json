@@ -1,10 +1,19 @@
 {
   "info": {
     "name": "Teaching Platform — Backend MVP",
-    "description": "對應 docs/teaching-platform-mvp-spec-v1.4.md、docs/mvp_rules.md、db/db_schema.sql。需先啟動後端（npm run start）。一鍵跑：npm run postman（專案根目錄）。\n\n---\n## Day24 MVP 端到端驗收（中文版）\n\n**資料庫：** materials domain 已含 `teaching_objective`、`teaching_methods`、`usage_duration`、`activity_steps`、`extension_value`、`short_description` 與 `material_contents`。若本機 DB 尚未跑過 bootstrap，請依 Backend/models/bootstrapModel.js 建立表結構。\n\n**建議 Collection 執行順序：** `00 Setup` → `01 Auth` → `02 Materials` → `03 Cart & Orders` → `04 Admin approve` → `05 Reject flow` → `06 Download reviews reports` → `07 Admin lists` → `08 Cart delete`。\n\n### 主流程（狀態／權限摘要）\n\n1. **Teacher `POST /materials`** — Request: `title`, `price`, `file_key`（或 `fileKey`）, `teaching_objective`, `teaching_methods(1..4)`, `usage_duration`, `activity_steps`, `contents(>=1)`, `ipDeclarationAccepted=true`。**不可**帶 `status`（400）。Response: `status=pending_review`。**Activity:** `material.created`。權限：teacher。\n2. **Admin `PUT /materials/:id`** — Body `{ \"status\":\"published\" }`。Response: published。**Activity:** `material.published`（僅當目標狀態為 published）。權限：admin 可改 status；teacher 不可帶 status（403）。\n3. **Parent `POST /cart/items`** — 僅 `published` 教材。**Activity:** `cart.added`（含重複加入時 upsert 更新數量）。\n4. **Parent `POST /orders`** — order.status=`pending_payment`，order_items 含 snapshot，cart 清空。**Activity:** `order_created`。\n5. **Parent `POST /orders/:id/upload-proof`** — 新增 `manual_payment_proofs` pending；**order 仍為** `pending_payment`。**Activity:** `payment_proof_uploaded`。\n6. **Admin `POST /admin/payment-proofs/:id/approve`** — proof approved，order→`approved`。**Activity:** `payment_proof.approved`。\n7. **Parent `GET /download/:materialId`** — 需 approved 訂單含該 material。**Activity:** `download.attempted` / `denied` 或 `allowed`。\n8. **Parent `POST /reviews`** — 需已購買（approved order + order_item）。**Activity:** `review_created`。\n9. **Parent `POST /reports`** — 同一 material 同一 parent 僅一筆（409）。**Activity:** `report_created`（target_type=material）。\n10. **Admin `PATCH /admin/reports/:id`** — `{ \"status\":\"reviewed\" }`，僅 pending→reviewed。**Activity:** `report_reviewed`（target_type=report）。\n11. **Admin `GET /admin/activity-logs`** — `{ items, pagination }`，`id` 為字串；`GET /admin/activity-logs/:id` 與列表 id 一致。\n\n### 各請求之狀態驗證要點\n\n- 教材列表：匿名／parent 僅見 `published`；teacher 見自己非 published + 全部 published；admin 見全部。\n- 訂單：`orders.status` **無** `proof_uploaded`；付款憑證以 `manual_payment_proofs` 為準。\n- Reject proof：僅更新 proof 列，**order.status 不變**。\n\n### Postman Tests 欄位\n\n各資料夾內請求已附 `Tests` 腳本（狀態碼／JSON 形狀）。變數：`baseUrl`、`adminToken`、`teacherToken`、`parentToken`、`materialId`、`orderId`、`proofId`、`reportId` 等依序由登入／註冊與流程寫入。\n\n**Admin 憑證：** 公開註冊已禁止建立 admin（`POST /auth/register` + `role:\"admin\"` → 403）。`01 Auth` 之 `POST login admin` 會登入既有 admin，帳密來自環境變數 `testAdminEmail` / `testAdminPassword`（由 `npm run postman` 以 `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` 注入）。**請勿**將真實憑證寫入本 collection 或 environment 檔。",
+    "description": "對應 docs/teaching-platform-mvp-spec-v1.4.md、docs/mvp_rules.md、db/db_schema.sql。需先啟動後端（npm run start）。一鍵跑：npm run postman（專案根目錄）。\n\n---\n## Day24 MVP 端到端驗收（中文版）\n\n**資料庫：** materials domain 已含 `teaching_objective`、`teaching_methods`、`usage_duration`、`activity_steps`、`extension_value`、`short_description` 與 `material_contents`。若本機 DB 尚未跑過 bootstrap，請依 Backend/models/bootstrapModel.js 建立表結構。\n\n**建議 Collection 執行順序：** `00 Setup` → `01 Auth` → `02 Materials` → `03 Cart & Orders` → `04 Admin approve` → `05 Reject flow` → `06 Download reviews reports` → `07 Admin lists` → `08 Cart delete`。\n\n### 主流程（狀態／權限摘要）\n\n1. **Teacher `POST /materials`** — Request: `title`, `price`, `fileId`（先呼叫 `POST /teacher/uploads/material-file` 取得）, `teaching_objective`, `teaching_methods(1..4)`, `usage_duration`, `activity_steps`, `contents(>=1)`, `ipDeclarationAccepted=true`。**不可**帶 `status`（400）。Response: `status=pending_review`。**Activity:** `material.created`。權限：teacher。\n2. **Admin `POST /admin/materials/:id/approve`** — 核准上架（`pending_review → published`）。Response: `{ material }`，含 `reviewed_by` / `reviewed_at` / `published_at`（首次公開時間）。**Activity:** `material.published`。權限：admin。退回修改：`POST /admin/materials/:id/request-changes`（`{ reasonCode, note }`，note 至少 10 字 → `changes_requested`）。創作者重新送審：`POST /materials/:id/resubmit`（`changes_requested|unpublished → pending_review`，僅限擁有者）。**`PUT/PATCH /materials/:id` 不再接受 `status`**（帶了會回 400 `status_not_updatable_here`）——教材狀態一律由審核 workflow 管理，見 `docs/material-review-workflow.md`。\n3. **Parent `POST /cart/items`** — 僅 `published` 教材。**Activity:** `cart.added`（含重複加入時 upsert 更新數量）。\n4. **Parent `POST /orders`** — order.status=`pending_payment`，order_items 含 snapshot，cart 清空。**Activity:** `order_created`。\n5. **Parent `POST /orders/:id/upload-proof`** — 新增 `manual_payment_proofs` pending；**order 仍為** `pending_payment`。**Activity:** `payment_proof_uploaded`。\n6. **Admin `POST /admin/payment-proofs/:id/approve`** — proof approved，order→`approved`。**Activity:** `payment_proof.approved`。\n7. **Parent `GET /download/:materialId`** — 需 approved 訂單含該 material。**Activity:** `download.attempted` / `denied` 或 `allowed`。\n8. **Parent `POST /reviews`** — 需已購買（approved order + order_item）。**Activity:** `review_created`。\n9. **Parent `POST /reports`** — 同一 material 同一 parent 僅一筆（409）。**Activity:** `report_created`（target_type=material）。\n10. **Admin 檢舉案件流程** — `POST /admin/report-cases/:id/investigate` → `/request-response`（必要時）→ `/resolve`（`{ resolution }`）。**Activity / Events:** 每一步寫入 `report_events`，處置寫 `report.resolved`。`/admin/reports` 是唯一正式的案件處理入口。**legacy `PATCH /admin/reports/:id { status: \"reviewed\" }` 已 deprecated**，只保留在 `09 Legacy compatibility (deprecated)` 的負向測試中；正式流程與正式產品 UI 都不再使用它（見 `docs/material-review-workflow.md`）。\n11. **Admin `GET /admin/activity-logs`** — `{ items, pagination }`，`id` 為字串；`GET /admin/activity-logs/:id` 與列表 id 一致。\n\n### 各請求之狀態驗證要點\n\n- 教材列表：匿名／parent 僅見 `published`；teacher 見自己非 published + 全部 published；admin 見全部。\n- 訂單：`orders.status` **無** `proof_uploaded`；付款憑證以 `manual_payment_proofs` 為準。\n- Reject proof：僅更新 proof 列，**order.status 不變**。\n\n### Postman Tests 欄位\n\n各資料夾內請求已附 `Tests` 腳本（狀態碼／JSON 形狀）。變數：`baseUrl`、`adminToken`、`teacherToken`、`parentToken`、`materialId`、`orderId`、`proofId`、`reportId` 等依序由登入／註冊與流程寫入。\n\n**Admin 憑證：** 公開註冊已禁止建立 admin（`POST /auth/register` + `role:\"admin\"` → 403）。`01 Auth` 之 `POST login admin` 會登入既有 admin，帳密來自環境變數 `testAdminEmail` / `testAdminPassword`（由 `npm run postman` 以 `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` 注入）。**請勿**將真實憑證寫入本 collection 或 environment 檔。",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [],
+  "variable": [
+    {
+      "key": "coverMediaIdA",
+      "value": ""
+    },
+    {
+      "key": "coverMediaUrlA",
+      "value": ""
+    }
+  ],
   "item": [
     {
       "name": "00 Setup",
@@ -73,7 +82,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{testAdminEmail}}\",\n  \"password\": \"{{testAdminPassword}}\"\n}"
@@ -99,7 +113,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"smoke_teacher_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"teacher\"\n}"
@@ -125,7 +144,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"smoke_parent_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"parent\"\n}"
@@ -150,7 +174,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"smoke_parent_b_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\",\n  \"role\": \"parent\"\n}"
@@ -178,7 +207,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/auth/me"
           }
@@ -199,7 +231,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"smoke_parent_{{stamp}}@test.local\",\n  \"password\": \"SmokeTest1!\"\n}"
@@ -212,6 +249,98 @@
     {
       "name": "02 Materials",
       "item": [
+        {
+          "name": "POST teacher/uploads/material-file (A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('returns a fileId, not a storage path', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.fileId).to.be.a('string');",
+                  "  // storage key / URL 永遠不得外流到 client。",
+                  "  pm.expect(body).to.not.have.property('storageKey');",
+                  "  pm.expect(body).to.not.have.property('url');",
+                  "});",
+                  "pm.collectionVariables.set('materialFileIdA', pm.response.json().fileId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [
+                    "fixtures/material-a.pdf"
+                  ]
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/teacher/uploads/material-file"
+          }
+        },
+        {
+          "name": "POST teacher/uploads/material-media (cover A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('returns a delivery URL, never a storage key or /uploads path', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.mediaId).to.be.a('string');",
+                  "  pm.expect(body.url).to.be.a('string');",
+                  "  // SEC-02：素材已不在公開 static 樹底下，回應也不得洩漏儲存位置。",
+                  "  pm.expect(body.url).to.include('/materials/media/');",
+                  "  pm.expect(body.url).to.not.include('/uploads/');",
+                  "  pm.expect(JSON.stringify(body)).to.not.include('material-media/');",
+                  "  pm.expect(body).to.not.have.property('storage_key');",
+                  "});",
+                  "pm.collectionVariables.set('coverMediaIdA', pm.response.json().mediaId);",
+                  "pm.collectionVariables.set('coverMediaUrlA', pm.response.json().url);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [
+                    "fixtures/cover-a.png"
+                  ]
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/teacher/uploads/material-media?kind=cover"
+          }
+        },
         {
           "name": "POST materials (teacher)",
           "event": [
@@ -229,26 +358,84 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Postman material A\",\n  \"price\": 100,\n  \"file_key\": \"files/postman-a.pdf\",\n  \"cover_image_url\": \"https://picsum.photos/seed/postman-cover/640/480\",\n  \"teaching_objective\": \"幫助學生認識地點與物品並完成配對\",\n  \"teaching_methods\": [\"配對遊戲\", \"搶答遊戲\"],\n  \"usage_duration\": \"約 2 堂課，每堂 30 分鐘\",\n  \"activity_steps\": \"1. 展示圖卡\\n2. 學生配對\\n3. 口語表達\",\n  \"short_description\": \"透過配對遊戲學習地點與物品\",\n  \"contents\": [\n    { \"type\": \"flashcard\", \"name\": \"地點圖卡\", \"count\": 4 },\n    { \"type\": \"flashcard\", \"name\": \"物品圖卡\", \"count\": 24 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
+              "raw": "{\n  \"title\": \"Postman material A\",\n  \"price\": 100,\n  \"fileId\": \"{{materialFileIdA}}\",\n  \"cover_image_url\": \"{{coverMediaUrlA}}\",\n  \"teaching_objective\": \"幫助學生認識地點與物品並完成配對\",\n  \"teaching_methods\": [\"配對遊戲\", \"搶答遊戲\"],\n  \"usage_duration\": \"約 2 堂課，每堂 30 分鐘\",\n  \"activity_steps\": \"1. 展示圖卡\\n2. 學生配對\\n3. 口語表達\",\n  \"short_description\": \"透過配對遊戲學習地點與物品\",\n  \"contents\": [\n    { \"type\": \"flashcard\", \"name\": \"地點圖卡\", \"count\": 4 },\n    { \"type\": \"flashcard\", \"name\": \"物品圖卡\", \"count\": 24 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
             },
             "url": "{{baseUrl}}/materials"
           }
         },
         {
-          "name": "PUT materials publish (admin)",
+          "name": "GET materials/media/:id（pending_review，匿名 → 401）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// SEC-02 的核心：素材的可見性跟著所屬教材的 status 走。",
+                  "// 此刻教材還是 pending_review，任何匿名請求都不得拿到位元組。",
+                  "pm.test('401', function () { pm.response.to.have.status(401); });",
+                  "pm.test('error code is media_auth_required', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('media_auth_required');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/materials/media/{{coverMediaIdA}}"
+          }
+        },
+        {
+          "name": "GET materials/media/:id（pending_review，owner → 200）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('protected media is never cacheable by shared caches', function () {",
+                  "  pm.expect(String(pm.response.headers.get('Cache-Control'))).to.include('no-store');",
+                  "  pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/materials/media/{{coverMediaIdA}}"
+          }
+        },
+        {
+          "name": "PUT materials status is rejected (admin)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200 published', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json().status).to.eql('published');",
+                  "pm.test('400 status is managed by the review workflow', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().error).to.eql('status_not_updatable_here');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -258,14 +445,109 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"published\"\n}"
             },
             "url": "{{baseUrl}}/materials/{{materialId}}"
+          }
+        },
+        {
+          "name": "POST admin materials approve (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 published', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const m = pm.response.json().material;",
+                  "  pm.expect(m.status).to.eql('published');",
+                  "  pm.expect(m.published_at, 'published_at set on first publish').to.not.eql(null);",
+                  "  pm.expect(m.reviewed_by, 'reviewer snapshot written').to.not.eql(null);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/admin/materials/{{materialId}}/approve"
+          }
+        },
+        {
+          "name": "GET materials/media/:id（published，匿名 → 200 且可快取）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 上架之後同一條 URL 自動變成公開 —— 不需要搬檔案、不需要換 URL。",
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('published media is publicly cacheable, image, nosniff, range-capable', function () {",
+                  "  const cc = String(pm.response.headers.get('Cache-Control'));",
+                  "  pm.expect(cc).to.include('public');",
+                  "  pm.expect(cc).to.not.include('no-store');",
+                  "  pm.expect(String(pm.response.headers.get('Content-Type'))).to.include('image/');",
+                  "  pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff');",
+                  "  pm.expect(pm.response.headers.get('Accept-Ranges')).to.eql('bytes');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/materials/media/{{coverMediaIdA}}"
+          }
+        },
+        {
+          "name": "GET /uploads/material-media/*（舊公開靜態路徑 → 404）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 深度防禦：就算日後有人把檔案放回那個目錄，這條路徑也不會再吐出位元組。",
+                  "pm.test('404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('error code is material_media_not_public', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('material_media_not_public');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/uploads/material-media/anything.png"
           }
         },
         {
@@ -330,8 +612,16 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{}" },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/orders"
           }
         },
@@ -354,10 +644,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/orders"
           }
         },
@@ -378,8 +677,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -404,7 +709,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/cart"
           }
@@ -441,10 +749,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/orders"
           }
         },
@@ -467,10 +784,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/orders"
           }
         },
@@ -490,7 +816,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/orders/my"
           }
@@ -503,7 +832,18 @@
               "script": {
                 "exec": [
                   "pm.test('201', function () { pm.response.to.have.status(201); });",
-                  "pm.collectionVariables.set('proofId', pm.response.json().proof.id);"
+                  "const proof = pm.response.json().proof;",
+                  "pm.collectionVariables.set('proofId', proof.id);",
+                  "pm.test('憑證寫入私有儲存：回應沒有任何公開 URL 或 storage key', function () {",
+                  "  pm.expect(proof.proof_url).to.be.undefined;",
+                  "  pm.expect(proof.storage_key).to.be.undefined;",
+                  "  pm.expect(proof.checksum_sha256).to.be.undefined;",
+                  "  pm.expect(pm.response.text()).to.not.include('/uploads/payment-proofs/');",
+                  "});",
+                  "pm.test('回應只給受保護的讀取路徑', function () {",
+                  "  pm.expect(proof.proof_file_path).to.include('/payment-proofs/' + proof.id + '/file');",
+                  "  pm.expect(proof.proof_file_available).to.eql(true);",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -512,7 +852,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "formdata",
@@ -527,6 +870,163 @@
               ]
             },
             "url": "{{baseUrl}}/orders/{{orderId}}/upload-proof"
+          }
+        },
+        {
+          "name": "GET orders/:orderId/payment-proofs（owner，metadata 不含公開 URL）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "const proof = body.items.find((p) => p.id === pm.collectionVariables.get('proofId'));",
+                  "pm.test('憑證在清單中', function () { pm.expect(proof).to.be.an('object'); });",
+                  "pm.test('不回傳公開 URL 或 storage key', function () {",
+                  "  pm.expect(proof.proof_url).to.be.undefined;",
+                  "  pm.expect(proof.storage_key).to.be.undefined;",
+                  "  pm.expect(pm.response.text()).to.not.include('/uploads/payment-proofs/');",
+                  "});",
+                  "pm.test('提供受保護的讀取路徑', function () {",
+                  "  pm.expect(proof.proof_file_path).to.eql('/orders/' + pm.collectionVariables.get('orderId') + '/payment-proofs/' + proof.id + '/file');",
+                  "  pm.expect(proof.proof_file_available).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/payment-proofs"
+          }
+        },
+        {
+          "name": "GET 憑證影像（owner → 200，private/no-store/nosniff）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('是圖片，且不得被任何共享快取保存', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('image/');",
+                  "  const cc = String(pm.response.headers.get('Cache-Control') || '');",
+                  "  pm.expect(cc).to.include('no-store');",
+                  "  pm.expect(cc).to.include('private');",
+                  "  pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/payment-proofs/{{proofId}}/file"
+          }
+        },
+        {
+          "name": "GET 憑證影像（admin → 200）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/payment-proofs/{{proofId}}/file"
+          }
+        },
+        {
+          "name": "GET 憑證影像（無 Token → 401）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', function () { pm.response.to.have.status(401); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders/{{orderId}}/payment-proofs/{{proofId}}/file"
+          }
+        },
+        {
+          "name": "GET 憑證影像（非 owner → 403）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403', function () { pm.response.to.have.status(403); });",
+                  "pm.test('不洩漏任何檔案資訊', function () { pm.expect(pm.response.text()).to.not.include('/uploads/'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/payment-proofs/{{proofId}}/file"
+          }
+        },
+        {
+          "name": "GET /uploads/payment-proofs/*（公開靜態路徑 → 404）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', function () { pm.response.to.have.status(404); });",
+                  "pm.test('明確表示憑證不是公開資產', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('payment_proof_not_public');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/uploads/payment-proofs/does-not-exist.png"
           }
         },
         {
@@ -548,8 +1048,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -582,10 +1088,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/admin/payment-proofs/{{proofId}}/approve"
           }
         }
@@ -594,6 +1109,50 @@
     {
       "name": "05 Reject flow (2nd material)",
       "item": [
+        {
+          "name": "POST teacher/uploads/material-file (B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('returns a fileId, not a storage path', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.fileId).to.be.a('string');",
+                  "  // storage key / URL 永遠不得外流到 client。",
+                  "  pm.expect(body).to.not.have.property('storageKey');",
+                  "  pm.expect(body).to.not.have.property('url');",
+                  "});",
+                  "pm.collectionVariables.set('materialFileIdB', pm.response.json().fileId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [
+                    "fixtures/material-b.pdf"
+                  ]
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/teacher/uploads/material-file"
+          }
+        },
         {
           "name": "POST materials B (teacher)",
           "event": [
@@ -611,40 +1170,53 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{teacherToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{teacherToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Postman material B\",\n  \"price\": 50,\n  \"file_key\": \"files/postman-b.pdf\",\n  \"cover_image_url\": \"https://picsum.photos/seed/postman-cover/640/480\",\n  \"teaching_objective\": \"幫助學生建立分類能力\",\n  \"teaching_methods\": [\"分組競賽\"],\n  \"usage_duration\": \"約 1 堂課，每堂 40 分鐘\",\n  \"activity_steps\": \"1. 發下圖卡\\n2. 小組分類\\n3. 分享成果\",\n  \"contents\": [\n    { \"type\": \"worksheet\", \"name\": \"分類任務單\", \"count\": 1 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
+              "raw": "{\n  \"title\": \"Postman material B\",\n  \"price\": 50,\n  \"fileId\": \"{{materialFileIdB}}\",\n  \"cover_image_url\": \"https://picsum.photos/seed/postman-cover/640/480\",\n  \"teaching_objective\": \"幫助學生建立分類能力\",\n  \"teaching_methods\": [\"分組競賽\"],\n  \"usage_duration\": \"約 1 堂課，每堂 40 分鐘\",\n  \"activity_steps\": \"1. 發下圖卡\\n2. 小組分類\\n3. 分享成果\",\n  \"contents\": [\n    { \"type\": \"worksheet\", \"name\": \"分類任務單\", \"count\": 1 }\n  ],\n  \"material_features\": [\"PDF教材\"],\n  \"ipDeclarationAccepted\": true\n}"
             },
             "url": "{{baseUrl}}/materials"
           }
         },
         {
-          "name": "PUT materials B publish (admin)",
+          "name": "POST admin materials B approve (admin)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200', function () { pm.response.to.have.status(200); });"
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('published', function () { pm.expect(pm.response.json().material.status).to.eql('published'); });"
                 ],
                 "type": "text/javascript"
               }
             }
           ],
           "request": {
-            "method": "PUT",
+            "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"published\"\n}"
+              "raw": "{}"
             },
-            "url": "{{baseUrl}}/materials/{{materialIdB}}"
+            "url": "{{baseUrl}}/admin/materials/{{materialIdB}}/approve"
           }
         },
         {
@@ -663,8 +1235,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -691,10 +1269,19 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "url": "{{baseUrl}}/orders"
           }
         },
@@ -715,7 +1302,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "formdata",
@@ -752,8 +1342,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -784,8 +1380,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -810,6 +1412,11 @@
                   "  pm.expect(body.proof).to.have.property('order_payment_due_at');",
                   "  pm.expect(body.orderItems).to.be.an('array');",
                   "  pm.expect(body.otherProofs).to.be.an('array');",
+                  "});",
+                  "pm.test('不再回傳公開 proof_url（Payment Proof Private Storage）', function () {",
+                  "  pm.expect(pm.response.json().proof.proof_url).to.be.undefined;",
+                  "  pm.expect(pm.response.text()).to.not.include('/uploads/payment-proofs/');",
+                  "  pm.expect(pm.response.json().proof.proof_file_path).to.be.a('string');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -818,7 +1425,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/payment-proofs/{{proofIdB}}"
           }
         },
@@ -844,7 +1456,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/payment-proofs?q={{orderIdB}}"
           }
         }
@@ -861,7 +1478,14 @@
               "script": {
                 "exec": [
                   "pm.test('200', function () { pm.response.to.have.status(200); });",
-                  "pm.test('signedUrl', function () { pm.expect(pm.response.json().signedUrl).to.be.a('string'); });"
+                  "pm.test('signedUrl', function () { pm.expect(pm.response.json().signedUrl).to.be.a('string'); });",
+                  "pm.test('signedUrl is a real address, not the old mock', function () {",
+                  "  pm.expect(pm.response.json().signedUrl).to.not.include('download.local');",
+                  "});",
+                  "pm.test('token TTL is bounded', function () {",
+                  "  pm.expect(pm.response.json().expiresInSeconds).to.be.above(0);",
+                  "});",
+                  "pm.collectionVariables.set('downloadTokenUrl', pm.response.json().signedUrl);"
                 ],
                 "type": "text/javascript"
               }
@@ -870,7 +1494,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/download/{{materialId}}"
           }
@@ -898,8 +1525,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -927,8 +1560,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -958,9 +1597,47 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/me/reviews"
+          }
+        },
+        {
+          "name": "GET download/file/:token (binary + single use)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('served as an attachment with a filename', function () {",
+                  "  const cd = pm.response.headers.get('Content-Disposition') || '';",
+                  "  pm.expect(cd).to.include('attachment');",
+                  "  pm.expect(cd).to.include('filename');",
+                  "});",
+                  "pm.test('body is the PDF that was uploaded', function () {",
+                  "  // magic bytes：確認交付的是真的檔案內容，不是 JSON 錯誤訊息。",
+                  "  pm.expect(pm.response.text().slice(0, 5)).to.eql('%PDF-');",
+                  "});",
+                  "// 一次性：同一張票再打一次必須失敗。",
+                  "pm.sendRequest({ url: pm.collectionVariables.get('downloadTokenUrl'), method: 'GET' }, function (err, res) {",
+                  "  pm.test('download token is single-use', function () {",
+                  "    pm.expect(err).to.be.null;",
+                  "    pm.expect(res.code).to.eql(404);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{downloadTokenUrl}}"
           }
         },
         {
@@ -1007,8 +1684,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentBToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentBToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1039,8 +1722,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1078,7 +1767,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/materials"
           }
         },
@@ -1098,9 +1792,131 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/orders"
+          }
+        },
+        {
+          "name": "GET admin/orders?page=1&limit=1 (IA-06 pagination contract)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('pagination envelope matches utils/adminQuery.js', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.items.length).to.be.at.most(1);",
+                  "  pm.expect(body.pagination.page).to.eql(1);",
+                  "  pm.expect(body.pagination.limit).to.eql(1);",
+                  "  pm.expect(body.pagination.totalPages).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders?page=1&limit=1"
+          }
+        },
+        {
+          "name": "GET admin/orders?limit=9999 (clamped to 100)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('limit is clamped to MAX_LIMIT', function () {",
+                  "  pm.expect(pm.response.json().pagination.limit).to.eql(100);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders?limit=9999"
+          }
+        },
+        {
+          "name": "GET admin/orders?q={{orderId}} (IA-06 order id lookup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('exact order id lookup returns that order with its buyer email', function () {",
+                  "  var body = pm.response.json();",
+                  "  var ids = body.items.map(function (it) { return it.id; });",
+                  "  pm.expect(ids).to.include(pm.collectionVariables.get('orderId'));",
+                  "  body.items.forEach(function (it) {",
+                  "    pm.expect(it.buyer_email, 'buyer_email must be returned').to.be.a('string');",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders?q={{orderId}}"
+          }
+        },
+        {
+          "name": "GET admin/orders?q=<no match> (empty, not everything)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no match returns an empty page, never the full list', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.items.length).to.eql(0);",
+                  "  pm.expect(body.pagination.total).to.eql(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders?q=pm_no_such_order_zzz"
           }
         },
         {
@@ -1122,7 +1938,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/orders?status=awaiting_payment"
           }
         },
@@ -1148,7 +1969,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/orders?status=pending_review"
           }
         },
@@ -1167,7 +1993,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/orders?status=payment_rejected"
           }
         },
@@ -1188,7 +2019,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/admin/orders?status=pending_payment"
           }
         },
@@ -1219,7 +2055,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/activity-logs?page=1&limit=20"
           }
@@ -1251,7 +2090,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/activity-logs/{{activityLogId}}"
           }
@@ -1278,7 +2120,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/users/{{parentId}}/activity-logs?page=1&limit=10"
           }
@@ -1308,7 +2153,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/materials/{{materialId}}/activity-logs?page=1&limit=10"
           }
@@ -1338,7 +2186,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/orders/{{orderId}}/activity-logs?page=1&limit=10"
           }
@@ -1378,7 +2229,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/activity-logs"
           }
@@ -1403,7 +2257,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/reports"
           }
@@ -1429,7 +2286,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/reports?status=pending"
           }
@@ -1450,7 +2310,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/reports?status=resolved"
           }
@@ -1477,7 +2340,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/materials/{{materialId}}/reports"
           }
@@ -1503,99 +2369,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/admin/materials/{{materialId}}/reports?status=pending"
           }
         },
         {
-          "name": "PATCH admin/reports/:id（無 Token → 401）",
+          "name": "POST admin/report-cases/:id/investigate（正式流程）",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('401', function () { pm.response.to.have.status(401); });"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"reviewed\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
-          }
-        },
-        {
-          "name": "PATCH admin/reports/:id（parent → 403）",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('403', function () { pm.response.to.have.status(403); });"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"reviewed\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
-          }
-        },
-        {
-          "name": "PATCH admin/reports/:id（body 非 reviewed → 400）",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('400', function () { pm.response.to.have.status(400); });"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"pending\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
-          }
-        },
-        {
-          "name": "PATCH admin/reports/:id → reviewed",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('200 reviewed', function () {",
+                  "pm.test('200 investigating', function () {",
                   "  pm.response.to.have.status(200);",
-                  "  const r = pm.response.json();",
-                  "  pm.expect(r.status).to.eql('reviewed');",
-                  "  pm.expect(r.reviewed_at).to.exist;",
-                  "  pm.expect(r.reviewed_by).to.exist;",
+                  "  pm.expect(pm.response.json().report.status).to.eql('investigating');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -1603,35 +2394,76 @@
             }
           ],
           "request": {
-            "method": "PATCH",
+            "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"reviewed\"\n}"
+              "raw": "{}"
             },
-            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+            "url": "{{baseUrl}}/admin/report-cases/{{reportId}}/investigate"
           }
         },
         {
-          "name": "GET admin/activity-logs（驗證 report_reviewed）",
+          "name": "POST admin/report-cases/:id/resolve（正式結案）",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200 audit row', function () {",
+                  "pm.test('200 dismissed', function () {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.items).to.be.an('array');",
-                  "  const rid = pm.collectionVariables.get('reportId');",
-                  "  const hit = body.items.find(function (x) {",
-                  "    return x.action === 'report_reviewed' && x.target_type === 'report' && x.target_id === rid;",
-                  "  });",
-                  "  pm.expect(hit, 'report_reviewed log').to.exist;",
-                  "  pm.expect(hit.meta && hit.meta.status).to.eql('reviewed');",
+                  "  pm.expect(body.report.status).to.eql('dismissed');",
+                  "  pm.expect(body.report.resolution).to.eql('dismissed');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"dismissed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/report-cases/{{reportId}}/resolve"
+          }
+        },
+        {
+          "name": "GET admin/report-cases/:id（案件歷程）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 timeline', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.report.status).to.eql('dismissed');",
+                  "  pm.expect(body.events).to.be.an('array');",
+                  "  pm.expect(body.events.length, 'case history').to.be.above(0);",
+                  "  pm.expect(body.allowedTransitions, 'closed case has no transitions').to.eql([]);",
+                  "  pm.expect(body.allowedTransitions).to.not.include('reviewed');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -1641,38 +2473,12 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
-            ],
-            "url": "{{baseUrl}}/admin/activity-logs?action=report_reviewed&target_type=report&target_id={{reportId}}&limit=20"
-          }
-        },
-        {
-          "name": "PATCH admin/reports/:id (already reviewed → 409)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('409 conflict', function () { pm.response.to.have.status(409); });",
-                  "pm.test('message', function () {",
-                  "  pm.expect(pm.response.json().message).to.include('already reviewed');",
-                  "});"
-                ],
-                "type": "text/javascript"
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
               }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"reviewed\"\n}"
-            },
-            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+            "url": "{{baseUrl}}/admin/report-cases/{{reportId}}"
           }
         }
       ]
@@ -1698,9 +2504,113 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{parentToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
             ],
             "url": "{{baseUrl}}/cart/items/{{cartItemId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Legacy compatibility (deprecated)",
+      "description": "**已淘汰、不屬於正式流程。**\n\n`PATCH /admin/reports/:id` 是新版案件流程之前的舊入口：它會把檢舉直接標成 legacy 的 `reviewed`（沒有 resolution、沒有處置說明、沒有完整案件歷程）。\n\n正式流程請用 `07 Admin lists` 的 `POST /admin/report-cases/:id/investigate` → `/resolve`。\n\n這裡**只保留不會寫入資料的負向測試**（401 / 403 / 400），確保這支 deprecated 端點的授權與驗證沒有退化。成功路徑（`pending → reviewed`）與 409 的覆蓋放在 `Backend/tests/reportCases.db.test.js`（那裡有 fixture cleanup）——放在這裡會讓每次回歸都在資料庫累積新的 legacy `reviewed` 列。\n\n見 `docs/material-review-workflow.md` 與 `docs/admin-information-architecture.md`。",
+      "item": [
+        {
+          "name": "PATCH admin/reports/:id（無 Token → 401）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', function () { pm.response.to.have.status(401); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "description": "deprecated legacy endpoint：授權邊界回歸，不會寫入資料。",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id（parent → 403）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('403', function () { pm.response.to.have.status(403); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "description": "deprecated legacy endpoint：非 admin 一律 403，不會寫入資料。",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{parentToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "PATCH admin/reports/:id（body 非 reviewed → 400）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', function () { pm.response.to.have.status(400); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "description": "deprecated legacy endpoint：只接受 status=reviewed，其餘 400，不會寫入資料。",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pending\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/reports/{{reportId}}"
           }
         }
       ]

@@ -48,6 +48,40 @@ const openApiSpec = {
           created_at: { type: "string", format: "date-time", example: "2026-04-21T12:10:00.000Z" },
         },
       },
+      /**
+       * 教材本體檔案。storage key / checksum / uploaded_by **永遠不會**出現在 API 回應中。
+       */
+      MaterialFileInfo: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "6f1a2b3c-4d5e-4f60-8a1b-2c3d4e5f6071" },
+          originalFilename: { type: "string", example: "三年級數學練習.pdf" },
+          mimeType: { type: "string", example: "application/pdf" },
+          sizeBytes: { type: "integer", example: 2457600 },
+          status: {
+            type: "string",
+            enum: ["unattached", "candidate", "approved", "superseded", "revoked"],
+            example: "approved",
+          },
+          uploadedAt: { type: "string", format: "date-time", nullable: true },
+          approvedAt: { type: "string", format: "date-time", nullable: true },
+        },
+      },
+      MaterialFileSummary: {
+        type: "object",
+        description:
+          "approvedFile = 買家實際下載到的版本；pendingFile = 待審候選檔，**買家永遠取不到**。",
+        properties: {
+          approvedFile: {
+            allOf: [{ $ref: "#/components/schemas/MaterialFileInfo" }],
+            nullable: true,
+          },
+          pendingFile: {
+            allOf: [{ $ref: "#/components/schemas/MaterialFileInfo" }],
+            nullable: true,
+          },
+        },
+      },
       Material: {
         type: "object",
         properties: {
@@ -63,7 +97,20 @@ const openApiSpec = {
             enum: ["pending_review", "published", "unpublished"],
             example: "published",
           },
-          file_key: { type: "string", example: "materials/math/worksheet-bundle.zip" },
+          file_key: {
+            type: "string",
+            nullable: true,
+            deprecated: true,
+            description:
+              "LEGACY placeholder（不對應任何實際檔案）。教材本體的 canonical 來源是 material_file；" +
+              "此欄位**不會出現在公開／買家回應中**，新建教材為 null。",
+            example: null,
+          },
+          material_file: {
+            allOf: [{ $ref: "#/components/schemas/MaterialFileSummary" }],
+            description:
+              "教材本體檔案。**僅 admin 與教材擁有者**取得得到（公開讀取不含此欄位）。",
+          },
           teaching_objective: { type: "string", example: "幫助學生認識地點與物品並完成配對" },
           teaching_methods: {
             type: "array",
@@ -147,10 +194,27 @@ const openApiSpec = {
       },
       PaymentProof: {
         type: "object",
+        description:
+          "付款憑證。**不含 `proof_url` 或 `storage_key`** —— 憑證是敏感交易檔案，" +
+          "位元組只能經 `GET /orders/{orderId}/payment-proofs/{proofId}/file`（Admin 或訂單擁有者）取得。",
         properties: {
           id: { type: "string", example: "9fe1273a-8a4b-4db8-b3f7-7bde0612a4a1" },
           order_id: { type: "string", example: "ord_lg8b93v1az1" },
-          proof_url: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" },
+          proof_file_path: {
+            type: "string",
+            description: "受保護的讀取路徑（相對）。需帶 Authorization。",
+            example: "/orders/ord_lg8b93v1az1/payment-proofs/9fe1273a-8a4b-4db8-b3f7-7bde0612a4a1/file",
+          },
+          proof_file_available: {
+            type: "boolean",
+            description: "是否有可交付的影像。legacy 未搬移／檔案遺失的憑證為 false。",
+            example: true,
+          },
+          proof_storage_status: {
+            type: "string",
+            enum: ["private", "legacy_public", "legacy_external", "legacy_missing"],
+            example: "private",
+          },
           proof_mime_type: { type: "string", example: "image/jpeg" },
           proof_size_bytes: { type: "integer", example: 421233 },
           original_filename: { type: "string", example: "transfer-proof.jpg" },
@@ -318,16 +382,28 @@ const openApiSpec = {
       },
       TeacherMaterialMediaUploadResponse: {
         type: "object",
-        required: ["url", "filename"],
+        required: ["url", "mediaId", "kind", "filename"],
         properties: {
           url: {
             type: "string",
             format: "uri",
             description:
-              "Absolute URL of the stored file (uses PUBLIC_BACKEND_URL when set). Pass this value into POST/PUT materials fields.",
-            example: "http://localhost:3000/uploads/material-media/mj8abc_sample.jpg",
+              "Absolute delivery URL (uses PUBLIC_BACKEND_URL when set). Pass this value into POST/PATCH materials fields. **Not a static file path** — the endpoint authorizes every request against the owning material's status.",
+            example: "http://localhost:3000/materials/media/6f1c2e40-1f4a-4a8e-9b1e-0c6f2a3d4e5b",
           },
-          filename: { type: "string", example: "mj8abc_sample.jpg" },
+          mediaId: {
+            type: "string",
+            format: "uuid",
+            example: "6f1c2e40-1f4a-4a8e-9b1e-0c6f2a3d4e5b",
+          },
+          kind: { type: "string", enum: ["cover", "detail", "demo"], example: "cover" },
+          filename: {
+            type: "string",
+            description: "Original filename as uploaded. The on-disk object name is never exposed.",
+            example: "封面.png",
+          },
+          mimeType: { type: "string", example: "image/png" },
+          sizeBytes: { type: "integer", example: 204800 },
         },
       },
       TeacherSalesRecord: {
@@ -542,7 +618,7 @@ const openApiSpec = {
                 required: [
                   "title",
                   "price",
-                  "file_key",
+                  "fileId",
                   "teaching_objective",
                   "teaching_methods",
                   "usage_duration",
@@ -558,8 +634,12 @@ const openApiSpec = {
                   category: { type: "string", example: "math" },
                   ageRange: { type: "string", example: "7-10" },
                   age_range: { type: "string", example: "7-10" },
-                  fileKey: { type: "string", example: "materials/math/worksheet-bundle.zip" },
-                  file_key: { type: "string", example: "materials/math/worksheet-bundle.zip" },
+                  fileId: {
+                    type: "string",
+                    description:
+                      "先呼叫 POST /teacher/uploads/material-file 取得。**不是** URL 也不是 storage key。",
+                    example: "6f1a2b3c-4d5e-4f60-8a1b-2c3d4e5f6071",
+                  },
                   teaching_objective: { type: "string", example: "幫助學生認識地點與物品並完成配對" },
                   teaching_methods: {
                     type: "array",
@@ -646,7 +726,11 @@ const openApiSpec = {
         tags: ["Materials"],
         summary: "更新教材 / Update material",
         description:
-          "創作者可更新自己教材欄位；僅管理員可改 status。Creator can edit own material fields; only admin can change status.",
+          "創作者可更新自己教材欄位。**status 不能由這支端點改變**（teacher 403 / admin 400 " +
+          "`status_not_updatable_here`）—— 教材狀態由審核 workflow 管理：" +
+          "POST /admin/materials/:id/approve、/request-changes、POST /materials/:id/resubmit。" +
+          "見 docs/material-review-workflow.md。 " +
+          "Creator can edit own material fields; status is managed by the review workflow, not here.",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
         requestBody: {
@@ -661,7 +745,6 @@ const openApiSpec = {
                   price: { type: "number", example: 249 },
                   category: { type: "string", example: "math" },
                   ageRange: { type: "string", example: "8-11" },
-                  fileKey: { type: "string", example: "materials/math/new-file.zip" },
                   teaching_objective: { type: "string", example: "幫助學生認識地點與物品並完成配對" },
                   teaching_methods: {
                     type: "array",
@@ -897,7 +980,12 @@ const openApiSpec = {
         tags: ["Orders"],
         summary: "上傳付款憑證 / Upload payment proof",
         description:
-          "上傳手動付款憑證圖檔，供管理員審核。Upload payment proof images for admin review. Allowed mime types: JPG/PNG/WEBP; max 5MB each; up to 3 images per order.",
+          "上傳手動付款憑證圖檔，供管理員審核。Upload payment proof images for admin review. " +
+          "允許 JPG / PNG / WebP，單檔上限 10 MB，每筆訂單最多 3 張；" +
+          "副檔名、宣告 MIME 與 **magic bytes** 三層驗證（改副檔名的假圖片會被 415 擋下）。" +
+          "檔案寫入**私有儲存**（`private-storage/payment-proofs/`），回應**不含**任何公開 URL 或 storage key —— " +
+          "只給 `proof_file_path`。舊的 `/uploads/payment-proofs/...` 靜態路徑已停止服務（404）。" +
+          "canonical 路徑為 `POST /orders/{id}/payment-proof`；`/upload-proof` 為 legacy 別名，行為相同。",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
         requestBody: {
@@ -913,7 +1001,7 @@ const openApiSpec = {
                     minItems: 1,
                     maxItems: 3,
                     items: { type: "string", format: "binary" },
-                    description: "Payment proof images (JPG/PNG/WEBP), each <= 5MB.",
+                    description: "Payment proof images (JPG/PNG/WebP), each <= 10MB, max 3 per order.",
                   },
                 },
               },
@@ -946,12 +1034,238 @@ const openApiSpec = {
         },
       },
     },
+    "/orders/{orderId}/payment-proofs": {
+      get: {
+        tags: ["Orders"],
+        summary: "列出訂單的付款憑證 / List payment proofs of an order",
+        description:
+          "回傳這筆訂單的憑證 metadata（**不含**位元組、不含 storage key）。" +
+          "授權：**Admin 或該訂單的擁有者**。其他任何已登入使用者一律 403，匿名 401。" +
+          "訂單狀態與審核結果都不影響可讀性 —— 憑證是使用者自己交易紀錄的一部分。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "orderId", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "成功 / Success.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    orderId: { type: "string", example: "ord_lg8b93v1az1" },
+                    items: { type: "array", items: { $ref: "#/components/schemas/PaymentProof" } },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/orders/{orderId}/payment-proofs/{proofId}/file": {
+      get: {
+        tags: ["Orders"],
+        summary: "取得付款憑證影像 / Fetch a payment proof image",
+        description:
+          "**唯一**取得憑證位元組的方式。授權：Admin 或該訂單的擁有者。" +
+          "回應為二進位影像，並帶 `Cache-Control: private, no-store` 與 " +
+          "`X-Content-Type-Options: nosniff`；預設 `Content-Disposition: inline`（Admin 審核需要直接看圖）。" +
+          "`?download=1` 改為 `attachment`，並寫一筆 `payment_proof_downloaded` 稽核事件 —— " +
+          "單純的 inline 預覽**不寫**稽核，否則每次載入圖片都留一筆會把 activity log 淹掉。" +
+          "`proofId` 必須真的屬於 `orderId`（否則 404）—— 授權是對訂單做的，這一條擋掉 IDOR。" +
+          "legacy 憑證（尚未搬入私有儲存／外部網址／檔案遺失）回 409，**不會**退回公開 URL。",
+        security: bearerSecurity,
+        parameters: [
+          { in: "path", name: "orderId", required: true, schema: { type: "string" } },
+          { in: "path", name: "proofId", required: true, schema: { type: "string" } },
+          {
+            in: "query",
+            name: "download",
+            required: false,
+            schema: { type: "string", enum: ["1", "true", "yes"] },
+            description: "改用 attachment 下載並寫入稽核。",
+          },
+        ],
+        responses: {
+          200: {
+            description: "憑證影像 / Proof image bytes.",
+            content: {
+              "image/jpeg": { schema: { type: "string", format: "binary" } },
+              "image/png": { schema: { type: "string", format: "binary" } },
+              "image/webp": { schema: { type: "string", format: "binary" } },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: {
+            description: "憑證存在但沒有可交付的影像（legacy 未搬移／檔案遺失）。",
+          },
+          503: { description: "儲存後端暫時無法取得物件。" },
+        },
+      },
+    },
+    "/teacher/uploads/material-file": {
+      post: {
+        tags: ["Materials"],
+        summary: "上傳教材本體檔案 / Upload the material deliverable",
+        description:
+          "Creator 專屬。multipart field name: `file`。允許 .pdf / .zip / .pptx / .docx / .xlsx，" +
+          "上限 100 MB；副檔名、宣告 MIME 與 magic bytes 三層驗證。" +
+          "回傳 `fileId`（**不是** URL，也不是 storage key）—— 建立教材或更換檔案時帶上它。" +
+          "未被認領的上傳會在 24 小時後由維運腳本清除。",
+        security: bearerSecurity,
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["file"],
+                properties: { file: { type: "string", format: "binary" } },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "上傳成功 / Uploaded.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    fileId: { type: "string", example: "6f1a2b3c-4d5e-4f60-8a1b-2c3d4e5f6071" },
+                    originalFilename: { type: "string", example: "三年級數學練習.pdf" },
+                    mimeType: { type: "string", example: "application/pdf" },
+                    sizeBytes: { type: "integer", example: 2457600 },
+                  },
+                },
+              },
+            },
+          },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          413: { description: "檔案超過上限 / File too large (`file_too_large`)." },
+          415: {
+            description:
+              "型別不合格 / Rejected file type (`unsupported_file_type`、`blocked_file_type`、" +
+              "`mime_mismatch`、`signature_mismatch`).",
+          },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/materials/{id}/file": {
+      post: {
+        tags: ["Materials"],
+        summary: "更換教材本體檔案 / Replace the material deliverable",
+        description:
+          "Creator 專屬，且只有 `changes_requested` / `unpublished` 可以更換。" +
+          "**只會寫入 `pending_file_id`（候選檔）**；成為買家下載到的版本必須經過 Admin 核准。" +
+          "`published` 更換等於在買家背後偷換已售出的商品，一律 409。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["fileId"],
+                properties: { fileId: { type: "string" } },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "已更新候選檔 / Candidate replaced.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    material_file: { $ref: "#/components/schemas/MaterialFileSummary" },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "檔案無法使用 / `file_not_available`." },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { description: "此狀態不可更換檔案 / `file_replacement_not_allowed`." },
+          500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/materials/{id}/file": {
+      get: {
+        tags: ["Admin"],
+        summary: "下載教材檔案審閱 / Download a material file for review",
+        description:
+          "Admin 專屬。`slot=pending` 是這次待審的候選檔，`slot=approved` 是買家目前下載到的版本。" +
+          "回應為檔案位元組（`Content-Disposition: attachment`），每次呼叫都寫入 " +
+          "`admin.material_file_downloaded` 稽核事件。",
+        security: bearerSecurity,
+        parameters: [
+          { in: "path", name: "id", required: true, schema: { type: "string" } },
+          {
+            in: "query",
+            name: "slot",
+            required: false,
+            schema: { type: "string", enum: ["pending", "approved"], default: "pending" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "檔案位元組 / File bytes.",
+            content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+          },
+          400: { description: "slot 非法 / `invalid_slot`." },
+          401: { $ref: "#/components/responses/Unauthorized" },
+          403: { $ref: "#/components/responses/Forbidden" },
+          404: { $ref: "#/components/responses/NotFound" },
+          409: { description: "該 slot 沒有檔案 / `material_file_unavailable`." },
+          503: { description: "儲存後端取不到實體檔案 / `file_object_missing`." },
+        },
+      },
+    },
+    "/download/file/{token}": {
+      get: {
+        tags: ["Download"],
+        summary: "兌換下載票並取得檔案 / Redeem a download token",
+        description:
+          "**刻意不需要 Authorization header** —— 這支端點是給瀏覽器直接導航用的，而導航帶不了 header。" +
+          "授權已在 `GET /download/{materialId}` 完成並固化進票裡：票是隨機值、只能用一次、" +
+          "五分鐘過期，且綁定 userId + materialId + fileId。" +
+          "此端點**必須直接打 Backend**，不可經過前端 proxy（二進位會被當文字解碼而毀損）。",
+        parameters: [{ in: "path", name: "token", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "檔案位元組 / File bytes.",
+            content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+          },
+          404: { description: "票無效、已使用或已過期 / `download_token_invalid`." },
+          409: { description: "檔案已停止交付 / `material_file_unavailable`." },
+          503: { description: "儲存後端取不到實體檔案 / `file_object_missing`." },
+        },
+      },
+    },
     "/download/{materialId}": {
       get: {
         tags: ["Download"],
         summary: "取得下載連結 / Get signed download URL",
         description:
-          "僅已購買且核准訂單可下載。Available only if caller has approved order for the material.",
+          "僅已購買且核准訂單可下載。**不看教材 status** —— 教材下架不會沒收已付款買家的權利。" +
+          "回傳的是一張一次性下載票（`signedUrl`），實際檔案由 `GET /download/file/{token}` 交付。" +
+          "Available only if caller has an approved order containing the material.",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "materialId", required: true, schema: { type: "string" } }],
         responses: {
@@ -963,15 +1277,28 @@ const openApiSpec = {
                   type: "object",
                   properties: {
                     materialId: { type: "string", example: "mat_lg8a1f6x9z2" },
-                    signedUrl: { type: "string", format: "uri", example: "https://download.local/materials/mat_lg8a1f6x9z2?token=mock-123" },
+                    signedUrl: {
+                      type: "string",
+                      format: "uri",
+                      description:
+                        "一次性下載票。直接指向 Backend（不經前端 proxy），只能用一次。",
+                      example: "http://localhost:3000/download/file/LbwU1_G2S8nvXXrE9rZ3IJuq7owj7QKzv7ZDTedlEb8",
+                    },
                     expiresInSeconds: { type: "integer", example: 300 },
+                    filename: { type: "string", example: "三年級數學練習.pdf" },
+                    sizeBytes: { type: "integer", example: 2457600 },
                   },
                 },
               },
             },
           },
           401: { $ref: "#/components/responses/Unauthorized" },
-          403: { $ref: "#/components/responses/Forbidden" },
+          403: { description: "尚未購買或訂單未核准 / `not_entitled`." },
+          409: {
+            description:
+              "已購買，但這份教材目前沒有可下載的檔案（含 milestone 之前的 legacy 教材）/ " +
+              "`material_file_unavailable`.",
+          },
           500: { $ref: "#/components/responses/ServerError" },
         },
       },
@@ -1095,12 +1422,40 @@ const openApiSpec = {
         },
       },
     },
+    "/materials/{id}/resubmit": {
+      post: {
+        tags: ["Materials"],
+        summary: "重新送審 / Resubmit material for review",
+        description:
+          "changes_requested | unpublished → pending_review。僅教材**擁有者**可呼叫；" +
+          "非擁有者一律 404（不回 403，以免洩漏 id 是否存在）。同一份教材繼續 lifecycle，" +
+          "不建立新教材。寫 material.resubmitted 稽核事件。見 docs/material-review-workflow.md §7。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        responses: {
+          200: {
+            description: "已重新送審 / Resubmitted.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { material: { $ref: "#/components/schemas/Material" } },
+                },
+              },
+            },
+          },
+          403: { description: "非 teacher 角色 / Not a teacher." },
+          404: { description: "教材不存在或不屬於此創作者 / Not found." },
+          409: { description: "狀態不允許重新送審 / Illegal transition." },
+        },
+      },
+    },
     "/teacher/uploads/material-media": {
       post: {
         tags: ["Creator"],
         summary: "上傳教材媒體檔並取得 URL / Upload material media (returns URL)",
         description:
-          "Requires **teacher** JWT. Send `multipart/form-data` with field **`file`** (single file). Query **`kind`**: `cover` or `detail` accepts JPEG/PNG/GIF/WebP (max 10MB); `demo` accepts MP4/WebM (max 80MB). Response `{ url, filename }` — store `url` in `cover_image_url`, `detail_images[].image_url`, or `demo_video_url`. Files are publicly readable at GET `/uploads/material-media/<filename>` (set **PUBLIC_BACKEND_URL** in production so `url` matches your public API host).",
+          "Requires **teacher** JWT. Send `multipart/form-data` with field **`file`** (single file). Query **`kind`**: `cover` or `detail` accepts JPEG/PNG/GIF/WebP (max 10MB); `demo` accepts MP4/WebM (max 80MB). Type is verified three ways — extension, declared MIME, and **magic bytes** — so a renamed file is rejected. Response `{ url, mediaId, kind, filename, … }`: store `url` in `cover_image_url`, `detail_images[].image_url`, or `demo_video_url`; it is claimed by that material on the next POST/PATCH `/materials`. Bytes are stored **privately** and served only through GET `/materials/media/{mediaId}` — the legacy public path `/uploads/material-media/*` now returns **404** (set **PUBLIC_BACKEND_URL** in production so `url` matches your public API host).",
         security: bearerSecurity,
         parameters: [
           {
@@ -1108,7 +1463,8 @@ const openApiSpec = {
             name: "kind",
             required: false,
             schema: { type: "string", enum: ["cover", "detail", "demo"], default: "cover" },
-            description: "Validation rules and size limit for the uploaded file.",
+            description:
+              "Validation rules and size limit for the uploaded file. An unrecognised value is rejected with 400 (it is not silently coerced to `cover`).",
           },
         ],
         requestBody: {
@@ -1135,7 +1491,46 @@ const openApiSpec = {
           400: { $ref: "#/components/responses/BadRequest" },
           401: { $ref: "#/components/responses/Unauthorized" },
           403: { $ref: "#/components/responses/Forbidden" },
+          413: { description: "檔案超過上限 / File exceeds the size limit." },
+          415: {
+            description:
+              "型別不被接受，或副檔名／MIME／magic bytes 不一致 / Unsupported or mismatched media type.",
+          },
           500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/materials/media/{mediaId}": {
+      get: {
+        tags: ["Materials"],
+        summary: "取得教材行銷素材 / Get material media bytes",
+        description:
+          "教材封面／詳情圖／試看影片的位元組。**可見性由所屬教材的 status 決定**，不由檔名決定：\n\n" +
+          "| 所屬教材 | 誰能取得 |\n| --- | --- |\n" +
+          "| `published` | 任何人，包含未登入（公開商品頁需要） |\n" +
+          "| 尚未認領（剛上傳） | 上傳者或 admin |\n" +
+          "| `pending_review` / `changes_requested` / `unpublished` | 教材擁有者（teacher）或 admin |\n\n" +
+          "下架因此**立即生效**：`status` 一變，同一條 URL 對匿名訪客就變成 401。\n\n" +
+          "Bearer token 為選用（`optionalAuth`）—— 公開素材必須讓 `<img src>` 直接取得，而 `<img>` 不會帶 Authorization header。" +
+          "回應為 `inline`，支援 `Range`（試看影片拖曳進度條）。公開素材為 `Cache-Control: public, max-age=300`，受保護的素材為 `private, no-store`。",
+        parameters: [
+          {
+            in: "path",
+            name: "mediaId",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          200: {
+            description: "素材位元組 / Media bytes.",
+            content: { "image/*": { schema: { type: "string", format: "binary" } } },
+          },
+          206: { description: "部分內容（Range 請求） / Partial content." },
+          401: { description: "素材尚未公開且未提供有效憑證 / Authentication required." },
+          403: { description: "已登入但無權存取此素材 / Not permitted." },
+          404: { description: "素材不存在 / Media not found." },
+          503: { description: "儲存後端暫時無法取得檔案 / Storage backend unavailable." },
         },
       },
     },
@@ -1246,8 +1641,12 @@ const openApiSpec = {
             in: "query",
             name: "status",
             required: false,
-            description: "materials.status 只有這三個值；沒有 draft / rejected / needs_revision。",
-            schema: { type: "string", enum: ["pending_review", "published", "unpublished", "all"] },
+            description:
+              "materials.status 的四個值；沒有 draft / rejected。狀態機見 docs/material-review-workflow.md。",
+            schema: {
+              type: "string",
+              enum: ["pending_review", "published", "changes_requested", "unpublished", "all"],
+            },
           },
           {
             in: "query",
@@ -1288,7 +1687,9 @@ const openApiSpec = {
                               creator_email: { type: "string", nullable: true, example: "creator@example.com" },
                               open_report_count: {
                                 type: "integer",
-                                description: "未結案檢舉數（pending + investigating + awaiting_creator）。",
+                                description:
+                                  "未結案檢舉數（pending + investigating + awaiting_creator）。" +
+                                  "注意這是**未結案**，不是 Admin 待辦 —— 待辦不含 awaiting_creator。",
                                 example: 0,
                               },
                             },
@@ -1325,6 +1726,7 @@ const openApiSpec = {
         summary: "管理員訂單列表 / Admin order list",
         description:
           "以 **operational state** 篩選（非 orders.status 原始值）。未帶則回全部；非法值回 400。" +
+          "可用 `q` 搜尋訂單編號或買家 Email，並支援分頁。" +
           "Filter by derived operational state, not the raw orders.status. See docs/mvp_rules.md §19.",
         security: bearerSecurity,
         parameters: [
@@ -1337,6 +1739,16 @@ const openApiSpec = {
               enum: ["awaiting_payment", "pending_review", "payment_rejected", "approved", "cancelled"],
             },
           },
+          {
+            in: "query",
+            name: "q",
+            required: false,
+            description:
+              "Human-friendly lookup：訂單編號 / 買家 Email。客訴進來時 Admin 手上就是這兩樣東西。",
+            schema: { type: "string", example: "buyer@example.com" },
+          },
+          { in: "query", name: "page", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { in: "query", name: "limit", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
         ],
         responses: {
           200: {
@@ -1358,6 +1770,12 @@ const openApiSpec = {
                                 type: "string",
                                 enum: ["awaiting_payment", "pending_review", "payment_rejected", "approved", "cancelled"],
                               },
+                              buyer_email: {
+                                type: "string",
+                                nullable: true,
+                                description: "訂單擁有者的 Email；`q` 的搜尋面之一。",
+                                example: "buyer@example.com",
+                              },
                               payment_proof_pending_review_count: { type: "integer", example: 0 },
                               payment_proof_latest_status: {
                                 type: "string",
@@ -1369,6 +1787,7 @@ const openApiSpec = {
                         ],
                       },
                     },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
                   },
                 },
               },
@@ -1417,7 +1836,18 @@ const openApiSpec = {
                           order_id: { type: "string", example: "ord_lg8b93v1az1" },
                           user_id: { type: "string", example: "usr_parent_001" },
                           order_status: { type: "string", example: "pending_payment" },
-                          proof_url: { type: "string", format: "uri", example: "https://cdn.example.com/proofs/p1.jpg" },
+                          proof_file_path: {
+                            type: "string",
+                            description:
+                              "憑證影像的受保護讀取路徑。取代了舊契約的 `proof_url`（公開靜態網址，已移除）。",
+                            example: "/orders/ord_lg8b93v1az1/payment-proofs/10/file",
+                          },
+                          proof_file_available: { type: "boolean", example: true },
+                          proof_storage_status: {
+                            type: "string",
+                            enum: ["private", "legacy_public", "legacy_external", "legacy_missing"],
+                            example: "private",
+                          },
                           proof_mime_type: { type: "string", example: "image/png" },
                           proof_size_bytes: { type: "integer", example: 328899 },
                           original_filename: { type: "string", nullable: true, example: "proof.png" },
@@ -1472,6 +1902,110 @@ const openApiSpec = {
           401: { $ref: "#/components/responses/Unauthorized" },
           403: { $ref: "#/components/responses/Forbidden" },
           500: { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/admin/materials/{id}/approve": {
+      post: {
+        tags: ["Admin"],
+        summary: "核准教材上架 / Approve material",
+        description:
+          "pending_review → published。寫入 reviewed_by / reviewed_at，清空退回原因，" +
+          "並在**首次**公開時設定 published_at。寫 material.published 稽核事件並寄信給創作者。" +
+          "其他來源狀態一律 409。見 docs/material-review-workflow.md §6。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  note: {
+                    type: "string",
+                    description: "內部備註，只寫進稽核事件，不寄給創作者。",
+                    example: "內容與標註相符。",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "已上架 / Published.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    material: { $ref: "#/components/schemas/Material" },
+                    firstPublish: { type: "boolean", example: true },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: "教材不存在 / Material not found." },
+          409: { description: "狀態不允許此轉移 / Illegal transition." },
+        },
+      },
+    },
+    "/admin/materials/{id}/request-changes": {
+      post: {
+        tags: ["Admin"],
+        summary: "退回教材修改 / Request material changes",
+        description:
+          "pending_review → changes_requested。reasonCode 與 note 皆為必填，note trim 後至少 10 字。" +
+          "寫入 review snapshot、寫 material.changes_requested 稽核事件並寄信給創作者。" +
+          "見 docs/material-review-workflow.md §5。",
+        security: bearerSecurity,
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["reasonCode", "note"],
+                properties: {
+                  reasonCode: {
+                    type: "string",
+                    enum: [
+                      "incomplete_info",
+                      "media_quality",
+                      "features_mismatch",
+                      "file_problem",
+                      "ip_concern",
+                      "other",
+                    ],
+                  },
+                  note: {
+                    type: "string",
+                    description: "補充說明，trim 後至少 10 字（code point）。",
+                    example: "活動步驟只寫了一句，請補充完整流程與所需時間。",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "已退回 / Returned for changes.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { material: { $ref: "#/components/schemas/Material" } },
+                },
+              },
+            },
+          },
+          400: { description: "reasonCode 非法或 note 太短 / Invalid input." },
+          404: { description: "教材不存在 / Material not found." },
+          409: { description: "狀態不允許此轉移 / Illegal transition." },
         },
       },
     },
@@ -1615,8 +2149,17 @@ const openApiSpec = {
     "/admin/reports/{id}": {
       patch: {
         tags: ["Admin"],
-        summary: "標記檢舉已讀 / Mark report reviewed",
-        description: "僅允許 status=reviewed。Only supports changing status to reviewed.",
+        deprecated: true,
+        summary: "【已淘汰】標記檢舉已讀 / Mark report reviewed (deprecated)",
+        description:
+          "**@deprecated — 不屬於正式流程。** 僅允許 `status=reviewed`（`pending → reviewed`）。" +
+          "它寫入的 `reviewed` 是 legacy 終態：沒有 resolution、沒有處置說明、沒有案件歷程，" +
+          "且**不是**正式狀態機的合法轉移目標。正式流程請用 " +
+          "`POST /admin/report-cases/{id}/investigate` → `/request-response` → `/resolve`。" +
+          "回應帶 `Deprecation: true` 與 `Link: </admin/report-cases>; rel=\"successor-version\"`。" +
+          "正式 Admin UI 已無任何入口呼叫它；既有 `reviewed` 資料保留不回填。" +
+          "見 docs/mvp_rules.md §6 與 docs/admin-information-architecture.md §9。 " +
+          "Deprecated legacy acknowledgement path kept only for backward compatibility.",
         security: bearerSecurity,
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
         requestBody: {
@@ -1685,7 +2228,11 @@ const openApiSpec = {
             in: "query",
             name: "status",
             required: false,
-            description: '"open"（= pending + investigating + awaiting_creator）、"all"，或以逗號分隔的狀態子集合。',
+            description:
+              '"open"（**未結案** = pending + investigating + awaiting_creator）、"all"，或以逗號分隔的狀態子集合。' +
+              "Admin 的**待辦**是 `pending,investigating`（reportWorkflow.ADMIN_ACTIONABLE_REPORT_STATUSES）—— " +
+              "`awaiting_creator` 未結案但球在創作者手上，不算待辦；Dashboard 待辦卡即以此查詢。" +
+              "見 docs/admin-information-architecture.md §4.1。",
             schema: { type: "string", example: "open" },
           },
           { in: "query", name: "q", required: false, schema: { type: "string" } },
@@ -2005,7 +2552,7 @@ const openApiSpec = {
         description:
           "既有的精確比對參數全部保留；另加人類可讀搜尋 `q` 與日期區間 `from`/`to`。" +
           "每列補上 `actor_email` 與 `target_label`，`meta` 與所有 technical id 原封不動回傳。" +
-          "See docs/mvp_rules.md §21.",
+          "See docs/mvp_rules.md §22.",
         security: bearerSecurity,
         parameters: [
           { in: "query", name: "actor_id", required: false, schema: { type: "string" } },
