@@ -1,0 +1,141 @@
+# Render Blueprint — NT$0 MVP production（`PRE-07`）
+#
+# 決策依據：docs/mvp-nt0-deployment-decision-2026-08-31.md（`DEC-16` / `DEC-17`）
+# 環境變數契約：docs/production-environment-contract.md（`PRE-09`，儲存章節已由 DEC-16 更新）
+#
+# ## 這份檔案存在的理由
+#
+# repo 先前**沒有任何部署描述檔**，因此部署只能是一次性的手動點選 —— 無法稽核、無法重建。
+# 這份 blueprint 讓兩個 service 的 region / build / start / health check / 環境變數**名稱**
+# 成為版控的一部分。**值不在這裡**（見下）。
+#
+# ## Secret 一律不進版控
+#
+# 所有 `sync: false` 的變數都**不會**存在這個檔案裡。Render 在第一次建立 blueprint 時
+# 會逐一提示輸入，之後由 dashboard 管理。這符合 CLAUDE.md §8：真實值只存在部署環境。
+#
+# ## 兩階段部署（無法避免，不是疏漏）
+#
+# `PUBLIC_BACKEND_URL` / `PUBLIC_WEB_URL` / `API_BASE_URL` 的值是 Render 配發的 hostname，
+# 而 hostname 要等 service 建立之後才存在。因此：
+#
+#   第一階段  建立兩個 service（這三個變數先填暫時值，**不可留空**）
+#   第二階段  兩個 URL 都產生後，回填正確值並各重新部署一次
+#
+# ⚠️ `PUBLIC_BACKEND_URL` **絕對不可留空**：`Backend/utils/publicUrl.js` 會回退成
+# `http://localhost:3000`，而 `services/materialMedia.service.js` 會把那個絕對 URL
+# **永久寫進** `cover_image_url` / `material_images.image_url` / `demo_video_url`。
+# 事後修設定不會回寫既有列。
+#
+# ## 刻意沒有寫在這裡的東西
+#
+#   * **persistent disk** —— Render Free 不支援，而 NT$0 架構也不需要：
+#     私有檔案走 `PRIVATE_FILE_STORAGE_DRIVER=s3`（Backblaze B2）。
+#   * **`PRIVATE_FILE_STORAGE_PATH` / `PRIVATE_FILE_STORAGE_ALLOW_LOCAL_IN_PRODUCTION`**
+#     —— 那兩個只屬於 `local` driver。在 s3 下設定它們是錯的訊號，代表有人以為
+#     位元組還在容器磁碟上。
+#   * **`SMTP_*`** —— `DEC-17` 明示 MVP 初期不啟用郵件。缺少時 backend 照常啟動、
+#     照常收單，只是不寄信（fails soft，`REL-02` 已保證不會終止 process）。
+#     匯款帳戶由結帳頁的 `GET /payment/bank-info` 提供，不依賴郵件。
+#   * **`NEXT_DIST_DIR`** —— 那是本機驗收流程用的，production 用 Next 預設的 `.next`。
+#   * **auto-deploy 設定** —— Render 的 `autoDeployTrigger` 語法本輪未實測，
+#     不寫進來以免整份 blueprint 解析失敗。**請在 dashboard 手動關閉 Auto-Deploy**，
+#     避免封閉測試進行到一半被一次 push 重啟。
+#
+# ## Free plan 的已知行為（不是故障）
+#
+#   * 15 分鐘無流量會 spin down，喚醒約 1 分鐘；backend 冷啟動還要跑完
+#     `ensureCoreTables()` 的全部 idempotent DDL，首次請求可能 30–60 秒。
+#   * 750 free instance hours / 月是**整個 workspace 共用**，兩個 service 一起算。
+#   * 單一 instance，不可水平擴充 —— 這與 `routes/order.js:27` 的
+#     `uploadIdempotencyCache`（process 內狀態）需求一致。
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend — Node / Express 5 / 單一 instance
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: teaching-platform-api
+    runtime: node
+    plan: free
+    region: singapore
+    # rootDir 省略 ＝ repo 根目錄。root package.json 沒有 dependencies，
+    # 依賴全在 Backend/，所以 build 要指定 --prefix。
+    buildCommand: npm ci --prefix Backend
+    startCommand: node Backend/index.js
+    healthCheckPath: /health
+    envVars:
+      # Node 18 已被 AWS SDK v3 於 2026-01 停止支援（s3 driver 依賴它）。
+      - key: NODE_VERSION
+        value: "22"
+      # 這是其他三條 fail-closed 檢查的開關本身；未設會讓私有儲存檢查完全不武裝，
+      # 且 /payment/bank-info 會對已登入者洩漏未設定的變數名清單。
+      - key: NODE_ENV
+        value: production
+      # 缺／空白／佔位值／< 32 字元 → module load 即 throw，程序起不來。
+      # 產生方式：openssl rand -base64 48
+      # 輪換此值會使所有已簽發 token 失效（全體登出）。
+      - key: JWT_SECRET
+        sync: false
+      # production 唯一可行路徑，且**必須帶明確 sslmode**。
+      # 離散 PG* 那條路無法開 TLS（config/db.js 從不設 ssl 鍵）。
+      # Neon 由公開 CA 簽發憑證 → ?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+
+      # --- 私有檔案儲存（Backblaze B2，DEC-16）---
+      # generic S3 driver：換供應商只需改下面五個值，零程式碼改動。
+      - key: PRIVATE_FILE_STORAGE_DRIVER
+        value: s3
+      - key: PRIVATE_FILE_STORAGE_S3_ENDPOINT
+        sync: false
+      - key: PRIVATE_FILE_STORAGE_S3_REGION
+        sync: false
+      - key: PRIVATE_FILE_STORAGE_S3_BUCKET
+        sync: false
+      - key: PRIVATE_FILE_STORAGE_S3_ACCESS_KEY_ID
+        sync: false
+      - key: PRIVATE_FILE_STORAGE_S3_SECRET_ACCESS_KEY
+        sync: false
+
+      # --- 對外 URL（第二階段回填，不可留空）---
+      - key: PUBLIC_BACKEND_URL
+        sync: false
+      - key: PUBLIC_WEB_URL
+        sync: false
+
+      # --- 人工轉帳的收款帳戶 ---
+      # 四值必須同時設定，缺一即整組不可用（付款指示顯示「尚未設定」）。
+      # 刻意不 fail closed（config/paymentBankInfo.js:26），因此只能靠檢查表把關。
+      # 已知佔位帳號會被明確拒絕。
+      - key: PAYMENT_BANK_NAME
+        sync: false
+      - key: PAYMENT_BANK_CODE
+        sync: false
+      - key: PAYMENT_BANK_ACCOUNT
+        sync: false
+      - key: PAYMENT_BANK_ACCOUNT_NAME
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # Frontend — Next.js 15 App Router（無法 static export，必須有 Node runtime）
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: teaching-platform-web
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: frontend
+    # npm workspaces monorepo：lockfile 在 frontend/，build 走 workspace script。
+    buildCommand: npm ci && npm run build:web
+    startCommand: npm run start -w @teaching-platform/web
+    # 刻意不設 healthCheckPath：首頁是 server-rendered，冷啟動時可能較慢，
+    # 讓 Render 用預設的 port 檢查即可，避免把慢啟動誤判為部署失敗。
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Next server 端呼叫 Backend 的位址（第二階段回填）。
+      # 未設會回退 http://localhost:3000 → 整站 server 端 API 呼叫失效。
+      # 這個值**不會**進入瀏覽器 bundle（repo 的 NEXT_PUBLIC_* 數量為 0，必須維持）。
+      - key: API_BASE_URL
+        sync: false
