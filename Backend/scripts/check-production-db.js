@@ -109,17 +109,84 @@ async function main() {
   }
 
   try {
-    // --- 3. TLS 實測 ---------------------------------------------------------
-    // 設定裡寫了 sslmode 不代表這條連線真的加密。問資料庫本人。
-    console.log("\n[3] transport encryption (measured, not inferred)");
-    const ssl = await client.query(
-      "SELECT ssl, version FROM pg_stat_ssl WHERE pid = pg_backend_pid()"
-    );
-    if (ssl.rows[0]?.ssl === true) {
-      pass(`TLS active (${ssl.rows[0].version || "version not reported"})`);
+    /*
+     * --- 3. TLS 實測 ---------------------------------------------------------
+     *
+     * 量的是**我們這一端的 socket**，不是 `pg_stat_ssl`。
+     *
+     * ## 為什麼不用 pg_stat_ssl（原本用了，而且是錯的）
+     *
+     * `pg_stat_ssl` 回報的是 **PostgreSQL backend 自己看到的那一段連線**。
+     * 在有 TLS-terminating proxy 的供應商上，拓撲是：
+     *
+     *     client --TLS--> provider proxy --plaintext--> PostgreSQL
+     *
+     * proxy 在前面就把 TLS 解掉了（Neon 用 SNI 決定要路由到哪個 compute，
+     * 所以它**必須**自己終結 TLS），backend 因此永遠看到一條「未加密」的連線，
+     * `pg_stat_ssl.ssl` 回 false —— 即使 client 這一端是完整加密的。
+     * 同樣的原因，Neon 也不支援 `sslinfo` extension。
+     *
+     * 這個誤判已在本機以「TLS proxy → 明文 PostgreSQL」的拓撲重現過：
+     * 連線確實走 TLS 且憑證通過驗證，舊的檢查仍然回報 NOT encrypted。
+     *
+     * ## 為什麼新的量法**更嚴格**，不是放寬
+     *
+     * `pg_stat_ssl` 只說「backend 那段有 TLS」，**完全不管 client 有沒有驗憑證**。
+     * 一條 `sslmode=no-verify` 的連線可以讓 `pg_stat_ssl.ssl = true`，
+     * 但它對中間人毫無防禦 —— 舊檢查會放行。
+     *
+     * 新的檢查同時要求三件事，缺一即 fail：
+     *   1. 這個 process 的 socket 真的是 TLSSocket（`encrypted === true`）
+     *   2. **對端憑證通過 CA 驗證**（`authorized === true`）—— 舊檢查沒有這一項
+     *   3. 協定至少 TLSv1.2
+     *
+     * 拿不到 socket 時一律 fail（fail-closed），不猜。
+     */
+    console.log("\n[3] transport encryption (measured on this process's own socket)");
+    const socket = client.connection && client.connection.stream;
+    const isTls = Boolean(socket && socket.encrypted === true && typeof socket.getProtocol === "function");
+
+    if (!isTls) {
+      fail(
+        "the client socket is NOT a TLS socket — traffic from this machine is plaintext, " +
+          "regardless of what the connection string says"
+      );
     } else {
-      fail("connection is NOT encrypted despite the configured sslmode");
+      const protocol = String(socket.getProtocol() || "");
+      const cipher = (typeof socket.getCipher === "function" && socket.getCipher()) || {};
+
+      if (socket.authorized !== true) {
+        fail(
+          `TLS is active (${protocol}) but the server certificate was NOT verified ` +
+            `(${socket.authorizationError || "no reason reported"}). Encrypted, but open to a ` +
+            "man-in-the-middle — do not use sslmode=no-verify against a managed provider."
+        );
+      } else if (!/^TLSv1\.[23]$/.test(protocol)) {
+        fail(`negotiated ${protocol}; require TLSv1.2 or better`);
+      } else {
+        pass(`${protocol}, cipher ${cipher.name || "unknown"}, server certificate verified`);
+      }
+
+      // Issuer 是有用的脈絡且不是 secret。**刻意不印 subject/CN** —— 那是主機名稱，
+      // 屬於 O-20 要揭露的事實，不該散落在終端機記錄裡。
+      const peer = typeof socket.getPeerCertificate === "function" ? socket.getPeerCertificate() : null;
+      if (peer && peer.issuer) {
+        console.log(`        cert issuer  = ${peer.issuer.O || peer.issuer.CN || "(unnamed)"}`);
+      }
     }
+
+    /*
+     * backend 那一段仍然值得印出來，但**只作為脈絡，不作為判準**。
+     * 它是 false 通常代表前面有 proxy 在終結 TLS（Neon 即如此），不代表沒有加密。
+     */
+    const backendSsl = await client.query(
+      "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"
+    );
+    console.log(
+      backendSsl.rows[0] && backendSsl.rows[0].ssl === true
+        ? "        backend hop  = also TLS (no TLS-terminating proxy in front)"
+        : "        backend hop  = plaintext behind the provider's TLS-terminating proxy (expected on Neon)"
+    );
 
     // --- 4. 身分 -------------------------------------------------------------
     console.log("\n[4] identity");
