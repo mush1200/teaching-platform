@@ -109,6 +109,73 @@ JWT required for protected routes.
 
 輪換此值會使所有已簽發之 JWT 失效（預設 `JWT_EXPIRES_IN=7d`），全體使用者需重新登入。
 
+**`JWT_EXPIRES_IN` 的格式於啟動時驗證（`PRE-12`，2026-09-03）。**
+未設定時沿用已載明的預設 `7d`；**設了但空白、或不是合法期限**（實測 `"abc"`／`"7dd"`）
+一律**啟動失敗**。先前它只在 `jwt.sign()` 時才生效，因此打錯的值會讓 backend
+啟動成功、卻在**第一個使用者登入**時才炸。合法性由 `jsonwebtoken` 自己判定
+（`Backend/config/productionUrlContract.js` 以拋棄式 secret 試簽），**不另寫 regex**。
+
+## 1.1 Production 對外 URL 契約（`PRE-12`）
+
+`NODE_ENV=production` 時，下列缺漏即**拒絕啟動**（`Backend/index.js` 在
+`ensureCoreTables()` 與 `app.listen()` **之前**呼叫
+`config/productionUrlContract.js`）：
+
+| 變數 | 已載明別名 | 缺漏的後果（正是拒絕啟動的理由） |
+| --- | --- | --- |
+| `PUBLIC_BACKEND_URL` | `API_PUBLIC_URL` | 靜默回退 `http://localhost:<PORT>`，而該**絕對 URL 會被寫進** `materials.cover_image_url`／`material_images.image_url`／`demo_video_url`。事後補設定**不會回寫既有列** —— 素材永久失效 |
+| `PUBLIC_WEB_URL` | `FRONTEND_URL`／`APP_BASE_URL` | 每一封交易信的連結都指向 `http://localhost:3001` |
+
+**非空字串不算通過**：值必須能解析為絕對 URL、scheme 為 `http:`／`https:`，
+且**不得指向 loopback**（`localhost`／`127.0.0.0/8`／`::1`）。
+Render 配發的 `*.onrender.com` 必須通過 —— `PRE-10`（自訂網域）仍未解除，
+本檢查**不看網域長相**，只看 loopback。
+
+**本機開發與測試維持既有的 localhost 回退**，判準與
+`config/privateFileStorage.js` 一致（`NODE_ENV === "production"`）。
+前端 server 端亦同：`API_BASE_URL` 由
+`frontend/apps/web/lib/server-api-base-url.ts` **單一**取得，
+production 缺漏即明確失敗，不得再各自回退 localhost。
+
+> 這是**四個具體變數**的 fail-closed，**不是設定框架**。
+> 既有的 `JWT_SECRET` 與私有儲存 fail-closed **未被放寬**。
+
+## 1.2 Production SMTP 設定契約（`REL-03`）—— **條件式**
+
+與 §1.1 不同，SMTP **不是**無條件 fail-closed。`DEC-17` 明示 **MVP 初期不啟用郵件**，
+`render.yaml` 因此刻意不宣告任何 `SMTP_*`，現行 production 正是在這個狀態下運行。
+無條件要求 SMTP 齊備會讓現在的 production **起不來**。
+
+因此 `NODE_ENV=production` 時的規則是（`Backend/config/smtpContract.js`，
+由 `index.js` 在 `ensureCoreTables()` 與 `app.listen()` 之前呼叫）：
+
+```text
+五個 SMTP_* 全部不存在   → 允許啟動（維持 DEC-17；郵件不啟用）
+任何一個存在             → 視為已啟用 SMTP，整份契約必須成立
+部分設定／格式錯誤        → 拒絕啟動（那是部署錯誤）
+```
+
+啟用集合為 **`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`**。
+**`SMTP_TEST_TO` 不在其中** —— 它只被 `scripts/smtp-smoke-test.js` 使用。
+
+**「存在」看的是變數有沒有被設定，不是有沒有值** —— 只留空白的 `SMTP_PASS` 是
+「有人試圖設定卻設錯」，因此會 engage 契約並在驗證時失敗。
+
+已啟用時：`SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` 非空白；`SMTP_PORT` 省略時
+沿用既有預設 `587`，若設定則必須是 1–65535 的整數（`"abc"` 原本會變成 `NaN`）；
+**`SMTP_FROM` 必填且必須是合法寄件地址，不得回退 `SMTP_USER`** ——
+Resend 情境下那個回退的結果是字面 `resend`，根本不是地址。
+**不新增 `SMTP_SECURE`**（TLS 仍由 `port === 465` 推導），
+**也不新增 `EMAIL_ENABLED` 之類的開關** —— 啟用與否由設定本身表達。
+
+> **這條檢查只證明「設定完整且格式正確」。**
+> 它**不證明** SMTP 連得上、Resend 認證成功、寄件網域已驗證、
+> DNS／SPF／DKIM／DMARC 正確，或信件真的進得了收件匣 ——
+> 那些屬於 `PRE-10` 與實際投遞的範圍。**本檢查不進行任何網路連線。**
+
+**`REL-02` 的邊界未被改動**：啟動之後單次寄信失敗仍然只被
+`utils/bestEffortDispatch.js` 接住並記錄，**不會終止 process，也不會讓已成立的交易失敗**。
+
 **授權邊界（前後端分工，勿混淆）**
 
 | 層 | 實作 | 作用 |
@@ -1649,6 +1716,9 @@ fail-closed 下擋掉所有清理（連從未交付的孤兒上傳都清不掉�
 | `refund_remedy_cases`（§12.8） | 平台對某筆交易的補救 | 平台建立 | 金額／退款執行 | 同一訂單可多筆 |
 | `privacy_requests`（§12.11） | **使用者的個人資料** | 資料當事人（經個資信箱） | 權利請求之處理 | 同一人可多筆 |
 
+**這四套之外還有一類問題：一般客服**（登入／帳號操作、下載問題、網站操作、一般疑問）。
+它**刻意不是**第五套 case system，也**不得**被塞進上列任何一套 —— 邊界與 MVP 決定見 **§12.12**。
+
 `reports` 結構上承接不了消費申訴：`material_id NOT NULL`（付款爭議不指向教材）、
 `UNIQUE (material_id, reporter_id)`、resolution 全是 moderation 結果、無訂單關聯、無 SLA。
 
@@ -2048,6 +2118,71 @@ Owner 明訂 **consumer complaint ≠ privacy rights request**。兩者：
 > **本節未取得任何法律結論。** 法定回覆期限與身分驗證標準
 > **維持 `LAWYER VALIDATION REQUIRED`**（Privacy §8.3）。
 > 本節只描述平台內部的受理與追蹤能力。
+
+## 12.12 一般客服（general customer support）—— **刻意不是一套 case system**
+
+**2026-08-31 新增**（customer-support scope 盤點）／**2026-09-01 補入實作**（`PRE-14`）。
+本節記錄 **`CUSTOMER_SUPPORT_MVP_DECISION`**：主體是「什麼**不做**」的邊界規則，
+末段的「唯一入口」則記載為滿足 launch minimum 而實際做了什麼。
+
+### 一般客服指什麼
+
+登入／帳號操作問題、教材下載問題、網站操作問題、一般使用疑問，
+以及**無法自行解決、但不屬於正式申訴或個資權利請求**的問題。
+
+### MVP 決定
+
+| | |
+| --- | --- |
+| **Production Launch REQUIRED** | 使用者**找得到**一個明確的一般客服聯絡方式（Email 或既有最小聯絡機制），且與個資權利請求／消費申訴／檢舉**在文案上清楚區隔**。**工程已完成（見下方「唯一入口」）；production 的 `NEXT_PUBLIC_SUPPORT_EMAIL` 設定完成前不算達成** |
+| **初期處理方式** | User → 客服 Email／最小聯絡入口 → **人工處理** |
+| **MVP NOT REQUIRED** | Admin 客服中心、ticket database、ticket assignment、SLA engine、ticket status workflow、internal notes、canned responses、customer-service dashboard、automated routing、完整客服訊息系統 |
+| **完整 Admin Customer Support / Ticket System** | **POST-MVP**，見 tracker `FUT-P8`（`FUTURE`）；升級 trigger 條件亦記於該項 |
+
+### 唯一入口：public `/support`（「聯絡平台」）
+
+**2026-09-01 `PRE-14` 實作完成**（Owner 核准 Solution A）。
+
+| | |
+| --- | --- |
+| Route | `/support`，**匿名可讀** —— 不在 `middleware.ts` 的 `LOGIN_REQUIRED_PREFIXES`，也不在 `config.matcher` |
+| 名稱 | 「**聯絡平台**」。**不得**改成「客服中心」／「幫助中心」——平台沒有 ticket system，那會是 `BUY-03` 那顆假按鈕的重演 |
+| 聯絡方式 | `NEXT_PUBLIC_SUPPORT_EMAIL` → `mailto:`。**沒有表單** —— 表單需要收件端，而收件端就是 ticket system 的第一步 |
+| 未設定時 | 顯示「一般客服聯絡方式目前尚未設定。」**不編造、不顯示任何佔位地址**（canonical source：`frontend/apps/web/lib/support-contact.ts`，佔位值一律視同未設定，同 `paymentBankInfo.js`） |
+| 進入點 | 未登入導覽（`RoleShell` 的 `NAVS.public`）／登入頁／買家導覽（`SIDEBAR_NAV_SECTIONS`「其他」）／創作者導覽（`CREATOR_SECTIONS`「帳戶」）。**Admin 主導覽刻意不加** |
+| 不承諾 | 回覆時限、專人、即時客服 —— 平台沒有 SLA，寫了就是假承諾（由測試釘住） |
+
+**為什麼登入頁那個入口特別重要：** 消費申訴的端點**全部** `requireAuth`
+（`routes/complaints.js`），而平台**沒有密碼重設**（`P1-08` 採誠實移除）。
+在 `/support` 之前，「登入不了的人」沒有任何管道。
+**但 `/support` 不是 password recovery** —— backend 至今沒有 forgot/reset 端點，
+不得因為有了客服入口就把「忘記密碼？」加回來。
+
+> **`/support` 上的個資權利請求段落刻意不印出地址。** 個資信箱目前只寫在
+> **草稿**《隱私權政策》裡，而四條 legal route 未發布時一律 404（`TEST-01`）。
+> 在條款定稿前把草稿聯絡資料搬到匿名可讀的頁面，等於替平台對外做出承諾。
+> 該段落顯示「將於正式隱私權政策公布後提供」，由測試釘住不得洩漏草稿地址。
+
+### 邊界：一般客服**不得**被塞進任何一套專門案件系統
+
+§12.10.1 的四套 case 各有自己的法律基礎、提出者與期限來源。
+一般客服**沒有**其中任何一個特性，因此**不是**它們的第五個 enum 值：
+
+| 這件事 | 歸屬 | **不得**歸到 |
+| --- | --- | --- |
+| 修改密碼、忘記密碼、修改可自行編輯的個人資料 | **一般客服** | `privacy_requests`（那是正式個資**權利**請求：查詢閱覽／複製本／更正補充／停止蒐集處理利用／刪除／撤回同意） |
+| 網站操作、一般使用疑問、單純問「這要怎麼用」 | **一般客服** | `consumer_complaints`（那是消保法 §43 的**交易**爭議，有十五日 `statutory_due_at`） |
+| 購買爭議、退款爭議、教材與描述不符、付款後未取得應有內容 | `consumer_complaints`（§12.10） | 一般客服 |
+| 違規教材、不當內容、平台規範違反 | `reports`（§6） | 一般客服 |
+| 付款／核帳 | `manual_payment_proofs` 審核（§12.4） | 一般客服 —— **付款審核不得變成一般客服入口** |
+
+**兩條硬規則：**
+
+1. **不得**為了承接一般客服而新增 `complaint_type` 值、新增
+   `privacy_requests.request_type` 值，或擴張 `reports` 的 `resolution`。
+2. 未來真的要做 ticket system 時（`FUT-P8`），它必須有**自己的**
+   table、route namespace 與狀態集合，**不重用** `COMPLAINT_STATUSES`／
+   `complaintSla.js`；且不得破壞既有四套 workflow。
 
 ## 14.1 Revenue
 

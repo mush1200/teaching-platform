@@ -74,7 +74,12 @@ export function canReplaceMaterialFile(status?: string | null): boolean {
 /** 不能更換教材檔案時，要告訴創作者的原因。 */
 export function materialFileLockReason(status?: string | null): string {
   if (status === "published") {
-    return "已上架的教材無法更換教材檔案。買家已經購買了目前這個版本；如需更換內容，請聯絡平台或另建新教材。";
+    /*
+     * `PRE-14`：原本只寫「請聯絡平台」，而 repo 裡沒有任何管道可以照做。
+     * 前端知道路由，因此這裡用 Owner 核准的 URL 版文案；Backend 的對應訊息
+     * （`routes/materials.js`）拿不到可靠的前端路由，用的是「頁面名稱」版。
+     */
+    return "已上架的教材無法更換教材檔案。買家已經購買了目前這個版本；如需更換內容，請至「聯絡平台」（/support）查看聯絡方式，或另建新教材。";
   }
   if (status === "pending_review") {
     return "教材審核中，無法更換教材檔案。請等待審核結果後再調整。";

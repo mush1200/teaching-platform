@@ -900,7 +900,8 @@ router.post("/:id/file", requireAuth, requireRole("teacher"), requireActiveAccou
         error: "file_replacement_not_allowed",
         message:
           material.status === "published"
-            ? "已上架的教材無法更換教材檔案。如需更換內容，請聯絡平台或另建新教材。"
+            // `PRE-14`：原本只寫「請聯絡平台」，沒有任何管道。改指真的到得了的 `/support`。
+            ? "已上架的教材無法更換教材檔案。如需更換內容，請透過平台的「聯絡平台」頁面取得協助，或另建新教材。"
             : "審核中的教材無法更換教材檔案，請等待審核結果。",
       });
     }

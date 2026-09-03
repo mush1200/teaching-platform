@@ -97,6 +97,20 @@ function pageLinks(orderId) {
   };
 }
 
+/**
+ * 一般客服入口的絕對 URL（`PRE-14`）。
+ *
+ * 信件裡的文案先前寫「請聯繫平台客服」，但那個管道**不存在** —— 收信的人
+ * 照著做也找不到任何地址。現在 `/support`（「聯絡平台」）是**匿名可讀**的，
+ * 所以這裡給的是真的到得了的連結。
+ *
+ * 與其他信件連結共用 `appBaseUrl()`：`PUBLIC_WEB_URL` 未設時會落到 localhost，
+ * 那是既有的 `REL-03`／`PRE-12` 問題，本項不另建第二套 base URL 邏輯。
+ */
+function supportUrl() {
+  return `${appBaseUrl()}/support`;
+}
+
 function emailCard(title, bodyHtml) {
   return `<!doctype html><html><body style="margin:0;padding:24px;background:#f6f2ff;color:#1f2937;font-family:Arial,sans-serif;">
   <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #ece6ff;">
@@ -162,9 +176,14 @@ async function sendOrderCreatedEmail(orderId) {
    * 印錯帳號則會讓買家把錢匯到不存在的地方。
    */
   const bankLine = formatBankInfoLine();
+  /*
+   * 未設定時的文案原本是「請聯繫平台客服」—— 一個不存在的管道（`PRE-14`）。
+   * 現在指向真的到得了的 `/support`。**不承諾回覆時限**：平台沒有 SLA、
+   * 沒有 ticket system，任何「多久內回覆」的字樣都會是另一個假承諾。
+   */
   const bankInfoHtml = bankLine
     ? `<p>匯款資訊：${escapeHtml(bankLine)}</p>`
-    : `<p>匯款資訊尚未設定，請聯繫平台客服確認匯款方式後再付款。</p>`;
+    : `<p>匯款資訊尚未設定，請先不要匯款。請至<a href="${supportUrl()}">聯絡平台</a>頁面查看聯絡方式，確認匯款方式後再付款。</p>`;
   const invoiceHtml =
     order.invoice_type === "carrier" && order.invoice_carrier
       ? `<p>電子發票資訊：<br/>手機載具：${order.invoice_carrier}</p>`

@@ -4,6 +4,7 @@ import {
   Heart,
   Home,
   LogOut,
+  Mail,
   MessageSquareWarning,
   Package,
   Search,
@@ -92,6 +93,26 @@ export const SIDEBAR_NAV_SECTIONS: SidebarNavSection[] = [
         href: "/me/complaints",
         label: "申訴與消費爭議",
         icon: MessageSquareWarning,
+      },
+      /*
+       * **一般客服入口**（`PRE-14`，2026-09-01）。
+       *
+       * 上面那一項（`BUY-02`）刻意不叫「客服」，因為它是**消保法 §43 的消費爭議
+       * 案件流程** —— 有十五日法定期限、綁買家的交易。但平台同時還有另一類問題
+       * （登入不了、下載操作、網站怎麼用），在此之前**沒有任何入口**，而 runtime
+       * 有七處使用者可見文案叫人去找不存在的「平台客服」（同輪一併收尾）。
+       *
+       * 兩者**必須並存且分開**：把一般問題塞進申訴會讓「這件事受哪一套規則管」
+       * 消失在一個 `complaint_type` 值裡（`docs/mvp_rules.md` §12.12）。
+       *
+       * 標籤是「聯絡平台」不是「客服中心」——平台仍然**沒有** ticket system，
+       * 只有一個信箱與人工處理（完整 ticket center 是 tracker `FUT-P8`，`FUTURE`）。
+       */
+      {
+        id: "support",
+        href: "/support",
+        label: "聯絡平台",
+        icon: Mail,
       },
       { id: "logout", label: "登出", icon: LogOut, action: "logout" },
     ],

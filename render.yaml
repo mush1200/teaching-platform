@@ -157,6 +157,18 @@ services:
         value: "22"
       # Next server 端呼叫 Backend 的位址（第二階段回填）。
       # 未設會回退 http://localhost:3000 → 整站 server 端 API 呼叫失效。
-      # 這個值**不會**進入瀏覽器 bundle（repo 的 NEXT_PUBLIC_* 數量為 0，必須維持）。
+      # 這個值是 server-only，**不會**進入瀏覽器 bundle（沒有 NEXT_PUBLIC_ 前綴）。
       - key: API_BASE_URL
+        sync: false
+
+      # --- 一般客服聯絡信箱（PRE-14，第二階段回填）---
+      # `/support`（「聯絡平台」）顯示的地址。未設定時該頁**誠實顯示「尚未設定」**，
+      # 不會編造或顯示任何佔位地址（lib/support-contact.ts）——
+      # 因此不 fail closed，只能靠上線檢查表把關（與 PAYMENT_BANK_* 同一種姿態）。
+      #
+      # 這是 repo 中**唯一**的 NEXT_PUBLIC_* 變數，且刻意如此：它的整個用途就是
+      # 印在一個匿名可讀的公開頁面上給人抄下來。**不得**用這個前綴放任何 secret
+      # 或可推導出 secret 的值（docs/production-environment-contract.md §5 規則 3）。
+      # 也**不得**與個資權利請求信箱共用同一條設定 —— 兩者是不同的法定受理管道。
+      - key: NEXT_PUBLIC_SUPPORT_EMAIL
         sync: false

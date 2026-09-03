@@ -40,7 +40,7 @@ const { writeActivityLog } = require("../utils/activityLog");
  * status 的選擇不是形式問題，它決定使用者看到什麼：
  *   415 檔案本身不合格（換一個檔就能解決）
  *   413 太大（壓縮或分拆就能解決）
- *   409 狀態衝突，例如買了但這份教材沒有可下載的檔案（使用者做什麼都沒用，要找客服）
+ *   409 狀態衝突，例如買了但這份教材沒有可下載的檔案（使用者做什麼都沒用，要走 `/support`）
  *   503 資料是對的、基礎設施壞了（稍後重試可能就好）
  */
 const ERROR_STATUS = Object.freeze({
@@ -530,7 +530,11 @@ async function openFileForDelivery(fileRow) {
   const storage = getPrivateFileStorage();
   const stat = await storage.stat(fileRow.storage_key);
   if (!stat.exists) {
-    return fail("file_object_missing", "檔案暫時無法取得，請稍後再試或聯絡平台客服。");
+    // `PRE-14`：原本寫「聯絡平台客服」，但那個管道不存在。改指真的到得了的 `/support`。
+    return fail(
+      "file_object_missing",
+      "檔案暫時無法取得，請稍後再試；若持續發生，請透過平台的「聯絡平台」頁面取得協助。"
+    );
   }
   return { ok: true, stream: storage.openReadStream(fileRow.storage_key), sizeBytes: stat.sizeBytes };
 }

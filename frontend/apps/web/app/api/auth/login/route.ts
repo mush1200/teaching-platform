@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3000";
+import { getServerApiBaseUrl } from "@/lib/server-api-base-url";
 
 export async function POST(request: Request) {
   try {
+    // `PRE-12`：在 handler 內取值，production 缺漏即明確失敗，不靜默退回 localhost。
+    const API_BASE_URL = getServerApiBaseUrl();
     const body = await request.json();
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",

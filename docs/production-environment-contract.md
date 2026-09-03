@@ -78,7 +78,7 @@
 | --- | --- | --- | :--- | :--- | --- | --- | --- |
 | `NODE_ENV` | `config/privateFileStorage.js`、`routes/payment.js:25` | 武裝三條儲存 fail-closed 分支；並在 `/payment/bank-info` **隱藏未設定的變數名稱清單** | **是** | 否 | 無（未設 ＝ 非 production） | 未設 → 三條 fail-closed **全部不武裝**，且 `/payment/bank-info` 會對已登入者吐出 `missing: [...]` 變數名 | **`REQUIRED — FAIL CLOSED`**（它是那些檢查的開關本身） |
 | `JWT_SECRET` | `utils/jwt.js:27-53` | 簽發／驗證 JWT | **是** | **是** | **無 fallback（刻意）** | 缺／空白／已知佔位值／< 32 字元 → **module load 即 throw，程序起不來** | `REQUIRED — FAIL CLOSED` |
-| `JWT_EXPIRES_IN` | `utils/jwt.js` | token 有效期 | 否 | 否 | `"7d"` | **格式錯誤不會在啟動時失敗** —— 在**第一次登入**時 `jwt.sign` throw（實測 `"abc"`／`"7dd"` 皆 throw） | **`REQUIRED — CURRENTLY FAILS SOFT`**（設了就必須合法） |
+| `JWT_EXPIRES_IN` | `utils/jwt.js`＋`config/productionUrlContract.js` | token 有效期 | 否 | 否 | `"7d"` | **【`PRE-12`，2026-09-03 起】載入 `utils/jwt.js` 時即驗證格式**：未設 → 沿用預設 `7d`；設了但空白或非法（實測 `"abc"`／`"7dd"`）→ **拒絕啟動**。~~先前要到第一次登入才 throw~~ | **`REQUIRED — FAIL CLOSED`**（設了就必須合法；所有環境） |
 | `DATABASE_URL` | `config/db.js` | 資料庫連線（**production 唯一可行路徑**，見 §4） | **是** | **是**（內含密碼） | 無 | 與 `PG*` 皆缺 → throw；程序起不來 | `REQUIRED — FAIL CLOSED` |
 | `PGHOST`／`PGPORT`／`PGUSER`／`PGPASSWORD`／`PGDATABASE` | `config/db.js` | 離散連線參數 | **否（production）** | `PGPASSWORD` 是 | `localhost`／`5432`／`postgres`／`""`／`postgres` | 與 `DATABASE_URL` 皆缺 → throw | **`DEVELOPMENT / TEST ONLY`**（理由見 §4） |
 | `PRIVATE_FILE_STORAGE_DRIVER` | `config/privateFileStorage.js:127` | 儲存 driver | 否 | 否 | `local` | 非 `local` → **throw**（物件儲存未實作） | `OPTIONAL`（production 必須維持 `local`，`DEC-13`） |
@@ -90,9 +90,9 @@
 | `MAX_MATERIAL_MEDIA_IMAGE_BYTES` | 同上 `:108` | 素材圖片上限 | 否 | 否 | `10485760` | 同上 | `OPTIONAL` |
 | `MAX_MATERIAL_MEDIA_VIDEO_BYTES` | 同上 `:112` | 試看影片上限 | 否 | 否 | `83886080`（80 MB） | 同上 | `OPTIONAL` |
 | `MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS` | 同上 `:116` | 下載票證存活秒數 | 否 | 否 | `300` | 非正數 → throw；空字串 → 回退預設（實測） | `OPTIONAL` |
-| `PUBLIC_BACKEND_URL` | `utils/publicUrl.js:11` | Backend 對外絕對 URL；**會被寫進資料列** | **是** | 否 | **`http://localhost:<PORT>`** | 未設 → 素材 URL 變成 `http://localhost:3000/...` 並**永久寫入 `cover_image_url` 等欄位**（見 §6 的 `PRE-12`） | **`REQUIRED — CURRENTLY FAILS SOFT`** ＋ `PENDING OWNER DOMAIN` |
+| `PUBLIC_BACKEND_URL` | `utils/publicUrl.js:11`＋`config/productionUrlContract.js` | Backend 對外絕對 URL；**會被寫進資料列** | **是** | 否 | `http://localhost:<PORT>`（**僅 dev／test**） | **【`PRE-12`，2026-09-03 起】production 未設／空白／非 URL／非 http(s)／loopback → 拒絕啟動**（`index.js` 於 `ensureCoreTables()` 與 `app.listen()` 之前）。~~先前靜默回退並永久寫入 `cover_image_url`~~ | **`REQUIRED — FAIL CLOSED`** ＋ `PENDING OWNER DOMAIN` |
 | `API_PUBLIC_URL` | 同上 | `PUBLIC_BACKEND_URL` 的別名 | 否 | 否 | —— | 兩者皆未設才回退 localhost | `OPTIONAL`（別名，擇一即可） |
-| `PUBLIC_WEB_URL` | `services/emailService.js:22` | 信件內連結的網域基準 | **是** | 否 | **`http://localhost:3001`** | 未設 → **每一封交易信的連結都指向 `localhost:3001`**（注意連本機開發都不對，dev 前端是 **3010**） | **`REQUIRED — CURRENTLY FAILS SOFT`** ＋ `PENDING OWNER DOMAIN` |
+| `PUBLIC_WEB_URL` | `services/emailService.js:22`＋`config/productionUrlContract.js` | 信件內連結的網域基準 | **是** | 否 | `http://localhost:3001`（**僅 dev／test**；dev 前端其實是 3010） | **【`PRE-12`，2026-09-03 起】production 未設／空白／非 URL／loopback → 拒絕啟動**（Owner 決定為 fail-closed，非警告）。~~先前每一封交易信連結都指向 localhost~~ | **`REQUIRED — FAIL CLOSED`** ＋ `PENDING OWNER DOMAIN` |
 | `FRONTEND_URL`／`APP_BASE_URL` | 同上 | `PUBLIC_WEB_URL` 的別名 | 否 | 否 | —— | 同上 | `OPTIONAL`（別名） |
 | `SMTP_HOST` | `services/emailService.js:29` | SMTP 主機 | **是** | 否 | 無 | 缺 → **第一次寄信**時 throw，被 `dispatchBestEffort` 接住 → **啟動正常、收單正常、一封信都不寄**（`REL-03`） | `REQUIRED — CURRENTLY FAILS SOFT` |
 | `SMTP_PORT` | 同上 `:30` | SMTP 埠 | **是** | 否 | `587` | 非數字 → `Number()` 得 `NaN` → `secure: NaN === 465` 為 false，連線於寄信時失敗（同樣被接住） | `REQUIRED — CURRENTLY FAILS SOFT` |
@@ -116,32 +116,43 @@
 
 | Variable | Consumer | Purpose | Production required? | Secret? | Fallback | Failure behavior | 類別 |
 | --- | --- | --- | :--- | :--- | --- | --- | --- |
-| `API_BASE_URL` | `app/api/backend/[...path]/route.ts:3`、`app/api/auth/login/route.ts:3`、`app/api/auth/register/route.ts:3`、`app/materials/[id]/page.tsx:9`、`components/legal/LegalDocumentPage.tsx:52` | Next server 端呼叫 Backend 的位址 | **是** | 否 | **`http://localhost:3000`** | 未設 → 所有 server 端 API 呼叫打向該容器自己的 `localhost:3000`（那裡沒有 Backend）→ 整站 API 失效 | **`REQUIRED — CURRENTLY FAILS SOFT`** |
+| `API_BASE_URL` | **單一** accessor `lib/server-api-base-url.ts`（五個呼叫點已於 `PRE-12` 收斂） | Next server 端呼叫 Backend 的位址 | **是** | 否 | `http://localhost:3000`（**僅 dev／test**） | **【`PRE-12`，2026-09-03 起】production 未設／空白／非 URL／loopback → 明確 throw**。~~先前五處各自靜默回退 localhost，整站 API 失效且無錯誤指出原因~~ | **`REQUIRED — FAIL CLOSED`** |
 | `PORT` | `next start` | 監聽埠 | 否 | 否 | Next 預設 | —— | `DERIVED / PLATFORM PROVIDED` |
 | `NEXT_DIST_DIR` | `next.config.ts:20`、`playwright.config.ts`、`scripts/verify-web.mjs` | 建置產物目錄（驗收流程用） | 否 | 否 | `.next` | —— | `DEVELOPMENT / TEST ONLY` |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | `lib/support-contact.ts`（由 `app/support/page.tsx` 讀取） | **一般客服**聯絡信箱，顯示在 public `/support`（「聯絡平台」） | **是** | **否 —— 刻意是 public 值** | **無 fallback（刻意）** | 未設／空白／佔位值／不成地址 → `/support` 顯示「一般客服聯絡方式目前尚未設定。」，**不編造也不顯示任何佔位地址** | **`REQUIRED — CURRENTLY FAILS SOFT`**（設計如此，同 `PAYMENT_BANK_*`）＋ `PENDING OWNER DOMAIN` |
 | `CI`／`E2E_SERVER`／`E2E_BACKEND_URL`／`E2E_BACKEND_DB`／`E2E_REUSE_BACKEND`／`PLAYWRIGHT_BASE_URL`／`TEST_ADMIN_EMAIL`／`TEST_ADMIN_PASSWORD` | Playwright 與 E2E helper | 測試 | 否 | `TEST_ADMIN_PASSWORD` 是 | —— | —— | `DEVELOPMENT / TEST ONLY` |
 
-> **重要安全事實：整個 repo 沒有任何 `NEXT_PUBLIC_*` 變數**（`grep -rn "NEXT_PUBLIC_"` 於
-> `frontend/` 與 `Backend/`（排除 `node_modules`／建置產物）**零命中**）。
-> 也就是說**沒有任何設定會被打包進瀏覽器可見的 bundle**，所以
-> 「secret 從 `NEXT_PUBLIC_*` 外洩」這個風險在本 repo **結構上不存在**。
-> 這是要**維持**的性質，不是碰巧 —— 見 §5 規則 4。
+> **`NEXT_PUBLIC_*` 現況（2026-09-01 `PRE-14` 更新）：`1`，且只有一個。**
+>
+> 本文件 2026-08-31 版寫的是「整個 repo 沒有任何 `NEXT_PUBLIC_*` 變數」。
+> 該敘述**已不成立** —— `PRE-14` 依 Owner 決策新增 `NEXT_PUBLIC_SUPPORT_EMAIL`。
+>
+> **不變的安全結論、改變的表述方式：** 先前的保證是「數量為 0 ⇒ 不可能外洩」，
+> 那是用**不存在**換來的安全。現在改成一條要持續成立的規則：
+> **`NEXT_PUBLIC_*` 只能放本來就要公開給所有人看的值。**
+>
+> 唯一那個變數完全符合：它的整個用途就是**印在一個匿名可讀的頁面上給人抄下來**，
+> 因此「被打包進瀏覽器 bundle」不是外洩，而是它的功能本身。
+> 它也**不是** secret、**不能推導出**任何 secret，且**不得**與個資權利請求信箱共用
+> 同一條設定（兩者是不同的法定受理管道）。
+>
+> **其餘 secret 一律不得使用這個前綴** —— 規則見 §5 規則 3（已同輪改寫）。
 
 ### 2.4 統計
 
 ```text
 Backend production runtime 相關 ......... 27（含 5 個 legacy／alias）
 Backend 腳本／測試專用 ...................  5
-Frontend production runtime 相關 ........  2（API_BASE_URL、PORT）
+Frontend production runtime 相關 ........  3（API_BASE_URL、PORT、NEXT_PUBLIC_SUPPORT_EMAIL）
 Frontend 測試專用 ........................  9
-NEXT_PUBLIC_* ............................  0
+NEXT_PUBLIC_* ............................  1（NEXT_PUBLIC_SUPPORT_EMAIL，PRE-14；刻意公開）
 ─────────────────────────────────────────────
 REQUIRED — FAIL CLOSED ...................  5
-REQUIRED — CURRENTLY FAILS SOFT ..........  11
+REQUIRED — CURRENTLY FAILS SOFT ..........  12
 OPTIONAL .................................  11
 DEVELOPMENT / TEST ONLY ..................  14
 DERIVED / PLATFORM PROVIDED ..............  2
-PENDING OWNER DOMAIN（與上列重疊標記） ...  3
+PENDING OWNER DOMAIN（與上列重疊標記） ...  4
 ```
 
 ---
@@ -165,6 +176,7 @@ PENDING OWNER DOMAIN（與上列重疊標記） ...  3
 | `SMTP_PASS` | ✅ | **✅** | fails soft（`REL-03`） | Resend API key —— **僅存在於部署環境** |
 | `SMTP_FROM` | ✅ | 否 | fails soft（`REL-03`） | **PENDING OWNER DOMAIN** |
 | `PAYMENT_BANK_NAME` / `_CODE` / `_ACCOUNT` / `_ACCOUNT_NAME` | ✅ | 敏感營運資料 | fails soft（**刻意**） | 由 Owner 提供實際收款帳戶 |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`（frontend） | ✅ | **否（刻意公開）** | fails soft（**刻意** —— 顯示「尚未設定」，不編造地址） | **PENDING OWNER DOMAIN**（形式 `support@<production-domain>`；`PRE-14`） |
 | `JWT_EXPIRES_IN` | 選填 | 否 | 設錯 → **第一次登入才炸** | 建議留空用預設 `7d` |
 | `PORT` | — | 否 | 平台注入 | `DERIVED` |
 
@@ -217,9 +229,19 @@ PAYMENT_BANK_*        （非技術 secret，但屬敏感營運資料）
 1. **不得進入版控** —— 包含 `.env.example`、文件、測試腳本、Postman collection／environment
    （CLAUDE.md §8）。真實值只存在 git-ignored 的 `Backend/.env` 或部署環境。
 2. **文件中不得出現可用的範例值** —— 只用明顯的佔位符（`<...>`），且不得是「看起來像真的」的字串。
-3. **不得經由 `NEXT_PUBLIC_*` 暴露** —— 本 repo 目前 `NEXT_PUBLIC_*` 為 **0**，
-   **這個數字必須維持為 0**。任何要加 `NEXT_PUBLIC_*` 的變更都必須先確認它不是 secret，
-   也不是能推導出 secret 的東西。
+3. **不得經由 `NEXT_PUBLIC_*` 暴露** —— `NEXT_PUBLIC_*` 只能放**本來就要公開給所有人看**
+   的值。任何要加 `NEXT_PUBLIC_*` 的變更都必須先確認它不是 secret，也不是能推導出
+   secret 的東西，並在本文件 §2.3 明確記錄「為什麼公開是它的功能而不是缺陷」。
+
+   > **2026-09-01 `PRE-14` 修訂。** 本條原文是「目前為 0，這個數字必須維持為 0」。
+   > 那條規則已由 Owner 決策取代（`NEXT_PUBLIC_SUPPORT_EMAIL`）。
+   > **判準從「數量」改為「性質」** —— 因為靠「一個都沒有」得到的安全，
+   > 在第一個合法需求出現時就會失效，而且會誘使人把公開值塞進 server-only 變數
+   > 再繞路傳到前端，那反而更難稽核。
+   >
+   > **目前合法清單（僅此一項）：** `NEXT_PUBLIC_SUPPORT_EMAIL`
+   > —— 一般客服信箱，其用途就是印在匿名可讀的 `/support` 頁面上。
+   > 新增第二項前必須回到本條逐項確認。
 4. **經由部署環境／secret 管理注入**，不經由檔案傳遞。
 5. **不得印在任何驗證輸出裡** —— 包含健康檢查、啟動 log、錯誤訊息。
    （現況良好：`JWT_SECRET` 的錯誤訊息只說「太短／是佔位值」，**不回顯值本身**；
@@ -245,12 +267,14 @@ PAYMENT_BANK_*        （非技術 secret，但屬敏感營運資料）
 | canonical／legacy 儲存變數衝突 | throw（實測） | 同左 | ✅ **是** | —— |
 | `MAX_*`／TTL 非正數 | throw（實測），且由 route 於 module load 讀取 → 起不來 | 同左 | ✅ **是** | —— |
 | `NODE_ENV` 未設 | 三條 fail-closed **不武裝**；`/payment/bank-info` 洩漏變數名清單 | production 必為 `production` | ⚠️ **無自我保護**（它就是開關） | `PRE-07` 必設；`PRE-12` 可加檢查 |
-| **`PUBLIC_BACKEND_URL` 未設** | **回退 `http://localhost:3000`，並把該絕對 URL 永久寫入 `cover_image_url` 等欄位** | production 缺少時**應拒絕啟動** | ❌ **否** | **`PRE-12`（新開，見 §9）** |
-| `PUBLIC_WEB_URL` 未設 | 回退 `http://localhost:3001`（連 dev 都不對，dev 前端是 3010）→ 所有交易信連結失效 | production 缺少時應拒絕啟動或明確警示 | ❌ **否** | **`PRE-12`** |
-| `API_BASE_URL`（frontend）未設 | 回退 `http://localhost:3000` → 整站 server 端 API 呼叫失效 | production 缺少時應明確失敗 | ❌ **否** | **`PRE-12`** |
-| `JWT_EXPIRES_IN` 格式錯誤 | 啟動正常；**第一次登入**才 throw（實測） | 啟動時驗證 | ❌ **否** | **`PRE-12`** |
-| `SMTP_*` 缺漏 | 啟動正常、收單正常、**一封信都不寄**，只有一行 `console.error` | 部署時即顯現 | ❌ **否** | **`REL-03`（已存在，不重複開單）** |
+| **`PUBLIC_BACKEND_URL` 未設** | ~~回退 `http://localhost:3000` 並永久寫入 `cover_image_url` 等欄位~~ → **2026-09-03 起：production 拒絕啟動**（`PRE-12`） | production 缺少時**應拒絕啟動** | ✅ **是**（`config/productionUrlContract.js`） | **`PRE-12` ✅ 已實作** |
+| `PUBLIC_WEB_URL` 未設 | ~~回退 `http://localhost:3001` → 所有交易信連結失效~~ → **2026-09-03 起：production 拒絕啟動**（Owner 決定為 fail-closed，非警告） | production 缺少時應拒絕啟動 | ✅ **是** | **`PRE-12` ✅ 已實作** |
+| `API_BASE_URL`（frontend）未設 | ~~回退 `http://localhost:3000` → 整站 server 端 API 呼叫失效~~ → **2026-09-03 起：production 明確失敗**（`lib/server-api-base-url.ts`；dev／test 仍回退） | production 缺少時應明確失敗 | ✅ **是** | **`PRE-12` ✅ 已實作** |
+| `JWT_EXPIRES_IN` 格式錯誤 | ~~啟動正常；**第一次登入**才 throw~~ → **2026-09-03 起：載入 `utils/jwt.js` 時即拒絕啟動**（所有環境） | 啟動時驗證 | ✅ **是** | **`PRE-12` ✅ 已實作** |
+| `SMTP_*` **部分**缺漏／格式錯誤 | ~~啟動正常、收單正常、一封信都不寄~~ → **2026-09-03 起：production 拒絕啟動**（`REL-03` 條件式契約） | 部署時即顯現 | ✅ **是** | **`REL-03` ✅ 已實作** |
+| `SMTP_*` **全部**未設 | **允許啟動、不寄信**（`DEC-17` 明示 MVP 初期不啟用郵件；`render.yaml` 刻意不宣告）。`REL-02` 保證單次寄信失敗不終止 process | 維持現狀（**刻意**） | ✅ **是（設計決定）** | `REL-03` 明文保留此狀態 |
 | `PAYMENT_BANK_*` 缺漏 | 付款指示顯示「尚未設定」；**刻意不 throw**（`paymentBankInfo.js:26` 註解明載） | 維持現狀 ＋ 上線檢查表把關 | ✅ **是（設計決定）** | 本文件 §11 檢查表 |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` 缺／佔位／不成地址 | `/support` 顯示「一般客服聯絡方式目前尚未設定。」；**不編造、不顯示佔位地址**（`lib/support-contact.ts`） | 維持現狀 ＋ 上線檢查表把關 | ✅ **是**（**刻意** fails soft，同 `PAYMENT_BANK_*`） | **`PRE-14`**（實作已完成；production 值未設定前不得標 PASS） |
 | `PORT` 非法值 | 靜默回退 3000 | 平台注入，非人工設定 | ✅ 可接受 | —— |
 
 ---
@@ -308,6 +332,26 @@ Current placeholder policy:
 Owning ticket:         PRE-07
 ```
 
+### `NEXT_PUBLIC_SUPPORT_EMAIL`（frontend，`PRE-14`）
+
+```text
+Variable:              NEXT_PUBLIC_SUPPORT_EMAIL
+Why domain-dependent:  Owner 決定的形式是 support@<production-domain>，
+                       因此值取決於尚未鎖定的網域
+Required before:       production 上線（PRE-14 的 production gate）
+Secret?:               否 —— 刻意公開；它就是要印在匿名可讀的 /support 上
+Current placeholder policy:
+                       VALUE PENDING OWNER DOMAIN
+                       未設定時 /support 顯示「一般客服聯絡方式目前尚未設定。」，
+                       **不得**填入任何示意值當作暫時解（會被視同未設定並拒絕）
+Must NOT be:           個資權利請求信箱（不同的法定受理管道，DEC-LEGAL-07）
+Owning ticket:         PRE-14
+```
+
+> **這一項不阻塞工程，但阻塞 launch。** `PRE-14` 的實作（頁面、四個進入點、
+> 死文案收尾、測試）與網域無關，已可完成；**只有值**要等網域。
+> 在值設定完成並實測前，`PRE-14` 一律記為 `BLOCKED_BY_PRODUCTION_CONFIG`。
+
 ### 對 O-20 的影響
 
 `O-20`（《隱私權政策》§5.4 部署環境委外處理者揭露）需要的是**供應商身分**（已知：Render）
@@ -362,12 +406,12 @@ PRE-07  =  HOW ON RENDER  在 Render 上實際用什麼機制提供這些設定�
 | 私有儲存（production） | ✅ **有**（三條 fail-closed 分支，本輪逐條實測） | `config/privateFileStorage.js:132-160` | —— |
 | 儲存數值旋鈕 | ✅ **有**（非正數 throw，且由 route 於 module load 讀取） | `config/privateFileStorage.js:76-84` | —— |
 | `NODE_ENV` | ❌ **無**（它是開關本身，無法自我檢查） | —— | `PRE-12` |
-| `PUBLIC_BACKEND_URL` | ❌ **無** | —— | **`PRE-12`** |
-| `PUBLIC_WEB_URL` | ❌ **無** | —— | **`PRE-12`** |
-| `JWT_EXPIRES_IN` 格式 | ❌ **無**（第一次登入才炸） | —— | `PRE-12` |
-| SMTP | ❌ **無**（僅手動 `npm run smtp:check`，不在啟動路徑上） | —— | **`REL-03`（已存在）** |
+| `PUBLIC_BACKEND_URL` | ✅ **有**（`PRE-12`，2026-09-03）—— production 未設／空白／非 URL／非 http(s)／loopback 皆**拒絕啟動**；別名 `API_PUBLIC_URL` 可單獨滿足 | `config/productionUrlContract.js`，由 `index.js` 在 `ensureCoreTables()` 與 `app.listen()` 之前呼叫 | —— |
+| `PUBLIC_WEB_URL` | ✅ **有**（`PRE-12`，2026-09-03）—— 同上，**Owner 決定為 fail-closed 而非警告**；別名 `FRONTEND_URL`／`APP_BASE_URL` | 同上 | —— |
+| `JWT_EXPIRES_IN` 格式 | ✅ **有**（`PRE-12`，2026-09-03）—— 載入 `utils/jwt.js` 時即驗證；未設沿用預設 `7d`，設了但空白或格式非法即拒絕啟動。合法性交由 `jsonwebtoken` 判定，未自寫 regex | `config/productionUrlContract.js`／`utils/jwt.js` | —— |
+| SMTP | ✅ **有（條件式）**（`REL-03`，2026-09-03）—— 五個 `SMTP_*` 全不存在 → **允許啟動**（`DEC-17`）；**任何一個存在** → 整份契約必須成立，半套或格式錯誤即**拒絕啟動**。`SMTP_TEST_TO` 為 test-only，不會啟用契約。**只驗證設定完整性，不連線、不證明投遞** | `config/smtpContract.js`，由 `index.js` 在 `ensureCoreTables()` 與 `app.listen()` 之前呼叫 | —— |
 | `PAYMENT_BANK_*` | ❌ 無（**刻意**） | `config/paymentBankInfo.js:26` | 檢查表把關（§11） |
-| Frontend `API_BASE_URL` | ❌ **無** | —— | `PRE-12` |
+| Frontend `API_BASE_URL` | ✅ **有**（`PRE-12`，2026-09-03）—— production 未設／空白／非 URL／loopback 皆明確失敗；dev／test 保留 localhost 回退 | `frontend/apps/web/lib/server-api-base-url.ts`（五個呼叫點已收斂為單一 accessor） | —— |
 
 > **不引入通用設定框架。** 現有的 fail-closed 已覆蓋最嚴重的四類
 > （JWT、資料庫、私有儲存路徑、儲存 driver），缺口是**具體的四、五個變數**，
@@ -436,6 +480,14 @@ SMTP（DEC-14 = Resend）
   [ ] SMTP_USER = resend                         ← 已知
   [ ] SMTP_PASS                                  ← SECRET；Resend API key
   [P] SMTP_FROM                                  ← 需已驗證寄件網域
+
+SUPPORT（PRE-14 —— 一般客服聯絡入口）
+  [P] NEXT_PUBLIC_SUPPORT_EMAIL                  ← 形式 support@<production-domain>；
+                                                    非 secret（公開頁面上的地址）；
+                                                    未設 → /support 顯示「尚未設定」
+                                                    （不編造、不顯示佔位地址）
+  [ ] 部署後實測 /support 匿名可讀且顯示該地址   ← 這一項未過，PRE-14 不得標 PASS
+  [ ] 確認該值**不是**個資權利請求信箱            ← 兩者是不同的法定受理管道
 
 PAYMENT（人工轉帳的收款帳戶）
   [ ] PAYMENT_BANK_NAME

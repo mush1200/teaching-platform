@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getServerApiBaseUrl } from "../../lib/server-api-base-url";
 
 /**
  * 法律文件的 public renderer（P1-09 Legal Foundation）。
@@ -49,7 +50,7 @@ function formatDate(value: string | null): string | null {
 }
 
 async function fetchPublished(type: LegalDocumentType): Promise<LegalDocument | null> {
-  const baseUrl = process.env.API_BASE_URL ?? "http://localhost:3000";
+  const baseUrl = getServerApiBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/legal/documents/${encodeURIComponent(type)}`, {
       cache: "no-store",

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3000";
+import { getServerApiBaseUrl } from "@/lib/server-api-base-url";
 
 /**
  * First path segment allowlist — mirrors public backend routes used by the web app.
@@ -46,6 +45,8 @@ async function proxy(request: NextRequest, segments: string[]): Promise<Response
     return NextResponse.json({ message: "not allowed" }, { status: 403 });
   }
 
+  // `PRE-12`：在 handler 內取值，production 缺漏即明確失敗，不靜默退回 localhost。
+  const API_BASE_URL = getServerApiBaseUrl();
   const path = segments.join("/");
   const incoming = new URL(request.url);
   const targetUrl = `${API_BASE_URL}/${path}${incoming.search}`;

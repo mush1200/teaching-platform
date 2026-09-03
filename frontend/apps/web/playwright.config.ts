@@ -120,7 +120,22 @@ export default defineConfig({
        * 上面那台 backend。不指定時 `API_BASE_URL` 會落到預設的 `http://localhost:3000`，
        * 在只有 IPv6 loopback 解析的環境下會變成 `ECONNREFUSED ::1:3000`（實測見 `DX-19`）。
        */
-      env: { API_BASE_URL: BACKEND_PREREQUISITE.baseUrl },
+      env: {
+        API_BASE_URL: BACKEND_PREREQUISITE.baseUrl,
+        /*
+         * `PRE-14` —— 讓 harness 起的 web server 有一個**已設定**的客服信箱，
+         * 使 `/support` 的「configured」分支在真實瀏覽器裡被走到。
+         *
+         * `.test` 是保留 TLD，不可能寄達 —— 這裡要的是 render 行為，不是收信。
+         * 它也刻意**不在** `lib/support-contact.ts` 的佔位值黑名單裡，否則會被
+         * 當成未設定而測不到這個分支。
+         *
+         * `reuseExistingServer: true`：若 3010 已有別人起的 server，這個值不會生效。
+         * 因此 `support-entry.spec.ts` 的瀏覽器斷言寫成「mailto 與『尚未設定』
+         * 恰好出現一個」，兩種環境都成立；env 的分支正確性另由純函式測試涵蓋。
+         */
+        NEXT_PUBLIC_SUPPORT_EMAIL: "support@teaching-platform.test",
+      },
     },
   ],
 });

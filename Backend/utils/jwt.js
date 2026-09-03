@@ -54,6 +54,16 @@ function readJwtSecretFromEnv() {
 
 const JWT_SECRET = readJwtSecretFromEnv();
 
+/*
+ * `PRE-12`：`JWT_EXPIRES_IN` 的格式在**載入時**就驗證。
+ *
+ * 先前它只在 `jwt.sign()` 被呼叫時才生效，因此一個打錯的值（實測 `"abc"`／`"7dd"`）
+ * 會讓 backend **啟動成功**，卻在**第一個使用者登入**時才炸 —— 最糟的失敗時點。
+ * 檢查本身在 `config/productionUrlContract.js`，與 `JWT_SECRET` 的規則互不干涉；
+ * 這裡只是把它拉到與本模組相同的載入時機。
+ */
+require("../config/productionUrlContract").assertJwtExpiresIn();
+
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",

@@ -625,7 +625,11 @@ async function openEvidenceForDelivery(evidenceRow) {
   const storage = getPrivateFileStorage();
   const stat = await storage.stat(evidenceRow.storage_key);
   if (!stat.exists) {
-    return fail("evidence_object_missing", "證據檔案暫時無法取得，請稍後再試或聯絡平台客服。");
+    // `PRE-14`：原本寫「聯絡平台客服」，但那個管道不存在。改指真的到得了的 `/support`。
+    return fail(
+      "evidence_object_missing",
+      "證據檔案暫時無法取得，請稍後再試；若持續發生，請透過平台的「聯絡平台」頁面取得協助。"
+    );
   }
   return {
     ok: true,

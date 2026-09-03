@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { MaterialDetailPage } from "../../../components/materials/MaterialDetailPage";
 import type { Material } from "../../../lib/api-types";
+import { getServerApiBaseUrl } from "../../../lib/server-api-base-url";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   let m: Material | null = null;
   try {
-    const baseUrl = process.env.API_BASE_URL ?? "http://localhost:3000";
+    const baseUrl = getServerApiBaseUrl();
     const res = await fetch(`${baseUrl}/materials/${encodeURIComponent(id)}`, {
       cache: "no-store",
       headers: { Accept: "application/json" },

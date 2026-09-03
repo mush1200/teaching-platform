@@ -215,7 +215,11 @@ test.describe("buyer complaint evidence delivery", () => {
       [`GET me/complaints/${COMPLAINT_ID}/evidence/${FILE_EVIDENCE.id}/file`]: (route) =>
         json(
           route,
-          { error: "evidence_object_missing", message: "證據檔案暫時無法取得，請稍後再試或聯絡平台客服。" },
+          {
+            error: "evidence_object_missing",
+            // `PRE-14`：與 `consumerComplaint.service.js` 的真實訊息保持一致（原文案指向不存在的客服管道）。
+            message: "證據檔案暫時無法取得，請稍後再試；若持續發生，請透過平台的「聯絡平台」頁面取得協助。",
+          },
           503
         ),
     });

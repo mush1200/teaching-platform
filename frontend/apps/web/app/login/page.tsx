@@ -189,8 +189,16 @@ export default function LoginPage() {
 
                 **2026-08-27 更新（`BUY-02`）：** 平台現在有「申訴與消費爭議」全域入口
                 （買家外殼 →「其他」→ `/me/complaints`），先前那些「請聯繫客服」死文案已改寫。
-                但那條流程**全部端點皆需登入**，因此對「登入不了的人」仍然無解 ——
-                本節的判斷不變：這裡不放替代入口。
+                但那條流程**全部端點皆需登入**，因此對「登入不了的人」仍然無解。
+
+                **2026-09-01 更新（`PRE-14`）：** 現在有了 —— `/support`（「聯絡平台」）
+                **匿名可讀**，並在下方表單區塊尾端提供入口。上一段「對登入不了的人無解」
+                的判斷因此不再成立。
+
+                **但「忘記密碼」仍然不存在。** `/support` 給的是一個人工處理的聯絡管道，
+                **不是** password recovery：backend 依舊沒有 forgot/reset 端點、沒有 reset
+                token 基礎建設。因此這裡**不得**因為有了客服入口就把「忘記密碼？」加回來，
+                連結文案也刻意不含「密碼」二字。要恢復該功能，仍見 tracker 的 `P1-08`。
               */}
               <div className="flex items-center gap-2">
                 <label htmlFor="remember" className="inline-flex items-center gap-2 text-sm text-[#64748B]">
@@ -245,6 +253,25 @@ export default function LoginPage() {
               還沒有帳號？{" "}
               <Link href="/register" className="font-medium text-[#6D5CFF] hover:underline">
                 立即註冊
+              </Link>
+            </p>
+            {/*
+              `PRE-14` —— 登入頁的一般客服入口。
+              本頁是這條缺口最尖銳的地方：上方 `P1-08` 的註解已記載「這條流程全部端點
+              皆需登入，因此對『登入不了的人』仍然無解」，而現在 `/support` 是
+              **匿名可讀**的，所以那個判斷不再成立 —— 這裡放的是真的到得了的管道。
+
+              文案刻意寫「聯絡平台」而不是「重設密碼」「找回密碼」：
+              **密碼重設仍然不存在**（`P1-08` 採誠實移除），這個連結不得被誤讀成它回來了。
+            */}
+            <p className="mt-2 text-center text-sm text-[#64748B]">
+              登入遇到問題？{" "}
+              <Link
+                href="/support"
+                data-testid="login-support-link"
+                className="font-medium text-[#6D5CFF] hover:underline"
+              >
+                聯絡平台
               </Link>
             </p>
             {message ? <p className="mt-3 text-center text-sm text-[#F59E0B]">{message}</p> : null}

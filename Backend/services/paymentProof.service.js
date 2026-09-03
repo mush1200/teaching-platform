@@ -358,7 +358,8 @@ async function resolveProofForAccess({ orderId, proofId, user }) {
      */
     return fail(
       "proof_file_unavailable",
-      "這張憑證沒有可顯示的影像檔（舊資料尚未轉入安全儲存或檔案已遺失），請聯絡平台客服。",
+      // `PRE-14`：原本寫「請聯絡平台客服」，但那個管道不存在。改指真的到得了的 `/support`。
+      "這張憑證沒有可顯示的影像檔（舊資料尚未轉入安全儲存或檔案已遺失），請透過平台的「聯絡平台」頁面取得協助。",
       { storageStatus: proof.storage_status }
     );
   }
@@ -376,7 +377,11 @@ async function openProofForDelivery(proofRow) {
   const storage = getPrivateFileStorage();
   const stat = await storage.stat(proofRow.storage_key);
   if (!stat.exists) {
-    return fail("proof_object_missing", "憑證影像暫時無法取得，請稍後再試或聯絡平台客服。");
+    // `PRE-14`：原本寫「聯絡平台客服」，但那個管道不存在。改指真的到得了的 `/support`。
+    return fail(
+      "proof_object_missing",
+      "憑證影像暫時無法取得，請稍後再試；若持續發生，請透過平台的「聯絡平台」頁面取得協助。"
+    );
   }
   return {
     ok: true,

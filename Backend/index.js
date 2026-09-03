@@ -26,6 +26,8 @@ const teacherUploadRouter = require("./routes/teacherUpload");
 const creatorCasesRouter = require("./routes/creatorCases");
 const paymentRouter = require("./routes/payment");
 const { ensureCoreTables } = require("./models/bootstrapModel");
+const { assertProductionConfigContract } = require("./config/productionUrlContract");
+const { assertProductionSmtpContract } = require("./config/smtpContract");
 const { rejectNulBytePathParams } = require("./utils/pathParams");
 const { notFoundJson, jsonErrorHandler } = require("./middlewares/errorResponses");
 const { setupSwagger } = require("./swagger");
@@ -158,6 +160,36 @@ app.use(jsonErrorHandler);
 const rawPort = Number.parseInt(String(process.env.PORT ?? "3000"), 10);
 const listenPort =
   Number.isFinite(rawPort) && rawPort >= 1 && rawPort <= 65535 ? rawPort : 3000;
+/*
+ * `PRE-12`：對外 URL 契約必須在**任何**啟動步驟之前確立。
+ *
+ * 放在 `ensureCoreTables()` 之前是刻意的 —— 設定缺漏時不該先去動資料庫，
+ * 更不該讓服務進入「可接受請求」的狀態。`PUBLIC_BACKEND_URL` 缺漏的代價是
+ * **把 localhost 絕對網址永久寫進資料列**，那無法靠事後補設定修復。
+ *
+ * 這裡不把錯誤降級成警告：印出可行動的訊息之後 **exit 1**，
+ * 與 `JWT_SECRET`／私有儲存的 fail-closed 是同一種取捨。
+ */
+/*
+ * `REL-03`：SMTP 設定契約，與上面同一個時機、同一種取捨。
+ *
+ * **條件式**（Owner decision，2026-09-03）：五個 `SMTP_*` 全不存在時允許啟動
+ * （`DEC-17` 明示 MVP 初期不啟用郵件，現行 production 正是如此）；
+ * 但只要有人設了其中任何一個，就代表**打算啟用**，此時整份契約必須成立 ——
+ * 半套設定會讓服務照常收單卻一封信都不寄，那是部署錯誤，應該當場顯現。
+ */
+try {
+  assertProductionConfigContract();
+  assertProductionSmtpContract();
+} catch (err) {
+  console.error(`production configuration contract failed: ${err.message}`);
+  console.error(
+    "Exiting with code 1: fix the environment before starting " +
+      "(see docs/production-environment-contract.md and Backend/config/productionUrlContract.js)."
+  );
+  process.exit(1);
+}
+
 ensureCoreTables()
   .then(() => {
     // Do not pass a callback to app.listen: Express 5 registers that fn with

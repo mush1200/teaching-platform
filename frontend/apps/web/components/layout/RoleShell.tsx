@@ -21,6 +21,17 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/materials", label: "教材列表" },
     { href: "/login", label: "登入" },
     { href: "/register", label: "註冊" },
+    /*
+     * `PRE-14` —— 未登入者的一般客服入口。
+     *
+     * 這是**最重要的一處**：既有的「申訴與消費爭議」（`BUY-02`）全部端點皆
+     * `requireAuth`，而平台沒有密碼重設（`P1-08` 誠實移除），所以在此之前
+     * 「登入不了的人」完全沒有任何管道。
+     *
+     * 文案是「聯絡平台」而不是「客服中心」／「幫助中心」：平台沒有 ticket
+     * system，`BUY-03` 移除的那顆「幫助中心」正是因為承諾了不存在的東西。
+     */
+    { href: "/support", label: "聯絡平台" },
   ],
   parent: [
     { href: "/explore", label: "探索教材" },
@@ -30,6 +41,13 @@ const NAVS: Record<RoleKind, NavItem[]> = {
     { href: "/me/orders", label: "我的訂單" },
     { href: "/me/materials", label: "我的教材" },
     { href: "/my-reviews", label: "我的教學回饋" },
+    /*
+     * 買家的 canonical 導覽是 `sidebar-nav-config.ts` 的 `SIDEBAR_NAV_SECTIONS`
+     * （`ParentAppShell` 用）。這一份是買家走到 `parentShellRoutes` 以外的路由時
+     * 會看到的 `SimpleNavSidebar` —— `/support` 與 `/me/complaints` 都屬於這一類，
+     * 所以兩個 surface 都要有，否則買家一進客服頁反而失去回頭的入口。
+     */
+    { href: "/support", label: "聯絡平台" },
   ],
   teacher: [
     { href: "/creator/materials", label: "教材管理" },
@@ -92,7 +110,19 @@ const CREATOR_SECTIONS: CreatorSection[] = [
      * 登出**不**放在這裡：shell 底部的固定登出列已經有一顆，Admin 側欄也只有那一顆。
      * 兩顆同名按鈕除了讓 accessibility tree 出現重複的「登出」之外沒有任何好處。
      */
-    items: [{ id: "teacher-profile", href: "/creator/materials?view=profile", label: "個人資料", icon: "👤" }],
+    items: [
+      { id: "teacher-profile", href: "/creator/materials?view=profile", label: "個人資料", icon: "👤" },
+      /*
+       * `PRE-14` —— 創作者側的一般客服入口。
+       *
+       * 創作者端也有指向不存在管道的死文案（`Backend/routes/materials.js` 的
+       * `file_replacement_not_allowed` 與 `lib/material-status.ts` 的
+       * `materialFileLockReason()`，兩處「請聯絡平台」已於同輪改寫）。
+       * 「平台案件」在「成效與互動」區塊，那是**創作者自己的教材案件**，
+       * 與一般客服不同 —— 因此這裡放在「帳戶」而不是併進去。
+       */
+      { id: "teacher-support", href: "/support", label: "聯絡平台", icon: "✉️" },
+    ],
   },
 ];
 
