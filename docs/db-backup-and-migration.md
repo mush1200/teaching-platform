@@ -265,6 +265,102 @@ B2 的 S3-compatible API 支援 `ListObjectVersions`（`?versions=null`），
 **若演練發現版本無法復原**，代表 bucket 的 lifecycle 不是預設值 ——
 回頭確認 §8.4 的「必須維持」那一條，**不要**改程式碼。
 
+### 8.5.3 實際演練結果（2026-09-03，`PRE-08` gate 已通過）
+
+> 以上 §8.5.1／§8.5.2 是**程序**；本節是**實測結果**。
+> 兩份演練皆對**真實 production 資源**執行，各只執行一次。
+
+**物件儲存（B2）—— PASS，elapsed 3.33 s**
+
+```text
+演練前（獨立於腳本的 ListObjectVersions --prefix drill/）  0 版本 / 0 delete marker / 0 key
+  put → delete（不帶 versionId）→ delete marker 1、前一版本仍在 1
+  → 以 versionId 取回 → 還原位元組 SHA-256 與原始相符 → 清理
+演練後（同一支獨立普查）                                  0 / 0 / 0
+exit 0 ／ RESULT: PASS
+```
+
+**腳本自己印的「已清理 N 個版本」不足以當證據** —— 清理的刪除以
+`.catch(() => {})` 吞掉錯誤，失敗時仍會印成功。因此**前後各做一次獨立普查**，
+以普查結果為準。演練物件一律寫在 `drill/<uuid>`，**不碰四個正式 namespace**。
+
+**資料庫（Neon → 本機可拋棄 PG17）—— PASS，total 157.04 s**
+
+```text
+pg_dump   17.11 client ／ custom ／ --no-owner --no-privileges
+          exit 0 ／ 6.98 s ／ 112,986 bytes ／ 無 stderr ／ 存於 repo 之外
+scratch   一次性 PG17.11 cluster：localhost / port 55432 / scram-sha-256
+          init + start 133.34 s
+pg_restore 全新空資料庫；未用 --clean、未用 --create
+          exit 0 ／ stderr 0 行 ／ 1.55 s
+驗證      0.30 s          DB↔B2 一致性  5.18 s
+```
+
+| 比對項 | production | 還原後 |
+| --- | --- | --- |
+| public tables | 26 | 26 |
+| `users` ／ `orders` ／ `order_items` ／ `manual_payment_proofs` | 3 ／ 1 ／ 1 ／ 1 | 3 ／ 1 ／ 1 ／ 1 |
+| `activity_logs.id` 型別 | `text` | `text` |
+| constraints ／ indexes | 338 ／ 93 | 338 ／ 93 |
+
+**`SCHEMA-04` 處理：** 全程**未**以 JavaScript `Date` 解析任何 timestamp；
+比對一律用資料庫端的聚合結果，因此 naive `TIMESTAMP` 的讀取假象不影響本結論。
+
+**環境前提（記錄下來，下次才不會重踩）：** 本機原本**沒有任何 PG17 server**
+—— `C:\Program Files\PostgreSQL\17` 只裝了 Command Line Tools，
+`share\postgres.bki` 不存在，`initdb` 無法建立 cluster；唯一運行中的是 **PG13**，
+而 **PG13 不能還原 17.11 的 dump**。解法是取官方 EDB 17.11 **binaries 壓縮檔**
+在 repo 外解壓成可攜式發行版，**不安裝 Windows 服務、不動既有 PG13**。
+
+**§8.5.1 的 `createdb` 寫法預設本機 server 版本相容 —— 在只有 PG13 的機器上不成立。**
+
+**檔案 ↔ 資料庫一致性（§8.5.1 的關鍵那一步）**
+
+```text
+references_checked  3     objects_found  3     objects_missing  0
+size_comparable     2     size_matches   2     size_mismatches  0
+checksum_comparable 0     checksum_matches 0   checksum_mismatches 0
+checksum_not_comparable   3
+逐表：material_files 1/1 ・ material_media_files 1/1 ・
+      manual_payment_proofs 1/1 ・ consumer_complaint_evidence 0 筆參照
+```
+
+> **⚠️ checksum 證據的精確邊界 —— 不得誇大。**
+> `HeadObject` 只回 `ETag` 與 metadata，**沒有**可與 DB `checksum_sha256`
+> 直接比對的值；真正比對必須下載物件本體，本次未做。
+> 因此 **production 業務物件的 SHA-256 並未比對**，
+> 上表如實記為 `checksum_not_comparable = 3`。
+> **「不可比」不是「相符」。**
+> Track 1 對**合成演練物件**完成的 SHA-256 往返驗證是**另一件事**，
+> 它證明的是儲存層的位元組保真度，不是這三個業務物件的雜湊一致性。
+>
+> 已證明的是：**每一個被參照的物件都存在（`objects_missing = 0`）**，
+> 且有 size 欄位可比的 2 筆與 B2 的 `ContentLength` 完全相同。
+> 「`storage_key` 指向不存在的物件 ＝ 資料遺失」這條邊界不變，
+> 現在它是一個可重複執行的檢查，而不只是文件上的一句話。
+
+**暫時性 dump 的處置（本次實際做法）**
+
+```text
+存放     repo 之外的本機暫存目錄
+內容     含全部 production 個資
+生命週期 只為本次演練存在，驗證完成後立即銷毀
+銷毀後   dump／backup 目錄／scratch-data／臨時密碼檔皆已刪除並複驗
+         另發現並刪除一個 scratch server log（僅啟動／checkpoint／關閉訊息，
+         log_statement 預設 none，不含 SQL 與資料列）
+         工作區遞迴搜尋 *.dump／*.log／scratch-data 皆為 0
+保留     只留可攜式 PG17 binaries
+```
+
+**本節未自行訂定任何保存期限或加密政策。** 備份副本的保存期限、加密與銷毀方式
+仍屬 **`O-20`** 的範圍（見 §8.3 與 tracker §2.1 的 `PRE-08` 補充）。
+
+**production 變更：** DB 寫入 0／B2 寫入 0／business-state 寫入 0／audit 寫入 0；
+B2 僅 3 次 `HeadObject` metadata 讀取，未下載任何業務物件本體、未列出 bucket、
+未建立 Neon branch、未執行任何 DDL 或 DML。
+
+---
+
 ## 8.6 這套策略沒有涵蓋的事
 
 ```text
