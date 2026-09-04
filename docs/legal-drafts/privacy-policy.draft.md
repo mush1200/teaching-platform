@@ -206,11 +206,34 @@ Draft.
 
 > `[LAWYER REVIEW REQUIRED — 部署環境（主機、儲存服務）之委外處理者揭露：條文表述]`
 >
-> **狀態（2026-08-31，Owner 拍板 `DEC-13`）：部分事實已知。**
-> 部署平台為 **Render**（Web Service、Managed PostgreSQL、Persistent Disk）；
-> 私有檔案儲存 driver 維持 `local`，**不使用任何物件儲存供應商**。
-> **仍未齊備：production 網域與主機名稱（`PENDING`），以及 Render 之法人名稱與
-> DPA／分包商／資料所在地文件（尚未查證）。**
+> **狀態（2026-09-04 事實更新）：部分事實已知。**
+>
+> **⚠️ 本段 2026-08-31 版依 `DEC-13` 記載「部署平台為 Render（Web Service、
+> Managed PostgreSQL、Persistent Disk）；私有檔案儲存 driver 維持 `local`，
+> 不使用任何物件儲存供應商」。該敘述已由同日之 `DEC-16`／`DEC-17` 取代，
+> 與現行 production 不符，於本次更正。**
+>
+> **現行受託處理者為四家：**
+>
+> | 用途 | 供應商 |
+> | --- | --- |
+> | 應用程式主機（Frontend／Backend） | **Render** |
+> | production 資料庫 | **Neon** |
+> | 私有檔案儲存（**含付款憑證**） | **Backblaze B2**（S3-compatible driver，`PRIVATE_FILE_STORAGE_DRIVER=s3`） |
+> | 交易郵件 | **Resend**（**production 郵件尚未啟用**，見 `PRE-10`） |
+>
+> **付款憑證（含買家姓名、帳號末碼、匯款截圖）存放於 Backblaze B2；
+> 依本 repo canonical 紀錄，該儲存位於美國，且 Backblaze 無亞太 region。**
+> 另有一項**非受託處理者**之個資存放位置：Owner 自行保管之 `pg_dump` 備份副本
+> （Neon Free 無 automated backup，PITR 僅 6 小時，故備份由 Owner 手動執行並保存於自有設備）。
+>
+> **仍未齊備：** production 網域與主機名稱（`PENDING`）；上列四家供應商之
+> **法人名稱、DPA 條款、分包商清單、資料所在地文件**（除 Resend 已於 `O-19` 蒐集
+> 部分文件連結外，其餘尚未查證）。
+>
+> **以上皆為事實陳述。** 本 repo **不判斷**下列任一事項，均待律師認定：
+> 上述供應商之 DPA／SCCs／分包商安排是否於法充分、跨境傳輸之告知或同意要求為何、
+> 本節揭露之表述方式是否符合個資法、以及 Owner 自持備份副本應如何於條文中交代。
 >
 > **本節條文本文本輪未修改。** `LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。
 

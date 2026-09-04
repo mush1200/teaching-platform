@@ -30,6 +30,30 @@ Production consent wiring     : NONE
 四份草稿均標記 `DRAFT — NOT LAWYER APPROVED` / `NOT FOR PRODUCTION PUBLICATION`。
 四條 public route 已存在；**在對應文件發布前一律回應 404**，不顯示任何草稿或替代內容。
 
+### 0.1 完整交付清單（10 份）—— 送出時以本表為準
+
+> **2026-09-04 補列。** 上表原本只列出本目錄內的六份文件，
+> **未列出 §4.1 所依賴的四份 `PRE-03` 委託文件** —— §4.1 明示
+> 「`PRE-03` 的完整事實陳述與逐題委託內容**早已存在**於下列四份文件，本節**不重複**它們」，
+> 因此只送出上表六份，審閱者會拿到一份指向手上沒有的文件的索引。
+> 本節**僅補齊清單，未新增或重複任何內容**。
+
+| # | 檔案 | 收件對象 | 用途 |
+| --- | --- | --- | --- |
+| 01 | `docs/legal-drafts/review-handoff.md`（本文件） | 律師 ＋ 會計師 | 索引：交付物、審閱順序、Owner 決定、§3／§4 範圍、§4.1 會同判定 packet 與回覆模板 |
+| 02 | `docs/legal-drafts/legal-review-checklist.md` | 律師 ＋ 會計師 | A～E 勾稽清單 |
+| 03 | `docs/legal-drafts/terms-of-service.draft.md` | 律師 ＋ 會計師 | 買家端契約；當事人結構取決於 `PRE-03` |
+| 04 | `docs/legal-drafts/creator-agreement.draft.md` | 律師 ＋ 會計師 | 授權鏈與報酬；與稅務高度重疊 |
+| 05 | `docs/legal-drafts/privacy-policy.draft.md` | 律師 | 個資、受託處理者、跨境傳輸、保存期間 |
+| 06 | `docs/legal-drafts/refund-cancellation-policy.draft.md` | 律師 ＋ 會計師 | 解除權例外、退款義務、憑證時點 |
+| 07 | `docs/pre-03-lawyer-validation-package-2026-08-26.md` | **律師** | 律師委託書：事實 `B-1`～`B-6`、問題 `Q-01`～`Q-20`、`L-F` |
+| 08 | `docs/pre-03-accountant-validation-package-2026-08-26.md` | **會計師** | 會計師委託書：問題 `Q-06`～`Q-13`、`T-D`、`T-F` |
+| 09 | `docs/pre-03-validation-evidence-appendix-2026-08-26.md` | 律師 ＋ 會計師 | 證據附錄 `INV-*`／`EVD-*`、問題→Gate 矩陣、複驗指令 |
+| 10 | `docs/pre-03-platform-seller-model-verification-2026-08-26.md` | 律師 ＋ 會計師 | 第二輪獨立排查：`N1`～`N5` 風險、§6 封版所需之 6 項最小條件 |
+
+> **07～10 四份的完整說明見 §4.1 的文件表**（含行數與內容摘要）。
+> 本節只負責「送出時不要漏掉」，**不重複** §4.1 的內容。
+
 **Draft Identifier：** `draft-2026-08`（**不是** production document version；
 正式 `version` 由 `legal_documents` registry 於核可後指派）。
 
@@ -76,7 +100,7 @@ Production consent wiring     : NONE
 | O-17 | 帳號凍結後之申訴／解除流程 | Terms §2.5 | **部分決定** —— 內部 operating model ✅ `DEC-LEGAL-10`（single-admin ＋ 標準化 reason ＋ Admin UI；實作未開始，tracker `OPS-02`）。**對外申訴時限／法定回覆日數仍未決** | Terms 定稿（對外側） |
 | O-18 | 平台停止營運計畫（四組處置） | Terms §13.3 | 未訂定 | Gate 10、併同 `L-15` |
 | O-19 | 郵件服務供應商揭露 | Privacy §5.3 | **✅ FACT NOW KNOWN（2026-08-31，Owner 拍板 `DEC-13`／`DEC-14` 之 `DEC-14`）** —— 交易郵件供應商 **Resend**，法人 **Plus Five Five, Inc.**，整合方式為 **nodemailer 經通用 SMTP relay**。供應商文件：DPA `resend.com/legal/dpa`；分包商清單 `resend.com/legal/subprocessors`；隱私政策 `resend.com/legal/privacy-policy`；該 DPA 載明主要處理作業位於美國並納入 SCCs。**以上皆為事實陳述。`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW` —— 本 repo 不判斷 DPA、SCCs、分包商、隱私條款或資料所在地是否於法充分。**（2026-08-27 原記載為 `FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED`，已由本次拍板取代。**production 郵件尚未啟用** —— DNS／網域驗證未完成，且寄件網域待 production 網域鎖定。） | Privacy 定稿 |
-| O-20 | 部署環境委外處理者揭露 | Privacy §5.4 | **⚠️ 部分事實已知（2026-08-31，`DEC-13`）** —— 基礎建設供應商為 **Render**（Frontend／Backend Web Service、Managed PostgreSQL、Persistent Disk 皆由其提供；私有檔案儲存 driver 維持 `local`，**不使用任何物件儲存供應商** —— S3／R2 明確不屬於 MVP）。`PRE-01` 已拍板；`PRE-02` 已由 `DEC-15`（fresh DB）簡化為驗證性工作。**仍未齊備者：production 網域與主機名稱（`PENDING OWNER DECISION / PURCHASE`）**，以及 Render 之法人名稱、DPA／分包商／資料所在地文件（本輪未查證，屬 `PRE-07` 落地時補齊）。**以上皆為事實陳述。`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。** | Privacy 定稿 |
+| O-20 | 部署環境委外處理者揭露 | Privacy §5.4 | **⚠️ 部分事實已知（2026-09-04 事實更新）** —— **本列 2026-08-31 版依 `DEC-13` 記載「基礎建設供應商為 Render（含 Managed PostgreSQL、Persistent Disk）；私有檔案儲存 driver 維持 `local`，不使用任何物件儲存供應商 —— S3／R2 明確不屬於 MVP」。該敘述已由同日之 `DEC-16`／`DEC-17` 取代，與現行 production 不符，於本次更正。** 現行**受託處理者為四家**：應用程式主機（Frontend／Backend）**Render**／production 資料庫 **Neon**／私有檔案儲存（**含付款憑證**）**Backblaze B2**（S3-compatible driver，`PRIVATE_FILE_STORAGE_DRIVER=s3`）／交易郵件 **Resend**（**production 郵件尚未啟用**，見 `PRE-10`）。**付款憑證（含買家姓名、帳號末碼、匯款截圖）存放於 Backblaze B2；依本 repo canonical 紀錄該儲存位於美國，且 Backblaze 無亞太 region。** 另有一項**非受託處理者**之個資存放位置：Owner 自行保管之 `pg_dump` 備份副本（Neon Free 無 automated backup、PITR 僅 6 小時）。`PRE-01` 已拍板；`PRE-02` 已由 `DEC-15`（fresh DB）簡化為驗證性工作。**仍未齊備者：production 網域與主機名稱（`PENDING OWNER DECISION / PURCHASE`）**，以及上列四家供應商之法人名稱、DPA／分包商／資料所在地文件（除 `O-19` 已蒐集 Resend 部分文件連結外，其餘尚未查證）。**與 Privacy §5.4 之事實敘述一致。****以上皆為事實陳述。`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`。** | Privacy 定稿 |
 | **O-21** | **當事人權利之受理作業流程** | Privacy §8.3 | **部分決定** —— 內部受理模型 ✅ `DEC-LEGAL-13`（Round 3：重用 case-management，獨立分類；實作未開始，tracker `OPS-04`）；**法定回覆期限與身分驗證標準仍未決** | Privacy §8 定稿（法律側） |
 | **O-22** | **帳號刪除之技術語意與流程**（`SCHEMA-02`） | Privacy §9.2 | 未解決之設計問題；**BLOCKED ON `L-21`** | Privacy §9、刪除權實作 |
 
