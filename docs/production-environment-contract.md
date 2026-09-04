@@ -133,8 +133,14 @@
 >
 > 唯一那個變數完全符合：它的整個用途就是**印在一個匿名可讀的頁面上給人抄下來**，
 > 因此「被打包進瀏覽器 bundle」不是外洩，而是它的功能本身。
-> 它也**不是** secret、**不能推導出**任何 secret，且**不得**與個資權利請求信箱共用
-> 同一條設定（兩者是不同的法定受理管道）。
+> 它也**不是** secret、**不能推導出**任何 secret。
+>
+> > **【2026-09-04 Owner 決定 —— 取代原本的共用禁令】** 本段原寫「**不得**與個資
+> > 權利請求信箱共用同一條設定（兩者是不同的法定受理管道）」。該禁令已由 Owner
+> > 明示決定取代：MVP 階段兩者**使用同一個受監看的信箱**。
+> > **仍然分開的是請求類別與處理義務**（法律基礎、期限、紀錄要求各異，見
+> > `docs/mvp_rules.md` §12.11／§12.12），分流靠主旨標註與人工分類，不靠兩個地址。
+> > 這**不放寬** `NEXT_PUBLIC_*` 只能放公開值的規則。
 >
 > **其餘 secret 一律不得使用這個前綴** —— 規則見 §5 規則 3（已同輪改寫）。
 
@@ -336,21 +342,29 @@ Owning ticket:         PRE-07
 
 ```text
 Variable:              NEXT_PUBLIC_SUPPORT_EMAIL
-Why domain-dependent:  Owner 決定的形式是 support@<production-domain>，
-                       因此值取決於尚未鎖定的網域
-Required before:       production 上線（PRE-14 的 production gate）
+Domain dependency:     無。收件信箱只收不寄，不是 SMTP_FROM，不需 SPF/DKIM/DMARC。
+                       （原記載「Why domain-dependent」已於 2026-09-03 更正。）
+Status:                ✅ CONFIGURED IN PRODUCTION（2026-09-04）
+Required before:       production 上線（PRE-14 的 production gate）—— 已達成
 Secret?:               否 —— 刻意公開；它就是要印在匿名可讀的 /support 上
-Current placeholder policy:
-                       VALUE PENDING OWNER DOMAIN
-                       未設定時 /support 顯示「一般客服聯絡方式目前尚未設定。」，
+Unset behaviour:       /support 顯示「一般客服聯絡方式目前尚未設定。」，
                        **不得**填入任何示意值當作暫時解（會被視同未設定並拒絕）
-Must NOT be:           個資權利請求信箱（不同的法定受理管道，DEC-LEGAL-07）
+May ALSO serve:        個資權利請求（2026-09-04 Owner 明示決定共用同一信箱）
+                       —— 取代原本的「Must NOT be 個資權利請求信箱」。
+                       分開的是請求類別與處理義務，不是信箱。
+Preferred later:       品牌化 support@<production-domain>（僅需改此變數；屬網域遷移）
 Owning ticket:         PRE-14
 ```
 
-> **這一項不阻塞工程，但阻塞 launch。** `PRE-14` 的實作（頁面、四個進入點、
-> 死文案收尾、測試）與網域無關，已可完成；**只有值**要等網域。
-> 在值設定完成並實測前，`PRE-14` 一律記為 `BLOCKED_BY_PRODUCTION_CONFIG`。
+> **✅ 2026-09-04：本項已完成。** Owner 指定了受監看的信箱、於 production frontend
+> 設定 `NEXT_PUBLIC_SUPPORT_EMAIL`，並自 commit `3fbf0dd` 部署。
+> `/support` 實測可匿名讀取並顯示該地址，「尚未設定」分支不再出現。
+> **本文件不記載該地址本身**（值仍不進版控，`render.yaml` 維持 `sync: false`）；
+> production 實際值以部署環境為準，PRE-14 的驗證紀錄見
+> `docs/pending-work-tracker.md` §6.1。
+>
+> 先前此處寫「只有值要等網域」——**該敘述已於 2026-09-03 更正**：本項從來不依賴
+> 網域，只依賴 Owner 指定一個收得到信的信箱。
 
 ### 對 O-20 的影響
 
@@ -481,13 +495,19 @@ SMTP（DEC-14 = Resend）
   [ ] SMTP_PASS                                  ← SECRET；Resend API key
   [P] SMTP_FROM                                  ← 需已驗證寄件網域
 
-SUPPORT（PRE-14 —— 一般客服聯絡入口）
-  [P] NEXT_PUBLIC_SUPPORT_EMAIL                  ← 形式 support@<production-domain>；
-                                                    非 secret（公開頁面上的地址）；
+SUPPORT（PRE-14 —— 一般客服聯絡入口）✅ 全數完成 2026-09-04
+  [x] NEXT_PUBLIC_SUPPORT_EMAIL 已於 production   ← Owner 指定的受監看信箱；
+      frontend 設定                                 非 secret（公開頁面上的地址）；
+                                                    值不進版控（sync: false）；
                                                     未設 → /support 顯示「尚未設定」
                                                     （不編造、不顯示佔位地址）
-  [ ] 部署後實測 /support 匿名可讀且顯示該地址   ← 這一項未過，PRE-14 不得標 PASS
-  [ ] 確認該值**不是**個資權利請求信箱            ← 兩者是不同的法定受理管道
+  [x] 部署後實測 /support 匿名可讀且顯示該地址   ← commit 3fbf0dd，HTTP 200，
+                                                    「尚未設定」分支 0 次命中
+  [x] 該值同時作為個資權利請求信箱                ← **2026-09-04 Owner 明示決定共用**。
+                                                    原檢查項為「確認該值**不是**個資
+                                                    權利請求信箱」，已被此決定取代；
+                                                    分開的是請求類別與處理義務，
+                                                    不是信箱（見 mvp_rules §12.12）
 
 PAYMENT（人工轉帳的收款帳戶）
   [ ] PAYMENT_BANK_NAME

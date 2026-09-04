@@ -83,7 +83,21 @@ export function resolveSupportContact(raw: string | null | undefined): SupportCo
  * `NEXT_PUBLIC_SUPPORT_EMAIL` **刻意是 public 值** —— 它就是要印在一個匿名
  * 可讀的頁面上給人抄下來的東西，因此不存在「經由 `NEXT_PUBLIC_*` 外洩」的
  * 問題（`docs/production-environment-contract.md` §5 規則 3 已同輪更新）。
- * 它**不得**與個資權利請求信箱共用同一條設定：兩者在法律上是不同的受理管道。
+ *
+ * ## 與個資權利請求信箱的關係（2026-09-04 Owner 決定，取代先前的禁止規定）
+ *
+ * 本註解先前寫「**不得**與個資權利請求信箱共用同一條設定」。
+ * **該規定已由 Owner 明示決定取代** —— MVP 階段兩者使用**同一個受監看的信箱**
+ * （production 現值見部署環境，本檔不硬編）。
+ *
+ * **要分開的是「請求類別與處理義務」，不是「信箱」。** 一般客服與個資權利
+ * 請求的法律基礎、處理期限與紀錄要求都不同（`docs/mvp_rules.md` §12.11／§12.12），
+ * 那條邊界仍然成立；它由**分類與處理流程**維持，而不是靠兩個不同的地址。
+ *
+ * 這仍然**不是**授權把 secret 放進 `NEXT_PUBLIC_*`，也不改變下列任何一項：
+ * 地址形狀檢查、佔位值拒絕、未設定時回 `null`（由呼叫端誠實顯示「尚未設定」）。
+ * 日後改用品牌化的 `support@<production-domain>` 仍是偏好的最終形式，
+ * 屆時只需改一個環境變數（該遷移屬 `PRE-10`／網域，與本模組無關）。
  */
 export function getSupportContact(): SupportContact | null {
   return resolveSupportContact(process.env.NEXT_PUBLIC_SUPPORT_EMAIL);

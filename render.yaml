@@ -169,6 +169,10 @@ services:
       # 這是 repo 中**唯一**的 NEXT_PUBLIC_* 變數，且刻意如此：它的整個用途就是
       # 印在一個匿名可讀的公開頁面上給人抄下來。**不得**用這個前綴放任何 secret
       # 或可推導出 secret 的值（docs/production-environment-contract.md §5 規則 3）。
-      # 也**不得**與個資權利請求信箱共用同一條設定 —— 兩者是不同的法定受理管道。
+      #
+      # 【2026-09-04 Owner 決定】本註解原寫「也不得與個資權利請求信箱共用同一條
+      # 設定」。該禁止規定已被明示取代：MVP 階段一般客服與個資權利請求**使用
+      # 同一個受監看的信箱**。要分開的是請求類別與處理義務，不是信箱本身
+      # （見 docs/mvp_rules.md §12.12）。**值仍不寫進版控**（sync: false）。
       - key: NEXT_PUBLIC_SUPPORT_EMAIL
         sync: false

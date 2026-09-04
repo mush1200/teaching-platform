@@ -172,17 +172,42 @@ test.describe("PRE-14 — /support 頁面", () => {
     await page.goto("/support");
     const section = page.getByTestId("support-section-privacy");
     await expect(section).toBeVisible();
-    await expect(page.getByTestId("support-privacy-pending")).toContainText(
-      "個資權利請求聯絡方式將於正式隱私權政策公布後提供。"
-    );
 
     /*
-     * 目前唯一寫著個資信箱的檔案是 `docs/legal-drafts/privacy-policy.draft.md`，
-     * 那是**草稿**；四條 legal route 在文件未發布前一律 404（`TEST-01`）。
-     * 把草稿裡的聯絡資料搬到匿名可讀的頁面，等於在條款定稿前替平台對外承諾。
+     * **2026-09-04 Owner 決定後，這支測試的斷言必須改寫。**
+     *
+     * 原本這裡斷言兩件事：
+     *   (a) 該段落顯示「將於正式隱私權政策公布後提供」；
+     *   (b) 整個 page body **不得**出現草稿《隱私權政策》裡的個資信箱。
+     *
+     * Owner 已明示決定讓一般客服與個資權利請求**共用同一個信箱**，而那個信箱
+     * 正好就是草稿裡的那一個。於是 (b) 在 production **必然為假** —— 上方
+     * 「一般使用問題」本來就要印出它。原斷言只在測試環境為真，是因為
+     * `playwright.config.ts` 注入的是另一個測試用地址；那是**測試環境的巧合**，
+     * 不是產品不變條件，留著只會在下一次有人對齊環境時炸掉。
+     *
+     * 真正該守住的不變條件有兩個，且都與「哪一個地址」無關：
+     *   1. 這一頁**不得硬編任何地址** —— 由下方 source-scan 測試涵蓋（未改動）。
+     *   2. 這一段**不得**宣稱存在一個「之後才會公布的另一個地址」，
+     *      同時上方又印著一個可用的地址 —— 那正是本輪修掉的誤導。
+     *
+     * 因此改為：斷言該段落與 env 的實際狀態一致，兩個分支各自成立。
      */
-    const body = await page.locator("body").innerText();
-    expect(body).not.toContain(DRAFT_PRIVACY_EMAIL);
+    const pending = page.getByTestId("support-privacy-pending");
+    const configured = await page.getByTestId("support-email-link").count();
+
+    if (configured > 0) {
+      const shown = (await page.getByTestId("support-email-link").innerText()).trim();
+      // 有設定：必須說明「與一般客服共用同一個信箱」，且指的就是上方那一個。
+      await expect(pending).toContainText("使用同一個信箱");
+      await expect(pending).toContainText(shown);
+      await expect(pending).toContainText("個資權利請求");
+    } else {
+      // 未設定：維持誠實的等待文案，且**不得**出現任何地址。
+      await expect(pending).toContainText("個資權利請求聯絡方式將於正式隱私權政策公布後提供。");
+      const body = await page.locator("body").innerText();
+      expect(body).not.toContain(DRAFT_PRIVACY_EMAIL);
+    }
   });
 
   test("一般客服與個資權利請求的邊界寫在頁面上（密碼問題不是個資權利請求）", async ({ page }) => {
