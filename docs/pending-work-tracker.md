@@ -100,16 +100,16 @@
 > **正式 Launch Go ＝ BLOCKED**（External：Legal ＋ Domain）。
 >
 > ```text
-> CURRENT FOCUS（2026-09-10 Owner deferral decision 後更新）
+> CURRENT FOCUS（2026-09-10 `OPS-07` 完成後更新）
 >   ✅ production deployment ＋ evidence rebuild      REL-05   DONE（2026-09-10）
 >   ✅ REL-04 ＋ production auth／role revalidation    REL-04   DONE（2026-09-10）
->   1  monitoring／error visibility                    OPS-07   OPEN  P1
->   2  production schema／index parity                 PRE-06   OPEN  P3
->   3  backup／recovery follow-up                      PRE-08   後續工作（見下方拆分註）
+>   ✅ monitoring／error visibility                    OPS-07   DONE（2026-09-10，6/6）
+>   1  production schema／index parity                 PRE-06   OPEN  P3
+>   2  backup／recovery follow-up                      PRE-08   後續工作（見下方拆分註）
+>   3  Admin remedy-cases operational UI              IA-10    OPEN  P2
 >
 > NEXT UP（完整理由見 §2）
->   4  Admin remedy-cases operational UI              IA-10    OPEN  P2
->   5  Technical Go/No-Go gate                        PRE-16   OPEN  P1
+>   4  Technical Go/No-Go gate                        PRE-16   OPEN  P1
 >
 > OWNER-DEFERRED / POST-LEGAL-DOMAIN CLEANUP（**不在目前 technical execution path**）
 >   —  production launch data baseline cleanup        PRE-15      非 DONE／非 CLOSED／非 BLOCKED—LEGAL
@@ -1594,7 +1594,7 @@ production 無法安全啟動（**否** —— `/health` 200）／明確的 high
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `REL-05` | `P1` | Release / Deployment · Evidence integrity | **production 部署 commit 落後 repo HEAD —— 線上服務與已驗證的程式碼不是同一份** | HEAD 的 release gate 證據（UI 855 passed／`verify:web` exit 0）**不描述 production**；§6.2～§6.5 的 production E2E PASS **描述的是舊 build**。兩份證據都真實，但**沒有交集** —— 目前無法對「線上現在跑的東西」做任何有證據的宣稱。`render.yaml` 的 `autoDeployTrigger: off` 意味著它**不會自己更新**（那是刻意的，見該檔註解） | production 部署 commit `3fbf0dd`（2026-09-04，§6.1 驗收紀錄）vs HEAD `30a6543`（2026-09-10）。`git diff --shortstat 3fbf0dd..HEAD` = **151 files changed, 6191 insertions(+), 1251 deletions(-)**，`git diff --name-only` 的精確分佈為 **137 `frontend/apps/web` ＋ 4 `frontend/packages` ＋ 9 `docs` ＋ 1 `render.yaml`**（**2026-09-10 更正**：原寫「全部落在 `frontend/` 與 `docs/`」**漏列 `render.yaml`**；實測該檔差異為 **comment-only**，未動 service／env 名稱／plan／`autoDeployTrigger`，**不需重新套用 blueprint**）。**決定性佐證（2026-09-10 唯讀抓取 production CSS bundle）：** `/_next/static/css/*.css` 仍含 `#FF6B73`×11／`#22C55E`／`#EF4444`／`#9CA3AF`×7，而 `UI-CONS-01` 修正後的 `#EA000D`／`#DE1313`／`#655CFF`／`#686F7D`／`#178640`／`#BE123C` **全部 0 命中** → 線上是 contrast remediation **之前**的 build。**Backend 側無漂移：** `git diff 736f622..HEAD -- Backend/ db/` **零改動**，故 backend unit 338/338 與 smoke exit 0 對 HEAD 仍有效，**本項不含任何 migration 風險** ✅ **DONE（2026-09-10 部署並驗收）** —— Owner 於 Render dashboard 手動部署 `teaching-platform-web` 至 commit **`30a6543`**（Deploy succeeded／Live；backend 未部署；ENV／Domain／SMTP／production 資料皆未修改）。**acceptance 兩條件皆成立，且取得比原判準更強的證據**：(1) HEAD-only 的 `0a9c67271044c83e.css` 由 **404 → 200**；(2) 首頁 HTML 已**不再引用** `40b61ea3025c1ea0.css`（該資產本身亦由 200 → **404**）；(3) **加碼 byte-identity** —— production 服務的三個 CSS chunk 與本機 HEAD build 的 **SHA-256 逐一相同**，證明線上跑的就是 `30a6543` 的這一份 build 產物，而不只是「某個較新的 build」。availability 7/7 為 200、**0 個 5xx**、JSON 有效且無私有欄位外洩、`/support` 仍正常。**`production` ≠ `HEAD` 的問題已解除。** Legal / Domain dependency：**none**（全程使用 Render 配發的 `*.onrender.com`）。完整紀錄見 §1.6.0。 | (1) 部署目前**已核准的 HEAD** 到 production（手動部署，`autoDeployTrigger` 維持 off）；(2) 記錄實際 deployed commit SHA 並**在本檔更新**；(3) 重建 production evidence：frontend `/`、`/support`、backend `/health`、`/materials` 皆 200，並抽驗 CSS token 確認確為新 build；(4) `REL-04`／`PRE-15`／`PRE-11` 引用的 production 事實同步更新；(5) **不得**以「本機 855 passed」代替 production 驗證 |
 | `PRE-15` | `P1` | Deployment / Data baseline · Marketplace integrity | **production 公開目錄仍在販售 E2E 合成教材 —— launch 前必須清除 fixture 並建立 launch data baseline** | `PRE-11` criterion (2) 只約束「不匯入 dev／test 資料」，**沒有涵蓋在 production 內部產生的 E2E fixture**。這些列是 `PRE-07` STEP 6／STEP 7 刻意建立的，**當時正確**；但它們**現在是公開可購買的商品**，帶著上線等於對外販售測試資料 | 2026-09-10 **匿名**唯讀實測：`GET https://teaching-platform-backend.onrender.com/materials` 與 frontend proxy `GET /api/backend/materials` 皆回 **`items` = 1**，內容為 `mat_mtit5cea9qiuim`「E2E 測試教材 — 顏色配對活動」，`status = published`／`price = 1`／`published_at = 2026-09-02T02:52:54.444Z`／`teacher_id = usr_mtir99uiv3j523`；§6.5 已證明它有可交付的 `approved_file_id`（實際交付 809 bytes 且 SHA-256 相符）→ **任何人現在都能買到它**。關聯 fixture 另有測試 creator／buyer／`ord_mtjjmo1vmtakaw`／`oi_mtjjmo54rerl4w`／entitlement／1 筆 live 付款憑證／2 張 download token（§6.4／§6.5）。**同時實測到的不變條件仍成立（本項不是外洩）：** 該公開回應僅 24 個欄位，**無** `storage_key`／`checksum`／`file_key`／`approved_file_id`／`uploaded_by`。另注意 `cover_image_url` 已把 `https://teaching-platform-backend.onrender.com/...` **永久寫進資料列** —— 正是 `docs/production-environment-contract.md` §7 LAUNCH GUARDRAIL 警告的形態，**目前只影響本批 fixture**，清除後即消失 🟠 **OWNER-DEFERRED / POST-LEGAL-DOMAIN CLEANUP**（2026-09-10 Owner decision）—— **不在目前 technical execution path。** **⚠️ 另有一層獨立保護：production test accounts 為 `OWNER-PRESERVE FOR MANUAL VERIFICATION`（§1.6.0-C）** —— 即使本項日後解除延後，**test accounts 仍需 Owner 再次明確授權才能刪除**，且必須與其他 synthetic business data **分開判定**；completion criteria (1) 已加註 **`enumerate ≠ authorize deletion`**。production 的 synthetic／E2E fixture **暫時保留、不刪除**；**不建立 cleanup execution plan、不執行任何 deletion、不測 production deletion**。待 **Legal 與 Domain 兩項 External Dependency 都完成後**再重新啟動本項。**明確不是 `DONE`、不是 `CLOSED`、也不是 `BLOCKED — LEGAL`** —— 本項並非被法律結論卡住（它的正確性不取決於任何尚未取得的法律判斷），而是 Owner 主動決定延後執行時點，因此**不得**列入 §1.6.1。**下方 Why／Evidence／Dependency／Completion Criteria 一律保留不變**，重新啟動時直接沿用，不另開新 ID。**（原 Status：`OPEN — EXECUTABLE NOW`；原 Dependency 敘述保留於此：`SEC-03` (a)（憑證刪除需 version-scoped 能力）；建議排在 `REL-05` 之後，避免在舊 build 上動 production 資料。）** Legal / Domain dependency（技術面）：**none** —— 延後是**執行順序決定**，不是技術阻擋。**本輪未清除任何資料。** | (1) 先**唯讀**普查並列出所有 fixture 業務物件（教材／教材檔／素材／訂單／order_item／entitlement／憑證／download token／測試帳號），**不得憑印象刪**。  **⚠️ 2026-09-10 Owner qualifier —— `enumerate ≠ authorize deletion`：** 本款要求的是**清點**，**不是**授權刪除其中任何一類。特別是 **production test accounts 現為 `OWNER-PRESERVE FOR MANUAL VERIFICATION`（見 §1.6.0-C），未經 Owner 明確授權不得納入任何 cleanup／deletion target**；重新啟動本項時必須**重新做一次 account census**，並把 **test accounts** 與 **synthetic materials／synthetic orders／payment proofs／entitlements／其他 fixture data** **分開判定**，**不得**因為名稱像測試或帶 synthetic 標記就自動刪除。；(2) 決定每一類的處置（刪除 vs 保留為稽核歷史）——**`activity_logs` 一律不得改寫或回填**（`CLAUDE.md` §4.4）；**每一類都需要各自的 Owner deletion approval，`PRE-15` 解除延後本身不構成任何刪除授權**；(3) 付款憑證的刪除必須走 version-scoped 路徑，否則 versioned bucket 上只會留 delete marker（見 `SEC-03`）；(4) 清除後重新以**匿名**請求確認 `GET /materials` 反映預期的 launch baseline；(5) 記錄清除後的 baseline watermark，供 `PRE-08` 重做還原演練與日後對帳使用 |
-| `OPS-07` | `P1` | Operations / Observability | **平台沒有任何 monitoring ／ error visibility —— 服務壞掉時沒有人會知道** | 這不是「監控做得不夠好」，而是**完全不存在**。搭配 Render Free 的 15 分鐘 spin down 與 `REL-04` 已知的冷啟動 502，production 的「壞掉」與「正在喚醒」在外部**無法區分**，在內部**沒有任何訊號**。`COR-07`（乾淨且可解析的錯誤回應）、`REL-02`（郵件失敗不終止 process）與 `/health` 都是**被動能力**，沒有任何東西會**主動告知** | 2026-09-10 盤點：本檔與 `docs/production-environment-contract.md`／`docs/local-development-and-operations.md` 對 monitoring／Sentry／alerting／uptime **零命中**（唯一命中的「告警」全部是**申訴逾期的站內 Admin attention surface**，屬 Gate 3 業務告警，**不是**服務可用性監控）。`render.yaml` 只宣告 `healthCheckPath: /health`（Render 內部用），**沒有任何外部 uptime 檢查、error tracking 或告警去處**；Render Free 的 dashboard log 無保存期限保證 🟡 **PARTIAL — DESIGN COMPLETE ／ OPERATOR PROVISIONING 2 / 6**（2026-09-10）。**已完成（Owner）：** alert destination 已設定 ＋ Render 兩個 service 的 deploy／service failure notification 已開啟（failure-only）。**尚缺 4 項：** frontend external monitor、backend external monitor、**一次真實 triggered alert 驗證**、recovery notification 驗證 —— **external availability monitoring 完全未上線，sustained outage 目前仍無人會知道**，故**不得**判 DONE。inventory、Launch Minimum 標準、cold-start／false-positive 政策、sensitive-data guardrail 稽核**皆已完成**；**monitor 與 alert destination 的實際建立需要 Owner 在第三方 dashboard 操作**，因此**不得判 DONE**（completion criteria (5) 明文要求一次真實觸發驗證）。**本輪 0 行 code 改動、未部署、未新增任何相依套件。** **⚠️ 本輪發現一個會直接推翻天真設計的硬限制，見 §1.6.0-B：監控頻率與 Render Free 的 750 instance-hours 互相衝突。** Legal / Domain dependency：**none** —— 告警去處可用 Owner 既有信箱或通訊軟體，**不需要** production 網域，也**不需要** `PRE-10` 的寄件網域驗證（與 `PRE-14` 同一個道理） | (1) **uptime／health monitoring** —— frontend 與 backend 各一個外部檢查，且**閾值必須容納 Free tier 冷啟動**（見 `REL-04` 實測 58.07 s／22.69 s），否則會產生大量假警報；(2) **application error visibility** —— 未捕捉例外與 5xx 可被事後查閱，**且不得記錄** `storage_key`／`checksum`／`proof_url`／download token（`CLAUDE.md` §5）；(3) **alert destination** —— 明確一個會有人看的去處；(4) **basic incident detection** —— 至少能區分「服務下線」與「冷啟動中」；(5) 記錄一次真實觸發的驗證，**不得只宣稱已設定** |
+| `OPS-07` | `P1` | Operations / Observability | **平台沒有任何 monitoring ／ error visibility —— 服務壞掉時沒有人會知道** | 這不是「監控做得不夠好」，而是**完全不存在**。搭配 Render Free 的 15 分鐘 spin down 與 `REL-04` 已知的冷啟動 502，production 的「壞掉」與「正在喚醒」在外部**無法區分**，在內部**沒有任何訊號**。`COR-07`（乾淨且可解析的錯誤回應）、`REL-02`（郵件失敗不終止 process）與 `/health` 都是**被動能力**，沒有任何東西會**主動告知** | 2026-09-10 盤點：本檔與 `docs/production-environment-contract.md`／`docs/local-development-and-operations.md` 對 monitoring／Sentry／alerting／uptime **零命中**（唯一命中的「告警」全部是**申訴逾期的站內 Admin attention surface**，屬 Gate 3 業務告警，**不是**服務可用性監控）。`render.yaml` 只宣告 `healthCheckPath: /health`（Render 內部用），**沒有任何外部 uptime 檢查、error tracking 或告警去處**；Render Free 的 dashboard log 無保存期限保證 ✅ **DONE（2026-09-10，6 / 6 operator evidence 全數完成並經 Owner 實測回報）** —— 採 **Scheme C**：Render native notifications ＋ GitHub Actions hourly synthetic monitoring（`.github/workflows/synthetic-monitor.yml`，commit `9631478`）＋ Healthchecks.io alert／recovery。**sustained outage 現在會被偵測並告警**，而在本項之前它完全不會。完整 evidence 見 §1.6.0-B 的〈final production monitoring evidence〉。inventory、Launch Minimum 標準、cold-start／false-positive 政策、sensitive-data guardrail 稽核**皆已完成**；**monitor 與 alert destination 的實際建立需要 Owner 在第三方 dashboard 操作**，因此**不得判 DONE**（completion criteria (5) 明文要求一次真實觸發驗證）。**本輪 0 行 code 改動、未部署、未新增任何相依套件。** **⚠️ 本輪發現一個會直接推翻天真設計的硬限制，見 §1.6.0-B：監控頻率與 Render Free 的 750 instance-hours 互相衝突。** Legal / Domain dependency：**none** —— 告警去處可用 Owner 既有信箱或通訊軟體，**不需要** production 網域，也**不需要** `PRE-10` 的寄件網域驗證（與 `PRE-14` 同一個道理） | (1) **uptime／health monitoring** —— frontend 與 backend 各一個外部檢查，且**閾值必須容納 Free tier 冷啟動**（見 `REL-04` 實測 58.07 s／22.69 s），否則會產生大量假警報；(2) **application error visibility** —— 未捕捉例外與 5xx 可被事後查閱，**且不得記錄** `storage_key`／`checksum`／`proof_url`／download token（`CLAUDE.md` §5）；(3) **alert destination** —— 明確一個會有人看的去處；(4) **basic incident detection** —— 至少能區分「服務下線」與「冷啟動中」；(5) 記錄一次真實觸發的驗證，**不得只宣稱已設定** |
 | `IA-10` | `P2` | Admin / Operations · Refund | **退款／補救案件沒有任何 Admin UI —— 能力在 backend，操作只能直打 API** | 上線後若依法或依契約必須退款，**維運者無法在產品內完成它**。這與 `OPS-06`（法律文件管理 API-only）是同一類缺陷，但落在**金流**路徑上 | 2026-09-10 讀碼：backend 能力完整 —— `Backend/services/refundRemedy.service.js`（`TRANSITIONS` 狀態機 ＋ `executeRefund()`）、`Backend/routes/admin.js:829-952`（list／get／transition／`POST /admin/remedy-cases/:id/execute-refund`）、DB `rrc_refund_paid_requires_completed` CHECK，規格見 `docs/mvp_rules.md` §12.8／§12.8.6。**但 `frontend/apps/web/app/admin/` 下沒有 `remedy-cases` 路由**（現有：`activity-logs`／`complaints`／`materials`／`orders`／`payment-proofs`／`privacy-requests`／`reports`／`reviews-hub`／`settings`／`users`）。`grep -rln "remedy" frontend/apps/web` 只命中 `app/admin/complaints/page.tsx`、`lib/api-types.ts` 與三支 spec —— complaints 頁**只能把已存在的案件編號手動打字關聯**（`complaint-remedy-case-id` → `POST /admin/complaints/:id/link-remedy-case`），**無法建立、瀏覽、轉移或執行**任何案件 | **OPEN — EXECUTABLE NOW**。Legal / Domain dependency：**none**（**建 UI** 不需要法律結論；**退款政策本身**屬 `L-*`／`mvp_rules.md` §18.9，是另一件事）。**Priority 判定理由（依本檔既有先例，不憑印象）：** `OPS-02`（帳號凍結 Admin UI，同樣是「backend 已完成、缺 UI」）＝ `P2`，`OPS-06`（法律文件管理 UI）＝ `P3`。本項比 `OPS-06` 嚴重（後者的發布本來就 blocked），與 `OPS-02` 同型但落在金流路徑，且有可用的 API workaround、不阻擋目前開發 → **判為 `P2`，不判 `P1`**。**本輪不實作 UI。** | (1) Admin 能瀏覽、建立、轉移案件並執行 `executeRefund()`，**狀態機一律沿用 `refundRemedy.service.js` 的 `TRANSITIONS`，不得在前端另寫一份**；(2) 維持 `approved` ≠ `completed` ≠ 退款已執行 的三段區分（`mvp_rules.md` §12.8.2／§12.8.6）；(3) 買家端**不得**取得任何把案件標成已退款的路徑；(4) 與 `/admin/reports`（內容檢舉）在 IA 上明確分離（`docs/admin-information-architecture.md`）；(5) 不得順手擴張為一般 ticket system（那是 `FUT-P8`） |
 | `PRE-16` | `P1` | Release / Governance | **建立 Technical Go/No-Go gate，並與正式 Launch Go 明確分離** | 本檔目前**唯一**的 gate 是 `P1-09` 的 `Deployment Readiness 0 / 14`，那是**法律文件 gate**。結果是技術面沒有任何「做完算不算過」的判準，而法律面的 `0 / 14` 會被誤讀成「技術也還沒開始」。混用會同時造成兩種錯誤 —— **把 External Dependency 當成技術失敗**，以及**在技術未備妥時因為法律過關就宣稱可上線** | 2026-09-10 盤點：本檔的 `Deployment Readiness 0 / 14` 全部出現在 `P1-09`／legal 脈絡；repo 內**不存在**任何技術性 launch gate 定義。§14「建議執行順序」仍把 `PRE-01` 列為「順序上的下一個」，但 `PRE-01` 早已由 `DEC-13`／`DEC-16` 拍板並由 `PRE-13` 實作完成（production 現行 `PRIVATE_FILE_STORAGE_DRIVER=s3`）—— 這正是缺少技術 gate 時排序會過期的表現 | **OPEN — EXECUTABLE NOW**。Legal / Domain dependency：**none** | (1) 寫下 Technical Go/No-Go 的判準與通過條件，涵蓋 **deployment**、**auth**、**role matrix**、**DB/schema**、**ENV/config**（含 proxy `ALLOW_ROOT`）、**purchase → payment proof → admin review → entitlement → download**、**security**（private storage 與授權不變條件）、**monitoring**、**backup/recovery**、**support technical availability**；(2) 明文規定 **External Dependency（Legal／Domain）不得使 Technical gate 自動判 FAIL** —— 它們只影響正式 Launch Go；(3) 明文規定 **Technical GO ≠ Launch GO**，正式 Launch Go ＝ Technical GO ＋ Legal ＋ Domain 三者同時成立；(4) 每一項判準都必須指名**可重跑的證據來源**（指令或 production 量測），**不得**以「以前測過」充當；(5) gate 放在哪份 canonical doc 由 Owner 決定，本檔只維護狀態 |
 
@@ -2142,7 +2142,77 @@ working tree 全程只有 docs/pending-work-tracker.md 一個檔案。
 ```
 
 **依 ticket 的明文規則**（「若其中任何一項只停在規劃或等待 Owner 設定：`OPS-07` = PARTIAL，
-不得 DONE」），本項**維持 `PARTIAL`，Current Focus 不推進**。
+不得 DONE」），本項在 2026-09-10 稍早**維持 `PARTIAL`**。
+**該條件已於同日全部滿足 —— 見下方 final evidence，本項現為 ✅ DONE。**
+
+#### `OPS-07` final production monitoring evidence（2026-09-10）—— ✅ **DONE，6 / 6**
+
+**實作**：`.github/workflows/synthetic-monitor.yml`（commit `9631478`，354 行，唯一檔案）。
+**未改動** frontend／backend runtime、`render.yaml`、ENV、DB／migration、production data。
+
+**(1) 正常路徑 —— `test_mode=none` run ＝ PASS**
+
+```text
+frontend job                     green
+backend  job                     green
+Healthchecks frontend check      UP（收到 ping）
+Healthchecks backend  check      UP（收到 ping）
+⇒ frontend external monitor active   ✅
+⇒ backend  external monitor active   ✅
+```
+
+**(2) Triggered failure verification —— `test_mode=fail-backend`**
+
+```text
+failure signal 送出（POST 至 backend check 的 /fail，由 secret 動態組合）
+backend Healthchecks check       UP → DOWN
+failure alert                    **已收到**
+frontend Healthchecks check      **全程維持 UP**（未受影響）
+⇒ real triggered alert verification PASS   ✅
+```
+
+**(3) Recovery verification —— 後續 `test_mode=none`**
+
+```text
+backend production probe         PASS
+success ping 送出
+backend Healthchecks check       DOWN → UP
+recovery notification            **已收到**
+⇒ recovery notification verified   ✅
+```
+
+> **⚠️ 這次 triggered test 的安全性（逐項如實記錄，因為「測告警」最容易被便宜行事）：**
+>
+> ```text
+> 是否停掉 production backend        否 —— 從未停止或重啟任何 Render service
+> 是否誘發 production outage          否 —— 未造成任何真實停機
+> 是否修改 production data            否
+> 是否接觸 production backend         否 —— `fail-backend` 分支**完全不發請求到 TARGET_URL**，
+>                                     只對 Healthchecks 的 /fail 端點送訊號
+> frontend 在測試期間是否健康          是 —— 全程維持 UP，證明兩個 job 確實互相隔離
+> ```
+>
+> **這正是 `fail-*` test mode 存在的理由** —— 驗證告警鏈路不需要、也不應該真的弄壞 production。
+> 「frontend 維持 UP」同時是一個**有效的負向控制**：它證明 DOWN 不是兩個 check 一起亂掉，
+> 而是精確地只發生在被指定的那一個 service 上。
+
+**維持不變的 monitoring policy（本輪未調整任何一項）**
+
+```text
+schedule                 每小時第 17 分（避開整點的 scheduler 尖峰）
+request timeout          60 秒
+retry                    失敗後 60 秒重試一次
+sustained probe failure  → 主動送 /fail → Healthchecks 立即 DOWN → 立即告警
+missed workflow          → 無 ping → Healthchecks Period(1h) + Grace(45m) 後 DOWN
+recovery notification    ON
+backend /health          **維持 shallow health check**（不驗證 DB／私有儲存）
+DB-aware readiness       **維持 non-blocking future enhancement**，不阻擋本項
+```
+
+> **`OPS-07` DONE 的正確讀法：** 它證明的是「**服務整體不可用時會有人知道**」。
+> 它**不**證明 DB 健康 —— `/health` 仍是 shallow check，
+> 「backend 活著但 DB 掛了」依然偵測不到（見上方 PHASE 4 的能力上限說明）。
+> 那條缺口由 DB-aware readiness 這個 future enhancement 承接，**不屬於本項範圍**。
 
 #### `OPS-07` Owner policy acceptance（2026-09-10）—— **policy 已定案，狀態仍為 PARTIAL**
 
@@ -2176,14 +2246,14 @@ observability stack      **不新增** Sentry／Datadog／New Relic 或任何大
 > **operator evidence 全部**完成並回報：
 >
 > ```text
-> [ ] frontend external monitor active
-> [ ] backend  external monitor active
+> [x] frontend external monitor active                         ← Owner 完成 2026-09-10
+> [x] backend  external monitor active                         ← Owner 完成 2026-09-10
 > [x] alert destination set                                    ← Owner 完成 2026-09-10
 > [x] Render deploy / service failure notification configured  ← Owner 完成 2026-09-10
-> [ ] real triggered alert verification PASS
-> [ ] recovery notification verified
+> [x] real triggered alert verification PASS                   ← Owner 完成 2026-09-10
+> [x] recovery notification verified                           ← Owner 完成 2026-09-10
 >
-> 進度：**completed 2 / 6 ・ outstanding 4 / 6**
+> 進度：**completed 6 / 6 ・ outstanding 0 / 6 → `OPS-07` ✅ DONE**
 > ```
 >
 > **Owner operator evidence（2026-09-10 回報，本檔僅記錄設定事實）**
@@ -2326,16 +2396,16 @@ AA 缺口、`UI-CONS-21`（auth CTA 漸層）、`UI-CONS-15`（raw hex）一律�
 > | --- | --- | --- | --- |
 > | ~~**1**~~ | ~~**`REL-05`**~~ | ✅ **DONE**（2026-09-10） | production 已部署至 `30a6543` 並以 byte-identity 驗收。見 §1.6.0，已移出待辦。**⚠️ 本列是 `REL-05` 完成當下的 historical evidence** —— 其後 `REL-04` 已部署 `94c38fe`，**current state 見 §0 與 §1 的 CURRENT FOCUS 區塊**（production ＝ `94c38fe`；HEAD ＝ `9b8842a`，docs-only）。原文中「`production` ＝ `HEAD`」**只在 2026-09-10 該時點成立，不得讀作現況** |
 > | ~~**1**~~ | ~~**`REL-04`**~~ | ✅ **DONE**（2026-09-10） | gateway 文案已修並部署（`94c38fe`），production auth ／ role matrix 已在正確 build 上重驗完畢。見 §1.6.0-A，已移出待辦 |
-> | **1** | **`OPS-07`** | `P1` | 目前服務壞掉沒有任何人會知道 |
-> | **2** | **`PRE-06`** | `P3` | production 是 bootstrap 新庫，8 個熱路徑索引只存在於既有 dev／test 庫 |
-> | **3** | **`PRE-08`（後續工作 (i)）** | — | 一次性還原演練 ≠ 排程備份；Neon Free 無 automated backup、PITR 僅 6 小時。**本項限 scheduled backup／recovery operational readiness，不依賴 `PRE-15`**；依 launch data baseline 重做的還原演練屬 (ii)，隨 `PRE-15` 一併延後 |
+> | ~~**1**~~ | ~~**`OPS-07`**~~ | ✅ **DONE**（2026-09-10） | Scheme C 上線並完成 6/6 operator evidence：正常 run PASS、兩個 Healthchecks check UP、`fail-backend` 觸發 DOWN 與告警、後續 run 恢復 UP 並收到 recovery 通知。**未停 production、未誘發 outage、未改 production data。** 見 §1.6.0-B，已移出待辦 |
+> | **1** | **`PRE-06`** | `P3` | production 是 bootstrap 新庫，8 個熱路徑索引只存在於既有 dev／test 庫 |
+> | **2** | **`PRE-08`（後續工作 (i)）** | — | 一次性還原演練 ≠ 排程備份；Neon Free 無 automated backup、PITR 僅 6 小時。**本項限 scheduled backup／recovery operational readiness，不依賴 `PRE-15`**；依 launch data baseline 重做的還原演練屬 (ii)，隨 `PRE-15` 一併延後 |
+> | **3** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
 >
 > **NEXT UP**
 >
 > | 順序 | ID | Priority | 一句話原因 |
 > | --- | --- | --- | --- |
-> | **4** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
-> | **5** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
+> | **4** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
 >
 > **OWNER-DEFERRED / POST-LEGAL-DOMAIN CLEANUP（2026-09-10 Owner decision —— 不在目前 technical execution path）**
 >
@@ -7199,6 +7269,7 @@ UI 沿用「教學回饋」的稱呼，但資料模型是 review。**討論範�
 
 | 日期 | 說明 |
 |------|------|
+| **2026-09-10（`OPS-07` final reconciliation —— ✅ DONE，6 / 6）** | **TRACKER-ONLY：0 行 code、未改 workflow／frontend／backend／Render／ENV、未部署、未動 production data、未開始 `PRE-06`；`git diff` 只含本檔。** Owner 完成最後 triggered verification，**六項 operator evidence 全數成立**，`OPS-07` → ✅ **DONE**（採 **Scheme C**：Render native notifications ＋ GitHub Actions hourly synthetic monitoring `.github/workflows/synthetic-monitor.yml`（commit `9631478`）＋ Healthchecks.io alert／recovery）。**(1) 正常路徑** `test_mode=none` run PASS —— frontend job green、backend job green、兩個 Healthchecks check 皆收到 ping 並為 **UP** ⇒ frontend／backend external monitor active。**(2) Triggered failure** `test_mode=fail-backend` —— failure signal 送出、backend check **UP → DOWN**、**failure alert 已收到**、**frontend 全程維持 UP** ⇒ real triggered alert verification PASS。**(3) Recovery** 後續 `test_mode=none` —— backend probe PASS、success ping 送出、backend check **DOWN → UP**、**recovery notification 已收到** ⇒ recovery notification verified。**安全性逐項如實記錄：未停止 production backend、未誘發任何 production outage、未修改 production data、`fail-backend` 分支完全不發請求到 production target（只對 Healthchecks 的 `/fail` 送訊號）、frontend 在測試期間維持健康** —— 「frontend 維持 UP」同時是有效的**負向控制**，證明 DOWN 精確發生在被指定的 service 而非兩個 check 一起亂掉。**monitoring policy 全部維持不變**：每小時第 17 分、timeout 60 s、失敗後 60 s 重試一次、sustained probe failure → `/fail`、missed workflow → Period(1h) + Grace(45m)、recovery notification ON、**backend `/health` 維持 shallow**、**DB-aware readiness 維持 non-blocking future enhancement**。**明確記載 DONE 的邊界：本項證明「服務整體不可用時會有人知道」，不證明 DB 健康** —— 「backend 活著但 DB 掛了」仍偵測不到，該缺口由 DB-aware readiness 承接，不屬本項範圍。**Current Focus 推進為** `PRE-06` → `PRE-08`（後續工作 (i)）→ `IA-10`；**Next Up** 為 `PRE-16`。`PRE-15` 與 `SEC-03` (a) 維持 `OWNER-DEFERRED`；`SEC-03` (b) 維持 `BLOCKED — LEGAL`；Legal／Domain 仍為 External Dependency；UI non-blocking 項目未被拉回 critical path。**本檔未記載任何 email address、ping URL、credential、token 或 secret。** 詳見 §1.6.0-B |
 | **2026-09-10（`OPS-07` operator evidence —— Render native notifications 完成，2 / 6）** | **TRACKER-ONLY：0 行 code、未建立任何 external monitor、未改 `render.yaml`／ENV、未部署、未動 production data、未開始 `PRE-06`；`git diff` 只含本檔。** Owner 回報並確認完成兩項 operator checklist：**alert destination 已設定**（依 Owner 指示**只記 destination type，不記實際 email address**）與 **Render deploy／service failure notification 已設定** —— `teaching-platform-web` 與 `teaching-platform-backend` 皆為 **Only failure notifications**，backend `Health Check Path = /health`。checklist 更新為 **completed 2 / 6・outstanding 4 / 6**。**`OPS-07` 維持 🟡 `PARTIAL`。** **明確記載兩項限制，避免把 2/6 誤讀成接近完成：** (1) **`/health` 仍是 shallow health check**，不驗證 DB／私有儲存，Render 的 `healthCheckPath` 是 deploy gate 與重啟判定，**不是持續性 outage 告警**；(2) **Render native notification 只在它自己產生的事件觸發**（deploy 失敗、service 崩潰／不健康），而 **Free service 的 spin down 屬正常行為、不是 failure，因此不會觸發任何通知** —— 也就是「站台連不上兩小時」**目前仍然無人會知道**，那正是兩個 external monitor（Layer A）要補的洞。既有 Owner policy 全部保留不變（60 min interval／60 s timeout／失敗後 60 s 重試一次／連續 2 次失敗才告警／recovery notification ON／`/health` 維持 shallow／DB-aware readiness 為 non-blocking future enhancement）；`PRE-15` 與 `SEC-03` (a) 維持 `OWNER-DEFERRED`；production test accounts 維持 `OWNER-PRESERVE FOR MANUAL VERIFICATION`。**Current Focus 不推進**（`OPS-07` 仍為 #1）。**本檔未記載任何 email address、credential、token、cookie 或 secret。** |
 | **2026-09-10（Owner decisions —— monitoring policy ＋ test-account preservation）** | **TRACKER-ONLY：0 行 production code／frontend／backend／DB／migration／ENV／Render config 改動；未部署；未修改任何 production data；未自行設定任何 monitor；未開始 `PRE-06`。`git diff` 只含本檔。** **(1) `OPS-07` Owner policy acceptance：** 接受 temporary Free-plan launch minimum —— frontend／backend monitor interval **60 min**、timeout **60 s**、失敗後 **60 s 重試一次**、**連續 2 次失敗**才告警、**recovery notification ON**；理由是在 Render Free 的 cold-start 與 **750 instance-hours** 限制下，以**最長約 2 小時偵測延遲**換取不會用光額度而造成真正停機，**升級付費方案後應重新評估更短間隔**。同時定案四項邊界：`/health` **維持 shallow check**、**本輪不新增 DB-aware readiness endpoint**（列為 **non-blocking future enhancement**，不阻擋 `OPS-07`）、**不新增 Sentry／Datadog／New Relic 或大型 observability stack**、`/api/test-error/[code]` 記為 **non-blocking cleanup finding 且非 `OPS-07` blocker**（本輪不修改該 route）。**`OPS-07` 狀態維持 🟡 `PARTIAL`** —— 明文記載「**policy 已決定 ≠ 可以標 DONE**」，須待六項 operator evidence（frontend monitor／backend monitor／alert destination／Render deploy 及 service failure notification／**一次真實 triggered alert 驗證**／recovery notification 驗證）全部完成並回報後才可關閉。**(2) 新增 §1.6.0-C：production test accounts ＝ `OWNER-PRESERVE FOR MANUAL VERIFICATION`** —— 既有 production 測試帳號**暫時保留**供人工功能驗證：不刪除、不 reset password、不改 role、不改 account status、不破壞既有登入能力，**未經 Owner 明確授權不得納入任何 cleanup／deletion target**，且**不得與其他 synthetic business data 混為同一類 deletion target**。`PRE-15` 重新啟動時強制四款程序：**重新**做 account census／把 test accounts 與 synthetic materials・orders・payment proofs・entitlements・其他 fixture data **分開判定**／**不得因名稱或 synthetic 標記自動刪除**／必須**再次**取得 Owner 明確 deletion approval。**明示這不是永久保留**，效力至「手動驗收完成 ＋ Legal 與 Domain 完成 ＋ `PRE-15` 重新啟動 ＋ Owner 再次決定」四者皆成立為止。**(3) `PRE-15` qualification：** completion criteria (1) 加註 **`enumerate ≠ authorize deletion`**（清點不等於授權刪除），criteria (2) 加註每一類都需各自的 deletion approval、`PRE-15` 解除延後本身不構成任何刪除授權；`PRE-15` status cell 亦加上指向 §1.6.0-C 的保護註記。**原 Completion Criteria 與歷史 evidence 一字未刪。** 另釐清本決定與 `DEC-15` 不衝突（一個管 import、一個管 deletion）。**Current Focus 與 Next Up 完全不變**（`OPS-07` 仍為 #1 且仍 PARTIAL）；`PRE-15`／`SEC-03` (a) 維持 `OWNER-DEFERRED`。**本檔未記載任何帳號 email、密碼、hash、token、cookie 或 alert 收件地址。** |
 | **2026-09-10（`OPS-07` 執行輪次 —— 🟡 PARTIAL）** | **0 行 code 改動、未部署、未新增任何相依套件、未動 production data／storage deletion logic／Legal／Domain；`git diff` 只含本檔。** **盤點結論**：frontend error tracking、backend structured logging、frontend health endpoint、uptime monitor、alert destination、incident retention、第三方整合、monitoring 相關 env 變數 —— **全部為零**；既有的只有 backend `/health`（且是 **shallow check，不驗證 DB**）與 Render 對 backend 的 healthCheckPath。**⚠️ 本輪最重要的發現：監控頻率與 Render Free 的 750 instance-hours 硬額度直接衝突。** 任何 HTTP 探測都會喚醒 service 並讓它 15 分鐘不睡，故間隔 `I` 下兩個 service 每月合計 `1460 × 15 / I` 小時：`I=15` → 1460 h（額度 **195%**，會把 production 用到停機）、`I=30` → 730 h（97%，無餘裕）、`I=60` → 365 h（49%，可行）。**因此「把監控設得夠即時」會弄掛 production**，`I=60 min` 是可行的最小間隔；搭配 **連續 2 次失敗**（第一次失敗的探測本身就會喚醒 service，故連續兩次無法用單一冷啟動解釋）⇒ **偵測延遲最長約 2 小時**。**若嫌太久，正解是升級付費方案而不是縮短間隔** —— 這是本項唯一需 Owner 拍板的取捨。**cold-start 政策**已依實測定案（warm：backend `/health` 中位數 ~0.16 s、frontend `/` ~0.45 s；cold：backend 22.4–22.7 s ＋ 一次 252.6 s、frontend 31.6／58.1 s；timeout 60 s、失敗後 60 s 重試一次、恢復需另送 clear 通知）。**sensitive-data guardrail 稽核完成**：runtime 的 `console.*` 全為 `console.error("<靜態訊息>:", err)` 形狀，**無任何一處**寫出 req.body／headers／query／params／token／`storage_key`／`checksum`；**唯一殘餘路徑**是 `s3PrivateFileStorage.js:200-203` 原樣 rethrow AWS SDK 錯誤並流向 `order.js:331` 的 `console.error`，**本輪未能證實它會帶出 bucket／object key，因此不宣稱為已發生的外洩、也不逕改 backend runtime**（最小 redaction 建議已記錄，待 Owner 與其他 backend 變更一併決定）。**未新增任何會外送完整 payload 的 logging。** **Launch Minimum 證明為零 code change**：`GET /`（200，warm 0.38–0.48 s）與 `GET /health`（已存在且已是 healthCheckPath）可直接被外部 monitor 輪詢，錯誤已進 Render stdout —— 缺的是**通知與保存**，不是 code。**但明確揭露其能力上限：`/health` 不驗證 DB，「backend 活著但 DB 掛了」偵測不到**；要涵蓋需 dependency-aware readiness endpoint（code ＋ backend 部署 ＋ 會改變 Render 重啟行為），本輪不實作、列為 Owner 決策項。**⛔ operator gate**：兩個 uptime check、alert destination、Render 通知、以及 completion criteria (5) 明文要求的**一次真實 triggered verification** 皆需 Owner 在第三方 dashboard 操作，本 session 無存取權（與 `REL-05`／`REL-04` 同一個 boundary）——**未假裝已設定，未宣稱任何未實際送達的告警**。**判定：`OPS-07` 🟡 PARTIAL，Current Focus 不推進**（9 項 completion 條件中 3 項 ✅、1 項 🟡、5 項待 operator）。另記一個盤點時發現、本輪未處置的既有物件：`app/api/test-error/[code]` 是 initial scaffold（`f320b91`）留下的**公開匿名端點，可指定回傳 500**，無任何 app 內呼叫端 —— 不是漏洞，但會污染日後的 error 指標，是否清理待 Owner 裁示。詳見 §1.6.0-B |
