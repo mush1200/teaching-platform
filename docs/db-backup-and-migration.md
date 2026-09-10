@@ -175,8 +175,59 @@ pg_dump --format=custom --no-owner --no-privileges --dbname="$DATABASE_URL" --fi
 * 備份檔**存放在專案目錄之外**（與第 7 章同一條規則），且**內含全部個資** ——
   保存期限、加密與銷毀方式屬 `O-20` 的範圍。
 
-**頻率建議（10 人封閉測試）：** 每個測試日結束時一次，加上任何 migration 之前一次。
-不需要排程器；這個規模下手動執行比維護一個 cron 更不容易出錯。
+### 8.3.1 PRODUCTION LAUNCH MINIMUM —— 排程備份為必要條件（`PRE-08` (i)）
+
+> **⚠️ 2026-09-10 Owner decision：本節取代下方原本「不需要排程器」的建議。**
+> 原敘述**保留於 §8.3.2 供稽核**，但**不再是 production launch readiness 的依據**。
+>
+> **取代理由：** 手動 `pg_dump`／`pg_restore` 程序本身**已經驗證可行**（見 §8.5.3 與
+> `PRE-08` (i) 的還原往返驗證），未解決的風險**不是程序不可靠，而是備份不會自動發生**。
+> Neon Free 的 provider-native history 只有 6 小時，屬短期保護。
+> **上線就緒不得依賴「操作者記得執行 pg_dump」。**
+
+**Production launch minimum（十二條，缺一不可）**
+
+```text
+ 1  排程 logical backup 為**必要**，不是選配
+ 2  provider-native 保護（Neon history／PITR）為**補充**，不得作為唯一備份
+ 3  logical backup 一律使用：
+      pg_dump --format=custom --no-owner --no-privileges
+ 4  排程頻率：**每日一次（nightly）**
+ 5  備份必須**離開 Neon 的 failure domain**
+ 6  目的地必須：private ／ encrypted ／ 非公開可存取 ／
+      **不得**是本 PUBLIC repository 的 GitHub Actions artifact
+ 7  production DB 憑證**永不**進版控、**永不**進 log
+ 8  排程失敗必須產生**operator 看得到的通知**
+ 9  還原一律**先**進隔離／可拋棄資料庫
+10  production 還原／cutover 需要**另行**取得 Owner 核准
+11  還原目標的 PostgreSQL 版本**不得低於**來源版本
+12  `PRE-08` follow-up (ii)（launch-baseline re-drill）維持 `OWNER-DEFERRED`，隨 `PRE-15`
+```
+
+> **第 6 條為什麼特別點名 GitHub Actions artifact：** 本 repo 是 **PUBLIC**，
+> artifact 任何人都能下載，而 dump **內含全部個資**。把備份上傳成 artifact
+> 等於公開發布整個資料庫。這不是保守起見，是硬性禁止。
+>
+> **第 11 條的來源是實測，不是理論：** `PRE-08` (i) 演練中，
+> `pg_restore` 17.11 對 **PG13** server 還原會噴
+> `unrecognized configuration parameter "transaction_timeout"` 並 **exit 非零**，
+> **即使還原出來的資料其實完整**（該次比對 tables／indexes／FK／CHECK 與六項列數全部相等，
+> application smoke 亦全過）。若 operator 拿舊版 server 做驗證，會把一份好的備份
+> **誤判為損毀**。因此驗證目標版本必須 ≥ 來源。
+>
+> **本節不定義保存期限與銷毀方式** —— 那屬 `O-20`／`L-21`／`RM-15`，
+> 狀態為 **BLOCKED — LEGAL**，不得在此擅自訂定。
+> 本節只規範**營運上的最低可還原性**。
+
+### 8.3.2 原始頻率建議（2026-09-10 起為歷史紀錄，非現行依據）
+
+~~**頻率建議（10 人封閉測試）：** 每個測試日結束時一次，加上任何 migration 之前一次。
+不需要排程器；這個規模下手動執行比維護一個 cron 更不容易出錯。~~
+
+**上述建議在封閉測試階段成立，且其理由（規模小、手動更不易出錯）當時為真。**
+它**未被推翻為「當初判斷錯誤」**，而是**適用範圍改變了** —— production launch readiness
+的風險模型不同：封閉測試遺失一天資料是可接受的，production 不是。
+現行依據一律以 §8.3.1 為準。
 
 ## 8.4 私有檔案備份（B2 → 本機）
 
@@ -363,10 +414,21 @@ B2 僅 3 次 `HeadObject` metadata 讀取，未下載任何業務物件本體、
 
 ## 8.6 這套策略沒有涵蓋的事
 
+> **⚠️ 2026-09-10 Owner decision 更新：下表前兩列已不再是可接受的現況。**
+> `PRE-08` (i) 判定**自動化與異地備援為 production launch minimum**（見 §8.3.1 第 1／5／6 條）。
+> 下表保留為**封閉測試階段**的如實紀錄，並標明現行狀態。
+
 ```text
-✗ 自動化      —— 全部手動。10 人規模下這是刻意的取捨，不是疏漏
-✗ 異地備援    —— 備份檔在 Owner 的機器上，機器壞掉就沒了。
-                 若要更穩，複製一份到另一個實體位置（不需付費服務）
-✗ 連續資料保護 —— 兩次備份之間的資料在災難中會遺失
-✗ 帳號層級災難 —— Neon 專案刪除有 7 天復原期；B2 帳號關閉則無
+封閉測試階段的原始清單（2026-09-10 起，前兩列已被 §8.3.1 取代）
+
+~✗ 自動化~      —— 原記「全部手動。10 人規模下這是刻意的取捨，不是疏漏」
+                 **現行：production launch 要求 nightly 排程備份（§8.3.1 第 1／4 條）。
+                 狀態 = 尚未建立，operator gate 進行中（`PRE-08` (i) PARTIAL）**
+~✗ 異地備援~    —— 原記「備份檔在 Owner 的機器上，機器壞掉就沒了」
+                 **現行：備份必須離開 Neon failure domain，目的地須 private ＋ encrypted
+                 （§8.3.1 第 5／6 條）。狀態 = 目的地待 Owner 選定**
+✗ 連續資料保護 —— 兩次備份之間的資料在災難中會遺失。**仍然成立** ——
+                 nightly 排程把最大遺失窗縮到約 24 小時，但不消除它；
+                 更短的 RPO 需要 provider PITR（付費層）
+✗ 帳號層級災難 —— Neon 專案刪除有 7 天復原期；B2 帳號關閉則無。**仍然成立**
 ```
