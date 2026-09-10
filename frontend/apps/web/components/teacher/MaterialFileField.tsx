@@ -115,6 +115,8 @@ export function MaterialFileField({
             accept={MATERIAL_FILE_ACCEPT}
             className="hidden"
             data-testid="material-file-input"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "material-file-error" : undefined}
             disabled={disabled || busy}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -123,8 +125,11 @@ export function MaterialFileField({
             }}
           />
           <Button
+            intent="neutral"
             variant="outline"
-            disabled={disabled || busy}
+            loading={busy}
+            disabled={disabled}
+            aria-describedby={error ? "material-file-error" : undefined}
             onClick={() => inputRef.current?.click()}
             data-testid="material-file-upload-button"
           >
@@ -160,8 +165,16 @@ export function MaterialFileField({
         </p>
       )}
 
+      {/*
+        `UI-CONS-04`：檔案上傳的失敗（超過上限、型別不符、上傳失敗）**直接描述這個欄位**，
+        但先前既沒有被宣告（無 `role="alert"`），也沒有與控制項關聯 ——
+        鍵盤／螢幕閱讀器使用者按下「選擇檔案」後不會得到任何回饋。
+
+        控制項本身是 `className="hidden"` 的 `<input type="file">`，實際可聚焦的是觸發按鈕，
+        因此 `aria-describedby` 掛在**按鈕**上（見上方 `<Button aria-describedby=...>`）。
+      */}
       {error ? (
-        <p className="text-sm text-rose-600" data-testid="material-file-error">
+        <p id="material-file-error" role="alert" className="text-sm text-rose-600" data-testid="material-file-error">
           {error}
         </p>
       ) : null}

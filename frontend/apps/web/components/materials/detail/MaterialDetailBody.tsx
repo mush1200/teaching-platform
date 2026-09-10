@@ -162,7 +162,7 @@ export function MaterialDetailBody({
         </div>
         <Link
           href={`/materials/${materialId}/reviews`}
-          className="mt-4 inline-flex text-sm font-semibold text-edu-primary transition-colors hover:text-edu-cta"
+          className="mt-4 inline-flex text-sm font-semibold text-ds-textAccent transition-colors hover:text-edu-cta"
         >
           查看全部回饋 →
         </Link>

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
 import { ErrorState, LoadingState, StatusPill } from "../ds";
+import { Button } from "../ui/Button";
+import { ConfirmAction } from "../ui/ConfirmAction";
 
 /**
  * 帳號凍結／解除凍結的 Admin 操作面板（`OPS-02` / `DEC-LEGAL-10`）。
@@ -96,7 +98,11 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
     setActionError(null);
   }
 
-  async function submit(kind: "freeze" | "unfreeze") {
+  /**
+   * 回傳值是給 `ConfirmAction` 用的成敗訊號（`UI-CONS-16`）：
+   * 失敗時面板必須保持展開，否則 `actionError` 會連同面板一起消失。
+   */
+  async function submit(kind: "freeze" | "unfreeze"): Promise<boolean> {
     setBusy(true);
     setActionError(null);
     try {
@@ -107,13 +113,15 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
       if (!res.ok) {
         // Backend 的錯誤原樣呈現 —— 不在前端另編一套說法。
         setActionError(await parseApiErrorMessage(res));
-        return;
+        return false;
       }
       setDone(kind === "freeze" ? "已凍結此帳號。" : "已解除此帳號的凍結。");
       resetForm();
       await load();
+      return true;
     } catch {
       setActionError("無法連線至伺服器，請稍後再試。");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -188,49 +196,27 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
         </p>
       ) : frozen ? (
         <div className="space-y-3">
-          {confirming === "unfreeze" ? (
-            <div className="space-y-3 rounded-ds-card border border-ds-border p-3" data-testid="unfreeze-confirm">
-              <p className="text-body text-ds-heading">
-                確定要解除凍結？此帳號將恢復受限制的交易操作。既有的凍結紀錄會保留。
-              </p>
-              {actionError ? (
-                <p role="alert" className="text-meta text-rose-700" data-testid="freeze-error">
-                  {actionError}
-                </p>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void submit("unfreeze")}
-                  data-testid="unfreeze-submit"
-                  className="min-h-11 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {busy ? "處理中…" : "確認解除凍結"}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={resetForm}
-                  className="min-h-11 rounded-xl border border-ds-border px-4 text-sm font-semibold text-ds-textMuted"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setDone(null);
-                setConfirming("unfreeze");
-              }}
-              data-testid="unfreeze-open"
-              className="min-h-11 rounded-xl border border-ds-border px-4 text-sm font-semibold text-ds-heading"
-            >
-              解除凍結
-            </button>
-          )}
+          {/*
+            `UI-CONS-16`（Wave UI-5）：這個面板原本是全 app **唯一**手刻的兩段式確認
+            （audit 就是以它為參照），現在改用 `ConfirmAction` composite。
+
+            行為刻意保持等價：同樣的文案、同樣的錯誤訊息位置、同樣的 busy 鎖；
+            額外得到的是焦點管理與 `Escape` 關閉。`data-testid` 也維持相容 ——
+            觸發鈕仍是 `unfreeze-open`，確認鈕由 composite 衍生為 `unfreeze-open-confirm`。
+          */}
+          <ConfirmAction
+            triggerLabel="解除凍結"
+            triggerIntent="neutral"
+            triggerVariant="outline"
+            intent="flow"
+            loading={busy}
+            error={actionError}
+            title="確定要解除凍結？"
+            description="此帳號將恢復受限制的交易操作。既有的凍結紀錄會保留。"
+            confirmLabel={busy ? "處理中…" : "確認解除凍結"}
+            onConfirm={() => submit("unfreeze")}
+            testId="unfreeze-open"
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -245,7 +231,7 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
                 onChange={(e) => setReasonCode(e.target.value)}
                 disabled={busy}
                 data-testid="freeze-reason-select"
-                className="min-h-11 w-full rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+                className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
               >
                 <option value="">請選擇原因</option>
                 {reasonOptions.map((opt) => (
@@ -265,7 +251,7 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
                 disabled={busy}
                 rows={3}
                 data-testid="freeze-note"
-                className="w-full rounded-xl border border-ds-border bg-white px-3 py-2 text-sm text-ds-heading"
+                className="w-full rounded-xl border border-ds-borderControl bg-white px-3 py-2 text-sm text-ds-heading"
               />
 
               {/*
@@ -284,23 +270,24 @@ export function AccountFreezePanel({ userId }: { userId: string }) {
               ) : null}
 
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy || !reasonCode || otherNeedsNote}
+                {/*
+                  `UI-CONS-08`／`-19`（Wave UI-5）：改用 canonical `Button`。
+                  `loading` 會自動 `disabled` ＋ `aria-busy` ＋ spinner，
+                  就地手刻的 `disabled:opacity-60` 因此不再需要。
+                  這是**理由表單**的送出鈕，不套 `ConfirmAction`（理由輸入本身就是確認步驟）。
+                */}
+                <Button
+                  intent="danger"
+                  loading={busy}
+                  disabled={!reasonCode || otherNeedsNote}
                   onClick={() => void submit("freeze")}
                   data-testid="freeze-submit"
-                  className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {busy ? "處理中…" : "確認凍結帳號"}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={resetForm}
-                  className="min-h-11 rounded-xl border border-ds-border px-4 text-sm font-semibold text-ds-textMuted"
-                >
+                </Button>
+                <Button intent="neutral" variant="outline" disabled={busy} onClick={resetForm}>
                   取消
-                </button>
+                </Button>
               </div>
             </div>
           ) : (

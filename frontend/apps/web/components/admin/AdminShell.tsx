@@ -62,7 +62,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         triggerRef={menuButtonRef}
         header={
           <>
-            <p className="truncate text-caption font-semibold uppercase tracking-wider text-edu-primary">
+            <p className="truncate text-caption font-semibold uppercase tracking-wider text-ds-textAccent">
               EDUMARKET
             </p>
             <p className="truncate text-sm font-bold text-ds-heading">管理後台</p>
@@ -73,7 +73,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
       </NavDrawer>
 
       <div className={CONTENT_OFFSET_CLASS}>
-        <main className="min-h-dvh overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/*
+          `UI-CONS-07`（Wave UI-4B）—— **外殼擁有 page gutter**。
+          `px-4 sm:px-6 lg:px-8` 與 `px-page-mobile sm:px-page-tablet lg:px-page-desktop`
+          是**同一組數值**（16／24／32），這裡只是改用 canonical token，計算值不變。
+        */}
+        <main className="min-h-dvh overflow-x-hidden px-page-mobile py-6 sm:px-page-tablet lg:px-page-desktop lg:py-8">
           <div className="mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
       </div>

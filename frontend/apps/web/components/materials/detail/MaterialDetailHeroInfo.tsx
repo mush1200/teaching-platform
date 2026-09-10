@@ -30,7 +30,7 @@ export function MaterialDetailHeroInfo({ material, heroFeatureChips, onScrollToF
           e.preventDefault();
           onScrollToFeedback();
         }}
-        className={`inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:text-edu-primary ${
+        className={`inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:text-ds-textAccent ${
           material.reviewCount > 0 ? "text-amber-600" : "text-ds-textMuted"
         }`}
       >

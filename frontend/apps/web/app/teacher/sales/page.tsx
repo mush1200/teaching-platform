@@ -17,10 +17,11 @@ import {
   toRangeQuery,
   type RangeSelection,
 } from "../../../lib/reportingRange";
-import { AccentTextLink, EmptyState, ErrorState, SurfaceCard } from "../../../components/ds";
+import { AccentTextLink, EmptyState, ErrorState, PageHeader, SurfaceCard } from "../../../components/ds";
 import { Button } from "../../../components/ui/Button";
 import { ReportingRangeSelector } from "../../../components/reporting/ReportingRangeSelector";
-import { StatCard } from "../../../components/reporting/StatCard";
+/* `UI-CONS-11`（Wave UI-3）：`StatCard` 與 `AdminKpiCard` 已合併為 `ds/KpiCard`。 */
+import { KpiCard } from "../../../components/ds";
 import { TrendChart } from "../../../components/reporting/TrendChart";
 
 /**
@@ -110,8 +111,8 @@ export default function CreatorSalesPage() {
 
 function CreatorSalesFallback() {
   return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5">
-      <h1 className="text-2xl font-bold text-ds-heading">我的銷售</h1>
+    <section className="mx-auto flex w-full max-w-7xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-5 py-5">
+      <PageHeader title="我的銷售" />
     </section>
   );
 }
@@ -275,7 +276,7 @@ function CreatorSalesContent() {
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5">
+    <section className="mx-auto flex w-full max-w-7xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-5 py-5">
       {/*
         期間選擇器就在標題旁：它控制整頁，因此屬於 page-level control。
         舊版把它包成一張「統計期間」卡並附上一句說明，等於用 250px 的首屏高度
@@ -283,7 +284,10 @@ function CreatorSalesContent() {
       */}
       <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-ds-heading">我的銷售</h1>
+          {/* `UI-CONS-13`：改用 canonical 字級 token（`text-h2` ＝ 1.5rem/2rem/700，與 `text-2xl font-bold` 等值，視覺不變）。
+              這個 header 保留 bespoke layout —— 右側的 `ReportingRangeSelector` 用的是 `lg:` 斷點的兩欄排列，
+              與 `PageHeader` 的 flex-wrap 行為不同，改用 PageHeader 會動到版面（屬 UI-4B）。 */}
+          <h1 className="text-h2 text-ds-heading">我的銷售</h1>
           <p className="mt-1 text-sm text-ds-textMuted" data-testid="creator-period-label" title={`統計時區：${REPORTING_TIMEZONE}`}>
             {periodLabel ?? (summary.loading ? "期間載入中…" : PRESET_LABELS[selection.preset])}
             <span className="sr-only">（時區 {s?.periodTimezone ?? REPORTING_TIMEZONE}）</span>
@@ -307,10 +311,10 @@ function CreatorSalesContent() {
           <ErrorState variant="inline" retryLabel="重新載入" title="銷售數據暫時無法載入" description={summary.error} onRetry={() => void loadSummary(rangeQuery)} />
         ) : (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="銷售額" value={s ? formatMoney(s.totalSalesAmount) : null} subtext="折扣前" loading={summary.loading} />
-            <StatCard label="成交訂單" value={s ? formatCount(s.totalOrders) : null} subtext="筆" loading={summary.loading} />
-            <StatCard label="賣出份數" value={s ? formatCount(s.totalSoldUnits) : null} subtext="份" loading={summary.loading} />
-            <StatCard label="有成交教材" value={s ? formatCount(s.materialsCount) : null} subtext="項" loading={summary.loading} />
+            <KpiCard label="銷售額" value={s ? formatMoney(s.totalSalesAmount) : null} subtext="折扣前" loading={summary.loading} />
+            <KpiCard label="成交訂單" value={s ? formatCount(s.totalOrders) : null} subtext="筆" loading={summary.loading} />
+            <KpiCard label="賣出份數" value={s ? formatCount(s.totalSoldUnits) : null} subtext="份" loading={summary.loading} />
+            <KpiCard label="有成交教材" value={s ? formatCount(s.materialsCount) : null} subtext="項" loading={summary.loading} />
           </div>
         )}
       </section>
@@ -407,13 +411,13 @@ function CreatorSalesContent() {
               id="creator-records-material"
               value={materialFilter}
               onChange={(e) => setMaterialFilter(e.target.value)}
-              className="min-h-10 max-w-[14rem] truncate rounded-xl border border-ds-border bg-ds-surface px-3 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="min-h-11 max-w-[14rem] truncate rounded-xl border border-ds-borderControl bg-ds-surface px-3 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               {materialOptions.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <Button intent="neutral" variant="outline" onClick={exportRecordsCsv} disabled={recordItems.length === 0} className="min-h-10 px-3 py-1.5">
+            <Button intent="neutral" onClick={exportRecordsCsv} disabled={recordItems.length === 0} size="sm">
               匯出 CSV
             </Button>
           </div>
@@ -477,7 +481,7 @@ function CreatorSalesContent() {
               <p className="text-caption text-ds-textMuted">共 {recordsTotal.toLocaleString("zh-TW")} 筆</p>
               <div className="flex items-center gap-2">
                 <Button
-                  intent="neutral" variant="outline" className="min-h-10 px-3 py-1.5"
+                  intent="neutral" size="sm"
                   onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
                   disabled={recordsPage <= 1}
                 >
@@ -487,7 +491,7 @@ function CreatorSalesContent() {
                   第 {recordsPage} / {recordsTotalPages} 頁
                 </span>
                 <Button
-                  intent="neutral" variant="outline" className="min-h-10 px-3 py-1.5"
+                  intent="neutral" size="sm"
                   onClick={() => setRecordsPage((p) => Math.min(recordsTotalPages, p + 1))}
                   disabled={recordsPage >= recordsTotalPages}
                 >

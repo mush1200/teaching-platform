@@ -380,7 +380,9 @@ test.describe("Admin payment review", () => {
     const calls = await mockPayments(page);
     await page.goto("/admin/payment-proofs");
     await page.getByTestId("payment-proof-open").first().click();
+    /* `UI-CONS-16`：核准付款現在是兩段式 —— 先展開確認面板，再按確認。 */
     await page.getByTestId("payment-approve").click();
+    await page.getByTestId("payment-approve-confirm").click();
 
     await expect.poll(() => calls.posts.at(-1)?.url).toContain("/approve");
     await expect(page.getByTestId("payment-review-message")).toContainText("已核准");

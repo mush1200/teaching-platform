@@ -23,10 +23,10 @@ export function SectionHeader({
             {icon ? <span className="text-[22px]" aria-hidden>{icon}</span> : null}
             <span>{title}</span>
           </h2>
-          {subtitle ? <p className="text-[13px] font-normal text-[#9CA3AF]">{subtitle}</p> : null}
+          {subtitle ? <p className="text-[13px] font-normal text-ds-textSubtle">{subtitle}</p> : null}
         </div>
       </div>
-      <Link href={actionHref} className="shrink-0 text-[14px] font-semibold text-[#6C63FF]/95 transition hover:underline">
+      <Link href={actionHref} className="shrink-0 text-[14px] font-semibold text-ds-textAccent transition hover:underline">
         {actionLabel}
       </Link>
     </header>

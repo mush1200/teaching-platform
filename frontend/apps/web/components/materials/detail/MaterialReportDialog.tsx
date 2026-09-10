@@ -175,21 +175,23 @@ export function MaterialReportDialog({ open, materialId, materialTitle, role, on
             <label htmlFor="material-report-reason" className="text-sm font-medium text-ds-heading">
               檢舉原因
             </label>
-            <p className="mt-1 text-xs text-ds-textMuted">
+            <p id="material-report-hint" className="mt-1 text-xs text-ds-textMuted">
               請具體說明問題所在（例如內容與描述不符、疑似侵權、不當內容），管理員會看到你填的原文。
             </p>
             <textarea
               ref={textareaRef}
               id="material-report-reason"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "material-report-hint material-report-error" : "material-report-hint"}
               value={reason}
               maxLength={REASON_MAX_LENGTH}
               rows={5}
               onChange={(event) => setReason(event.target.value)}
               placeholder="請描述你遇到的問題…"
-              className="mt-2 w-full resize-y rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="mt-2 w-full resize-y rounded-2xl border border-ds-borderControl bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             />
             <div className="mt-1 flex items-center justify-between gap-3">
-              <p role="alert" className="text-xs text-[#EF4444]">
+              <p id="material-report-error" role="alert" className="text-xs text-feedback-errorText">
                 {error ?? ""}
               </p>
               <span className="shrink-0 text-xs text-ds-textMuted">
@@ -198,7 +200,7 @@ export function MaterialReportDialog({ open, materialId, materialTitle, role, on
             </div>
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row-reverse">
-              <Button type="submit" intent="danger" fullWidth disabled={busy || reason.trim().length === 0}>
+              <Button type="submit" intent="danger" fullWidth loading={busy} disabled={reason.trim().length === 0}>
                 {busy ? "送出中…" : "送出檢舉"}
               </Button>
               <Button type="button" intent="neutral" fullWidth onClick={onClose} disabled={busy}>

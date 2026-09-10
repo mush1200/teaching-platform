@@ -16,12 +16,12 @@ export function Hero() {
             >
               探索適合你的教材
             </h1>
-            <p className="text-[14px] font-normal leading-tight text-[#9CA3AF] sm:text-[15px]">為你的教學與學習提供靈感</p>
+            <p className="text-[14px] font-normal leading-tight text-ds-textSubtle sm:text-[15px]">為你的教學與學習提供靈感</p>
           </div>
           <div className="pt-0">
             <Link
               href="/explore"
-              className="inline-flex h-8 items-center justify-center rounded-xl bg-[#FF6B73] px-3.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(240,85,96,0.18)] transition hover:bg-[#f05560] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B73]"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#FF6B73] px-3.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(240,85,96,0.18)] transition hover:bg-[#f05560] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B73]"
             >
               立即探索
             </Link>

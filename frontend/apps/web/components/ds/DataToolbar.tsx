@@ -72,14 +72,14 @@ export function SearchField({
           placeholder={placeholder}
           onChange={(event) => setDraft(event.target.value)}
           data-testid="toolbar-search-input"
-          className="min-h-10 w-full rounded-xl border border-ds-border bg-ds-surface py-2 pl-9 pr-3 text-sm text-ds-heading placeholder:text-ds-textSubtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+          className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface py-2 pl-9 pr-3 text-sm text-ds-heading placeholder:text-ds-textSubtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
         />
       </div>
       <button
         type="submit"
         disabled={disabled}
         data-testid="toolbar-search-submit"
-        className="min-h-10 shrink-0 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50"
+        className="min-h-11 shrink-0 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50"
       >
         搜尋
       </button>
@@ -92,7 +92,7 @@ export function SearchField({
             onSubmit("");
           }}
           data-testid="toolbar-search-clear"
-          className="min-h-10 shrink-0 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm font-medium text-ds-textMuted transition-colors hover:bg-edu-page"
+          className="min-h-11 shrink-0 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm font-medium text-ds-textMuted transition-colors hover:bg-edu-page"
         >
           清除
         </button>
@@ -162,12 +162,12 @@ export function FilterTabs({
         const base = segmented
           ? `inline-flex min-h-9 items-center gap-2 rounded-lg px-3.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50 ${
               active
-                ? "bg-ds-surface font-semibold text-edu-primary shadow-ds-card-soft"
+                ? "bg-ds-surface font-semibold text-ds-textAccent shadow-ds-card-soft"
                 : "font-medium text-ds-textMuted hover:text-ds-heading"
             }`
           : `inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50 ${
               active
-                ? "border-edu-primary bg-[#EDE9FE] font-semibold text-edu-primary"
+                ? "border-edu-primary bg-[#EDE9FE] font-semibold text-ds-textAccent"
                 : "border-ds-border bg-ds-surface text-ds-textMuted hover:bg-edu-page hover:text-ds-heading"
             }`;
         return (
@@ -185,7 +185,7 @@ export function FilterTabs({
             {typeof option.count === "number" ? (
               <span
                 className={`inline-flex min-w-[1.5rem] justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                  active ? (segmented ? "bg-edu-page text-edu-primary" : "bg-white/70 text-edu-primary") : "bg-[#F3F4F6] text-ds-textMuted"
+                  active ? (segmented ? "bg-edu-page text-ds-textAccent" : "bg-white/70 text-ds-textAccent") : "bg-[#F3F4F6] text-ds-textMuted"
                 }`}
               >
                 {option.count}

@@ -120,36 +120,42 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   }
 
   if (loading) {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-6">
+    /*
+   * `COR-06` ＋ `UI-CONS-07`（Wave UI-4B）：這一頁原本渲染自己的 `<main>`，
+   * 而 `/me/complaints` 不在 `RoleShell` 的 `parentShellRoutes` 裡，因此外殼已經給了一個
+   * `<main>` —— 兩者相疊等於一份文件有兩個 main landmark。改成 `<div>`，語意由外殼持有。
+   * gutter 改用 canonical ladder（外殼在這條路由上不供應水平內距）。
+   */
+  return (
+      <div className="mx-auto w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6">
         <LoadingState title="載入申訴中…" />
-      </main>
+      </div>
     );
   }
 
   if (forbidden) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-6" data-testid="complaint-forbidden">
+      <div className="mx-auto w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6" data-testid="complaint-forbidden">
         <ErrorState
           title="無權檢視這筆申訴"
           description="這筆申訴不屬於您的帳號。若您認為這是錯誤，請由「我的申訴」重新進入。"
         />
-        <Link href="/me/complaints" className="mt-4 inline-block text-body text-edu-primary underline">
+        <Link href="/me/complaints" className="mt-4 inline-block text-body text-ds-textAccent underline">
           返回我的申訴
         </Link>
-      </main>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-6">
+      <div className="mx-auto w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6">
         <ErrorState
           title="無法載入申訴"
           description={error ?? "找不到這筆申訴。"}
           onRetry={() => void load()}
         />
-      </main>
+      </div>
     );
   }
 
@@ -158,7 +164,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   const terminal = COMPLAINT_TERMINAL_STATUSES.includes(status);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6" data-testid="complaint-detail-page">
+    <div className="mx-auto w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6" data-testid="complaint-detail-page">
       <PageHeader
         title={complaint.subject}
         description={COMPLAINT_STATUS_BUYER_HINT[status] ?? ""}
@@ -269,7 +275,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                 onChange={(e) => setExternalReference(e.currentTarget.value)}
                 placeholder="例：台銀 8/20 15:32 轉出 480 元，交易序號 A1234"
                 data-testid="evidence-reference"
-                className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface px-3 py-2 text-sm text-ds-heading"
+                className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 py-2 text-sm text-ds-heading"
               />
             </label>
             {evidenceMsg ? (
@@ -282,14 +288,14 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
               onClick={() => void addEvidence()}
               disabled={evidenceBusy}
               data-testid="evidence-submit"
-              className="min-h-11 rounded-xl border border-edu-primary px-4 text-sm font-semibold text-edu-primary disabled:opacity-60"
+              className="min-h-11 rounded-xl border border-edu-primary px-4 text-sm font-semibold text-ds-textAccent disabled:opacity-60"
             >
               {evidenceBusy ? "上傳中…" : "新增證據"}
             </button>
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

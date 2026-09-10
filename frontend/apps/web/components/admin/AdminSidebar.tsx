@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NAV_RAIL_ACTIVE, NAV_RAIL_BASE, NAV_RAIL_INACTIVE } from "../layout/nav-active";
 import { clearClientSession } from "../../lib/session";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -68,7 +69,7 @@ export function AdminSidebar({ variant = "desktop", onNavigate }: Props = {}) {
          * Drawer 版本不放這張卡：抽屜裡它與 top bar 重複，且吃掉大量垂直空間。
          */
         <div className={`${SIDEBAR_STATIC_CLASS} border-b border-ds-borderMuted px-4 pb-4 pt-5`}>
-          <p className="px-1 text-xs font-semibold uppercase tracking-wider text-edu-primary">EDUMARKET</p>
+          <p className="px-1 text-xs font-semibold uppercase tracking-wider text-ds-textAccent">EDUMARKET</p>
           <div data-testid="sidebar-identity" className="mt-4 flex items-center gap-3 rounded-2xl bg-edu-page p-3.5">
             <span className="shrink-0 text-[28px] leading-none" aria-hidden>
               🛡️
@@ -86,7 +87,7 @@ export function AdminSidebar({ variant = "desktop", onNavigate }: Props = {}) {
           <div key={section.label}>
             {/* 第一段貼近上方邊界；段與段之間才拉開，避免每一段都留大空白。 */}
             <p
-              className={`mb-2 px-3 text-xs font-semibold tracking-wide text-[#7C74C8] ${index === 0 ? "mt-2" : "mt-5"}`}
+              className={`mb-2 px-3 text-xs font-semibold tracking-wide text-ds-textAccent ${index === 0 ? "mt-2" : "mt-5"}`}
             >
               {section.label}
             </p>
@@ -99,11 +100,8 @@ export function AdminSidebar({ variant = "desktop", onNavigate }: Props = {}) {
                       href={item.href}
                       onClick={onNavigate}
                       aria-current={active ? "page" : undefined}
-                      className={`flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-sm transition-colors ${
-                        active
-                          ? "border-edu-primary bg-[#EDE9FE] font-semibold text-edu-primary"
-                          : "border-transparent font-medium text-[#4B5563] hover:bg-[#F7F4FF] hover:text-ds-heading"
-                      }`}
+                      /* `UI-CONS-14`：active 視覺改用共用配方（見 `components/layout/nav-active.ts`）。 */
+                      className={`${NAV_RAIL_BASE} ${active ? NAV_RAIL_ACTIVE : NAV_RAIL_INACTIVE}`}
                     >
                       <span aria-hidden>{item.icon}</span>
                       <span className="truncate">{item.label}</span>

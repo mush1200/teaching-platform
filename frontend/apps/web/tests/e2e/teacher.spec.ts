@@ -59,9 +59,13 @@ test.describe("Teacher Pages", () => {
       // 預設「全部」：第一頁 8 筆，因此看得到已發布、看不到被擠到第二頁的待審
       await expect(page.getByText("已發布教材 0")).toBeVisible();
 
-      // 狀態篩選是 Tamagui 的 Select（combobox ＋ listbox），不是原生 <select>。
-      await page.locator("#teacher-material-status").click();
-      await page.getByRole("option", { name: "審核中" }).click();
+      /*
+        `UI-CONS-10`（Wave UI-3）：狀態篩選原本是 Tamagui 的 Select（combobox ＋ listbox），
+        需要「先點開、再點 option」兩步；遷移到 canonical `ui/Select` 後它是**原生 `<select>`**，
+        以 `selectOption()` 驅動。**斷言的行為完全沒變** —— 依然是「篩選改變的是實際列出的
+        教材，不只是選單本身」。
+      */
+      await page.locator("#teacher-material-status").selectOption("pending_review");
       // 篩掉之後只剩 2 筆待審 —— 兩筆都應該出現，已發布的則完全消失
       await expect(page.getByText("待審教材 1")).toBeVisible();
       await expect(page.getByText("待審教材 2")).toBeVisible();
@@ -69,8 +73,7 @@ test.describe("Teacher Pages", () => {
     });
 
     await test.step("換頁換的是內容，不是只有頁碼", async () => {
-      await page.locator("#teacher-material-status").click();
-      await page.getByRole("option", { name: "全部" }).click();
+      await page.locator("#teacher-material-status").selectOption("all");
       // 12 筆 / 每頁 8 → 第 2 頁應該出現第一頁沒有的項目
       await expect(page.getByText("已發布教材 0")).toBeVisible();
       await expect(page.getByText("待審教材 2")).toHaveCount(0);

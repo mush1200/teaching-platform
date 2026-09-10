@@ -14,7 +14,7 @@ export function HeroExplore({ onExplore }: Props) {
           <h1 className="text-2xl font-bold tracking-tight text-[#1F2937] sm:text-3xl md:text-[2rem] md:leading-tight">
             探索適合你的教材
           </h1>
-          <p className="text-sm leading-relaxed text-[#6B7280] sm:text-base">豐富您的教學，提升無限可能</p>
+          <p className="text-sm leading-relaxed text-ds-textMuted sm:text-base">豐富您的教學，提升無限可能</p>
           <div className="pt-1">
             <Button type="button" intent="flow" onClick={onExplore}>
               立即探索

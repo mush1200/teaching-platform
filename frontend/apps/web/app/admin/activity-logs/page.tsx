@@ -171,7 +171,7 @@ function AdminActivityLogsContent() {
                 onChange={(event) => query.setFilter(event.target.value)}
                 disabled={loading}
                 data-testid="activity-action-filter"
-                className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="min-h-11 rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               >
                 <option value="all">全部</option>
                 {/*
@@ -197,7 +197,7 @@ function AdminActivityLogsContent() {
                 onChange={(event) => setExtraParam("actor_role", event.target.value)}
                 disabled={loading}
                 data-testid="activity-actor-role-filter"
-                className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="min-h-11 rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               >
                 <option value="">全部</option>
                 {(filterMeta?.actorRoles ?? []).map((row) => (
@@ -216,7 +216,7 @@ function AdminActivityLogsContent() {
                 onChange={(event) => setExtraParam("from", event.target.value)}
                 disabled={loading}
                 data-testid="activity-from"
-                className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="min-h-11 rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               />
             </label>
 
@@ -228,7 +228,7 @@ function AdminActivityLogsContent() {
                 onChange={(event) => setExtraParam("to", event.target.value)}
                 disabled={loading}
                 data-testid="activity-to"
-                className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="min-h-11 rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               />
             </label>
           </div>
@@ -299,7 +299,7 @@ function LogRow({
           {log.target_type === "material" && log.target_id ? (
             <Link
               href={`/admin/materials/${encodeURIComponent(log.target_id)}/activity-logs`}
-              className="font-medium text-edu-primary underline"
+              className="font-medium text-ds-textAccent underline"
             >
               此教材紀錄
             </Link>
@@ -307,7 +307,7 @@ function LogRow({
           {log.target_type === "order" && log.target_id ? (
             <Link
               href={`/admin/orders/${encodeURIComponent(log.target_id)}/activity-logs`}
-              className="font-medium text-edu-primary underline"
+              className="font-medium text-ds-textAccent underline"
             >
               此訂單紀錄
             </Link>
@@ -315,14 +315,14 @@ function LogRow({
           {log.actor_id ? (
             <Link
               href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
-              className="font-medium text-edu-primary underline"
+              className="font-medium text-ds-textAccent underline"
             >
               此操作者紀錄
             </Link>
           ) : null}
           <Link
             href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
-            className="font-medium text-edu-primary underline"
+            className="font-medium text-ds-textAccent underline"
           >
             單筆詳情
           </Link>

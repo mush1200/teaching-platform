@@ -20,7 +20,7 @@ export function AdminQuickActions() {
         <Link
           key={action.href}
           href={action.href}
-          className="rounded-xl border border-ds-border bg-ds-surface px-4 py-2 text-sm font-semibold text-edu-primary transition hover:bg-edu-page focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+          className="rounded-xl border border-ds-border bg-ds-surface px-4 py-2 text-sm font-semibold text-ds-textAccent transition hover:bg-edu-page focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
         >
           {action.label}
         </Link>

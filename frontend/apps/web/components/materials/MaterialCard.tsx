@@ -110,10 +110,10 @@ export function MaterialCard({ material, trackRecent }: Props) {
         <button
           ref={favoriteBtnRef}
           type="button"
-          className={`relative z-10 ml-auto mr-3 mt-3 flex h-9 w-9 min-h-8 min-w-8 items-center justify-center rounded-full shadow-sm transition duration-200 ease-out hover:scale-110 active:scale-95 ${
+          className={`relative z-10 ml-auto mr-3 mt-3 flex size-11 shrink-0 items-center justify-center rounded-full shadow-sm transition duration-200 ease-out hover:scale-110 active:scale-95 ${
             isFavorite
               ? "bg-[#FEE2E2] text-[#EF4444] hover:bg-[#FECACA] hover:text-[#DC2626]"
-              : "bg-white/90 text-[#9CA3AF] hover:bg-[#F3F4F6] hover:text-[#6B7280]"
+              : "bg-white/90 text-ds-textSubtle hover:bg-[#F3F4F6] hover:text-ds-textMuted"
           }`}
           aria-label={isFavorite ? "取消收藏" : "收藏"}
           aria-pressed={isFavorite}
@@ -136,24 +136,24 @@ export function MaterialCard({ material, trackRecent }: Props) {
           if (trackRecent) recordMaterialView(material.id);
         }}
       >
-        <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-snug text-[#1F2937] group-hover:text-[#6C63FF]">
+        <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-snug text-[#1F2937] group-hover:text-ds-textAccent">
           {material.title}
         </h3>
         <div className="flex items-center gap-1 text-amber-500">
           <IconStar className="size-3.5 shrink-0" />
           <span className="text-sm font-semibold text-[#1F2937]">{material.rating.toFixed(1)}</span>
-          <span className="text-xs text-[#6B7280]">({material.reviewCount})</span>
+          <span className="text-xs text-ds-textMuted">({material.reviewCount})</span>
         </div>
-        <p className="text-xs text-[#9CA3AF]">{categoryDisplay(material.category)}</p>
+        <p className="text-xs text-ds-textSubtle">{categoryDisplay(material.category)}</p>
         <div className="mt-auto flex items-end justify-between gap-2 pt-1">
           <div>
             {priceLabel}
             {off > 0 && material.price > 0 ? (
-              <p className="text-xs text-[#9CA3AF] line-through">NT${material.originalPrice}</p>
+              <p className="text-xs text-ds-textSubtle line-through">NT${material.originalPrice}</p>
             ) : null}
           </div>
           {off > 0 && material.price > 0 ? (
-            <span className="rounded-full bg-[#FF6B73]/10 px-2 py-0.5 text-xs font-bold text-[#FF6B73]">{off}% OFF</span>
+            <span className="rounded-full bg-[#FF6B73]/10 px-2 py-0.5 text-xs font-bold text-feedback-errorText">{off}% OFF</span>
           ) : null}
         </div>
       </Link>

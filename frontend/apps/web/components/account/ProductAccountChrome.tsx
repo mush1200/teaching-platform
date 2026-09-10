@@ -20,7 +20,14 @@ export function AccountPageHeader({
         <div className="min-w-0 space-y-2">
           <p className="text-[11px] font-semibold tracking-wide text-ds-textSubtle">已購內容</p>
           <div className="flex flex-wrap items-baseline gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-ds-heading md:text-[1.75rem] md:leading-tight">{title}</h1>
+            {/*
+              `UI-CONS-13`（Wave UI-8）：改用 canonical application page title 字級 `text-h2`。
+              原本是 `text-2xl font-bold` ＋ `md:text-[1.75rem]`（28px 的任意值）——
+              24px 的部分與 canonical 等值，**28px 那一階沒有理由**：其他四個 surface 的
+              頁面標題在任何斷點都是 24px，這裡卻在 `md` 以上獨自放大。
+              **只改字級**：eyebrow、底部分隔線、badge 排版、行動版行為全部不動。
+            */}
+            <h1 className="text-h2 tracking-tight text-ds-heading">{title}</h1>
             {badge ? <div className="shrink-0">{badge}</div> : null}
           </div>
           {description ? <p className="max-w-2xl text-[15px] leading-relaxed text-ds-textMuted">{description}</p> : null}
@@ -49,10 +56,23 @@ export function AccountPageHeaderOrders({
     <header className={`border-b border-ds-borderMuted pb-4 ${className}`.trim()}>
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          {/* 行動版頁面標題已在 MobileHeader，避免與此處重複 */}
+          {/* 行動版的眉標仍然隱藏：它是視覺輔助，不是頁面標題 */}
           <p className="hidden text-[11px] font-semibold tracking-wide text-ds-textSubtle md:block">交易紀錄</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-3 md:mt-1">
-            <h1 className="hidden text-xl font-bold tracking-tight text-ds-heading md:block md:text-2xl">{title}</h1>
+            {/*
+              `UI-CONS-03` —— 這裡原本是 `hidden … md:block`，於是行動版把**唯一的 `h1`**
+              整個 `display:none` 掉。`MobileHeader` 的標題是 `<span>`／`<Link>`、不是 heading，
+              因此 `/orders`、`/me/orders`、`/orders/[id]/payment-proof` 在 375px 實測
+              **可見 heading 數為 0** —— 整頁沒有任何頁面標題進入 accessibility tree。
+
+              改用 `sr-only md:not-sr-only`：桌機維持原本的可見大標題，行動版則保留同一個
+              `h1` 給輔助技術。**DOM 裡仍然只有一個 `h1`**，不會與 `MobileHeader` 的視覺標題
+              形成兩個同時可見的標題。
+
+              `sr-only` 走 `position:absolute` 而非 `display:none`，所以它在行動版不是 flex item、
+              不佔空間，也不會影響此處 `flex … gap-3` 與 badge 的排版。
+            */}
+            <h1 className="sr-only text-h2 tracking-tight text-ds-heading md:not-sr-only">{title}</h1>
             {badge ? <div className="shrink-0">{badge}</div> : null}
           </div>
           {description ? (
@@ -60,7 +80,7 @@ export function AccountPageHeaderOrders({
           ) : null}
         </div>
         {aside ? (
-          <div className="hidden shrink-0 text-sm tabular-nums leading-snug text-[#777777] md:block md:pt-6 md:text-right">{aside}</div>
+          <div className="hidden shrink-0 text-sm tabular-nums leading-snug text-ds-textMuted md:block md:pt-6 md:text-right">{aside}</div>
         ) : null}
       </div>
     </header>

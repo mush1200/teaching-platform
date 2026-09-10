@@ -16,7 +16,8 @@ import type {
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
 import { ATTENTION_ACTIVITY_ACTION_QUERY, ATTENTION_ORDER_STATUSES } from "../../lib/admin-labels";
 import { comparisonLabel, formatIsoDateForDisplay, parseRangeSelection, toRangeQuery, type RangeSelection } from "../../lib/reportingRange";
-import { AdminKpiCard, type KpiComparison } from "./AdminKpiCard";
+/* `UI-CONS-11`（Wave UI-3）：`AdminKpiCard` 與 `reporting/StatCard` 已合併為 `ds/KpiCard`。 */
+import { KpiCard, type KpiComparison } from "../ds";
 import { AdminTaskCard } from "./AdminTaskCard";
 import { ReportingRangeSelector } from "../reporting/ReportingRangeSelector";
 import { AttentionActivityList } from "./AttentionActivityList";
@@ -123,8 +124,8 @@ function DashboardHeader({ action }: { action?: ReactNode }) {
     <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div>
         {/* Mobile 縮小標題並隱藏副標：副標與下方待處理卡資訊重疊，且標題區在矮視窗會吃掉近三成高度 */}
-        <h1 className="text-2xl font-bold text-[#1F2937] sm:text-3xl">歡迎回來，管理員！</h1>
-        <p className="mt-1 hidden text-sm text-[#6B7280] sm:block">今天需要處理的事項與平台概況</p>
+        <h1 className="text-h2 text-[#1F2937] sm:text-3xl">歡迎回來，管理員！</h1>
+        <p className="mt-1 hidden text-sm text-ds-textMuted sm:block">今天需要處理的事項與平台概況</p>
       </div>
       {action}
     </header>
@@ -386,11 +387,11 @@ function AdminDashboardContent() {
             subtext 只留在「營收」—— 它補充了標題沒說的統計條件（僅計已核准）。
             四張「新增類」卡片的「所選期間」與區塊標題／日期區間重複，已移除。
           */}
-          <AdminKpiCard label="營收" value={formatMoney(data?.periodRevenueAmount)} subtext="所選期間已核准" loading={periodLoading} comparison={comparisonFor(data?.revenueDeltaPercent, data?.periodRevenueAmount, data?.previousPeriodRevenueAmount)} />
-          <AdminKpiCard label="新增訂單" value={formatCount(data?.newOrdersCount)} loading={periodLoading} comparison={comparisonFor(data?.newOrdersDeltaPercent, data?.newOrdersCount, data?.previousNewOrdersCount)} />
-          <AdminKpiCard label="新增用戶" value={formatCount(data?.newUsersCount)} loading={periodLoading} comparison={comparisonFor(data?.newUsersDeltaPercent, data?.newUsersCount, data?.previousNewUsersCount)} />
-          <AdminKpiCard label="新增教材" value={formatCount(data?.newMaterialsCount)} loading={periodLoading} comparison={comparisonFor(data?.newMaterialsDeltaPercent, data?.newMaterialsCount, data?.previousNewMaterialsCount)} />
-          <AdminKpiCard label="新增教學回饋" value={formatCount(data?.newReviewsCount)} loading={periodLoading} comparison={comparisonFor(data?.newReviewsDeltaPercent, data?.newReviewsCount, data?.previousNewReviewsCount)} />
+          <KpiCard label="營收" value={formatMoney(data?.periodRevenueAmount)} subtext="所選期間已核准" loading={periodLoading} comparison={comparisonFor(data?.revenueDeltaPercent, data?.periodRevenueAmount, data?.previousPeriodRevenueAmount)} />
+          <KpiCard label="新增訂單" value={formatCount(data?.newOrdersCount)} loading={periodLoading} comparison={comparisonFor(data?.newOrdersDeltaPercent, data?.newOrdersCount, data?.previousNewOrdersCount)} />
+          <KpiCard label="新增用戶" value={formatCount(data?.newUsersCount)} loading={periodLoading} comparison={comparisonFor(data?.newUsersDeltaPercent, data?.newUsersCount, data?.previousNewUsersCount)} />
+          <KpiCard label="新增教材" value={formatCount(data?.newMaterialsCount)} loading={periodLoading} comparison={comparisonFor(data?.newMaterialsDeltaPercent, data?.newMaterialsCount, data?.previousNewMaterialsCount)} />
+          <KpiCard label="新增教學回饋" value={formatCount(data?.newReviewsCount)} loading={periodLoading} comparison={comparisonFor(data?.newReviewsDeltaPercent, data?.newReviewsCount, data?.previousNewReviewsCount)} />
         </div>
 
         {/*
@@ -509,11 +510,11 @@ function AdminDashboardContent() {
           平台摘要（截至目前）
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <AdminKpiCard label="教材總數" value={formatCount(data?.materialsCount)} subtext="歷來累計" loading={summaryPending} />
-          <AdminKpiCard label="已發布教材" value={formatCount(publishedMaterials)} subtext="可銷售數量" loading={staticState.loading} />
-          <AdminKpiCard label="訂單總數" value={formatCount(data?.ordersCount)} subtext="歷來累計" loading={summaryPending} />
-          <AdminKpiCard label="用戶總數" value={formatCount(data?.usersCount)} subtext="歷來累計" loading={summaryPending} />
-          <AdminKpiCard label="教學回饋總數" value={formatCount(data?.reviewsCount)} subtext="歷來累計" loading={summaryPending} />
+          <KpiCard label="教材總數" value={formatCount(data?.materialsCount)} subtext="歷來累計" loading={summaryPending} />
+          <KpiCard label="已發布教材" value={formatCount(publishedMaterials)} subtext="可銷售數量" loading={staticState.loading} />
+          <KpiCard label="訂單總數" value={formatCount(data?.ordersCount)} subtext="歷來累計" loading={summaryPending} />
+          <KpiCard label="用戶總數" value={formatCount(data?.usersCount)} subtext="歷來累計" loading={summaryPending} />
+          <KpiCard label="教學回饋總數" value={formatCount(data?.reviewsCount)} subtext="歷來累計" loading={summaryPending} />
         </div>
       </section>
 
@@ -527,7 +528,7 @@ function AdminDashboardContent() {
               void loadSummary(rangeQuery);
               void loadTrends(rangeQuery);
             }}
-            className="font-semibold text-[#6C63FF] underline"
+            className="font-semibold text-ds-textAccent underline"
           >
             重新載入
           </button>

@@ -116,16 +116,16 @@ export default function AdminMaterialReportsPage() {
       />
 
       <div className="flex flex-wrap items-center gap-4 text-meta">
-        <Link href="/admin/materials" className="font-medium text-edu-primary underline">
+        <Link href="/admin/materials" className="font-medium text-ds-textAccent underline">
           ← 返回教材審核
         </Link>
         <Link
           href={`/admin/materials/${encodeURIComponent(materialId)}/activity-logs`}
-          className="font-medium text-edu-primary underline"
+          className="font-medium text-ds-textAccent underline"
         >
           此教材的活動紀錄
         </Link>
-        <Link href="/admin/reports" className="font-medium text-edu-primary underline">
+        <Link href="/admin/reports" className="font-medium text-ds-textAccent underline">
           檢舉案件佇列
         </Link>
         <span className="text-ds-textSubtle">教材 ID：{materialId}</span>
@@ -194,7 +194,7 @@ export default function AdminMaterialReportsPage() {
                   <Link
                     href={`/admin/reports?status=all&case=${encodeURIComponent(report.id)}`}
                     data-testid="material-report-open-case"
-                    className="min-h-10 rounded-xl bg-edu-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-95"
+                    className="min-h-11 rounded-xl bg-edu-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-95"
                   >
                     查看案件
                   </Link>

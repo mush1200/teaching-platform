@@ -22,13 +22,13 @@ type Props = {
 };
 
 /**
- * `min-h-10`（40px）確保觸控目標夠大；`whitespace-nowrap` 讓每顆按鈕不會斷字。
+ * `min-h-11`（40px）確保觸控目標夠大；`whitespace-nowrap` 讓每顆按鈕不會斷字。
  * 群組本身在窄螢幕改為橫向捲動而非換行 —— 換行會讓「自訂」孤零零掉到第二排。
  */
 const presetBase =
-  "min-h-10 shrink-0 whitespace-nowrap rounded-xl border px-3 py-1.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-60";
+  "min-h-11 shrink-0 whitespace-nowrap rounded-xl border px-3 py-1.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-60";
 const presetOn = "border-edu-primary bg-edu-primary text-white";
-const presetOff = "border-ds-border bg-ds-surface text-edu-primary hover:bg-edu-page";
+const presetOff = "border-ds-border bg-ds-surface text-ds-textAccent hover:bg-edu-page";
 
 /**
  * 期間選擇器 —— Admin dashboard 與 Creator sales 共用。
@@ -47,6 +47,7 @@ export function ReportingRangeSelector({ selection, onChange, resolvedFrom, reso
   const today = todayInTaipei();
   const fromId = useId();
   const toId = useId();
+  const hintId = useId();
 
   const [draftFrom, setDraftFrom] = useState(selection.preset === "custom" ? selection.from : "");
   const [draftTo, setDraftTo] = useState(selection.preset === "custom" ? selection.to : "");
@@ -138,10 +139,11 @@ export function ReportingRangeSelector({ selection, onChange, resolvedFrom, reso
             <input
               id={fromId}
               type="date"
+              aria-describedby={hintId}
               value={draftFrom}
               max={today}
               onChange={(e) => setDraftFrom(e.target.value)}
-              className="rounded-xl border border-ds-border bg-ds-surface px-2 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="rounded-xl border border-ds-borderControl bg-ds-surface px-2 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -151,10 +153,11 @@ export function ReportingRangeSelector({ selection, onChange, resolvedFrom, reso
             <input
               id={toId}
               type="date"
+              aria-describedby={hintId}
               value={draftTo}
               max={today}
               onChange={(e) => setDraftTo(e.target.value)}
-              className="rounded-xl border border-ds-border bg-ds-surface px-2 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="rounded-xl border border-ds-borderControl bg-ds-surface px-2 py-1.5 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             />
           </div>
           <button type="button" onClick={applyCustom} className={`${presetBase} ${presetOff}`}>
@@ -163,13 +166,20 @@ export function ReportingRangeSelector({ selection, onChange, resolvedFrom, reso
         </div>
       ) : null}
 
+      {/*
+        `UI-CONS-04`（STEP B4）：`自訂期間最多 N 天` 是**直接描述這兩個日期欄位的限制**，
+        但先前只在「沒有錯誤時」以 `sr-only` 存在、且未與任何控制項關聯 ——
+        聚焦日期欄位時讀不到限制，只有違規之後才會知道。
+
+        改為**恆常存在**且由兩個 `<input type="date">` 以 `aria-describedby` 指向；
+        錯誤仍是 `role="alert"`（範圍限制跨兩個欄位，屬 range 級，不宣告單一欄位 invalid）。
+      */}
+      <p id={hintId} className="sr-only">{`自訂期間最多 ${MAX_RANGE_DAYS} 天`}</p>
       {error ? (
         <p role="alert" className="text-caption text-feedback-errorText">
           {error}
         </p>
-      ) : (
-        <p className="sr-only">{`自訂期間最多 ${MAX_RANGE_DAYS} 天`}</p>
-      )}
+      ) : null}
     </div>
   );
 }

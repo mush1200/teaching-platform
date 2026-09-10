@@ -183,7 +183,7 @@ function AdminMaterialsContent() {
                 query.setPage(1);
               }}
               aria-label="排序方式"
-              className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="min-h-11 rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -320,7 +320,7 @@ function MaterialQueueRow({
           onClick={onToggle}
           aria-expanded={selected}
           data-testid="material-review-open"
-          className={`min-h-10 rounded-xl px-4 text-sm font-semibold transition-colors ${
+          className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors ${
             selected
               ? "border border-ds-border bg-ds-surface text-ds-heading hover:bg-edu-page"
               : pending
@@ -332,7 +332,7 @@ function MaterialQueueRow({
         </button>
         <Link
           href={`/admin/materials/${encodeURIComponent(row.id)}/activity-logs`}
-          className="text-meta font-medium text-edu-primary underline"
+          className="text-meta font-medium text-ds-textAccent underline"
         >
           此教材紀錄
         </Link>

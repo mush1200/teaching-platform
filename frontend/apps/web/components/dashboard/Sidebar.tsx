@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NAV_COMPACT_ACTIVE } from "../layout/nav-active";
 import { clearClientSession } from "../../lib/session";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -29,7 +30,12 @@ function navBtnTone(active: boolean, danger?: boolean) {
     return active ? "bg-red-50 text-red-600" : "text-slate-500 hover:bg-slate-50 hover:text-red-600";
   }
   if (active) {
-    return "bg-edu-primary/[0.12] text-edu-primary";
+    /*
+      `UI-CONS-14`：與側欄／底欄共用同一組 active 訊號。
+      這裡原本**只有底色與前景色、沒有加粗** —— 補上 `font-semibold` 之後，
+      四個導覽表達「目前所在」的三個訊號才真的一致。
+    */
+    return NAV_COMPACT_ACTIVE;
   }
   return "text-slate-500 hover:bg-edu-primary/[0.06] hover:text-slate-700";
 }
@@ -45,7 +51,7 @@ function BrandMark({ size = "md" }: { size?: "md" | "sm" }) {
   const icon = size === "sm" ? "size-4" : "size-[18px]";
   return (
     <span
-      className={`flex ${box} shrink-0 items-center justify-center rounded-[10px] bg-[#F5F3FF] text-edu-primary`}
+      className={`flex ${box} shrink-0 items-center justify-center rounded-[10px] bg-[#F5F3FF] text-ds-textAccent`}
       aria-hidden
     >
       <GraduationCap className={icon} strokeWidth={SIDEBAR_ICON_STROKE} />
@@ -59,6 +65,15 @@ function SidebarToggle({ onToggle }: { onToggle: () => void }) {
     <button
       type="button"
       onClick={onToggle}
+      /*
+        `UI-CONS-18`（Wave UI-8）**已記錄的 desktop-density 例外**：32×32。
+        路由：所有買家 `ParentAppShell` 路由；viewport：僅 `lg`（≥1024）——
+        自 Wave UI-6 起這條側欄在 1024 以下完全不渲染，因此不是行動端互動。
+        控制項類型：側欄收合切換（非主要動作，收合狀態另有 `localStorage` 記憶）。
+        週邊間距：位於側欄 header 右側，最近的可點目標距離 > 12px。
+        誤觸風險可接受的理由：滑鼠／觸控板精度下 32px 目標充足，且誤觸的後果是
+        「側欄收合」—— 可一鍵還原、無資料副作用。
+      */
       className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-transparent text-slate-400 transition-colors duration-200 ease-out hover:bg-edu-primary/[0.08] hover:text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-edu-primary"
       aria-label="收合側邊欄"
       aria-expanded
@@ -76,7 +91,7 @@ function CollapsedSidebarHeader({ onToggleCollapsed }: { onToggleCollapsed: () =
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="group relative flex size-8 items-center justify-center rounded-[10px] bg-[#F2EBFF] text-edu-primary transition-colors duration-200 ease-out hover:bg-edu-primary/[0.14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-edu-primary"
+          className="group relative flex size-8 items-center justify-center rounded-[10px] bg-[#F2EBFF] text-ds-textAccent transition-colors duration-200 ease-out hover:bg-edu-primary/[0.14] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-edu-primary"
           aria-label="展開側邊欄"
           aria-expanded={false}
         >
@@ -185,15 +200,23 @@ function NavItemRow({
       );
     }
     if (!item.href) return null;
+    /*
+      `UI-CONS-14` —— `active` 原本只驅動顏色，沒有進 accessibility tree。
+      Admin／Creator 側欄早就有 `aria-current="page"`（`AdminSidebar` / `CreatorSidebar`），
+      買家側欄是全站唯一沒有的那一個。這裡補上同一個語意，**視覺與 active 判定完全不變**
+      —— `active` 仍由既有的 `isSidebarItemActive()` 計算。
+
+      只放在導頁的 `<a>`／`<Link>` 上：登出是 `<button>`，不是「目前所在頁面」。
+    */
     if (item.href.startsWith("#")) {
       return (
-        <a href={item.href} className={cls} onClick={onNavigate}>
+        <a href={item.href} className={cls} onClick={onNavigate} aria-current={active ? "page" : undefined}>
           {inner}
         </a>
       );
     }
     return (
-      <Link href={item.href} className={cls} onClick={onNavigate}>
+      <Link href={item.href} className={cls} onClick={onNavigate} aria-current={active ? "page" : undefined}>
         {inner}
       </Link>
     );
@@ -356,7 +379,7 @@ function SidebarHeader({
     <header className={`flex shrink-0 items-center gap-3 border-b ${SIDEBAR_BORDER} p-4`}>
       <BrandMark />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold tracking-[0.08em] text-edu-primary">EDUMARKET</p>
+        <p className="text-xs font-semibold tracking-[0.08em] text-ds-textAccent">EDUMARKET</p>
         <p className="mt-0.5 truncate text-[13px] font-medium leading-snug text-ds-heading">Hi，歡迎回來 👋</p>
       </div>
       <SidebarToggle onToggle={onToggleCollapsed} />
@@ -371,6 +394,17 @@ type Props = {
   ordersBadge?: number;
   onNavigate?: () => void;
   forceExpanded?: boolean;
+  /**
+   * `UI-CONS-23`（Wave UI-6）：在共用 `NavDrawer` 裡渲染時用 `"drawer"`。
+   *
+   * 差別只有兩點，都是為了不與 drawer 自己的 chrome 打架：
+   *   - 不渲染 `SidebarHeader`（drawer 已經有品牌區塊與關閉鈕，且收合切換在
+   *     抽屜裡沒有意義 —— 抽屜永遠是展開態）；
+   *   - 根元素用 `<div>` 而不是 `<aside aria-label>`（`role="dialog"` 已經
+   *     提供可及名稱，再套一個 landmark 只是重複）。
+   * 導覽內容、route matching、active 視覺、徽章全部不變。
+   */
+  variant?: "shell" | "drawer";
 };
 
 export function Sidebar({
@@ -380,6 +414,7 @@ export function Sidebar({
   ordersBadge = 0,
   onNavigate,
   forceExpanded = false,
+  variant = "shell",
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -394,14 +429,21 @@ export function Sidebar({
     router.push("/login");
   }
 
+  const isDrawer = variant === "drawer";
+  const Root = isDrawer ? "div" : "aside";
+
   return (
-    <aside
+    <Root
       data-sidebar-ui={isCollapsed ? "buyer-collapsed" : "buyer-expanded"}
-      style={{ width }}
-      className={`flex h-full flex-col ${SIDEBAR_BORDER} ${SIDEBAR_BG} border-r transition-[width] duration-200 ease-out`}
-      aria-label={isCollapsed ? "收合側邊導覽" : "展開側邊導覽"}
+      style={isDrawer ? undefined : { width }}
+      className={
+        isDrawer
+          ? "flex min-h-0 flex-1 flex-col"
+          : `flex h-full flex-col ${SIDEBAR_BORDER} ${SIDEBAR_BG} border-r transition-[width] duration-200 ease-out`
+      }
+      aria-label={isDrawer ? undefined : isCollapsed ? "收合側邊導覽" : "展開側邊導覽"}
     >
-      <SidebarHeader collapsed={isCollapsed} onToggleCollapsed={onToggleCollapsed} />
+      {isDrawer ? null : <SidebarHeader collapsed={isCollapsed} onToggleCollapsed={onToggleCollapsed} />}
 
       <nav
         className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto ${
@@ -427,6 +469,6 @@ export function Sidebar({
       </nav>
 
       <SidebarProfileFooter collapsed={isCollapsed} />
-    </aside>
+    </Root>
   );
 }

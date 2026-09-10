@@ -104,7 +104,7 @@ export function OrderFlowMini({ status, progressState = "", paymentProofPendingR
     if (active) {
       return "border-0 bg-edu-primary text-[13px] font-bold text-white shadow-[0_0_0_4px_rgba(108,99,255,0.22)]";
     }
-    return "border-0 bg-[#d9d9e5] text-[13px] font-bold text-[#9CA3AF]";
+    return "border-0 bg-[#d9d9e5] text-[13px] font-bold text-ds-textSubtle";
   }
 
   function segmentAfter(stepIndex: 1 | 2): string {
@@ -121,7 +121,7 @@ export function OrderFlowMini({ status, progressState = "", paymentProofPendingR
   function labelTone(stepIndex: 1 | 2 | 3): string {
     const done = complete || stepIndex < activeStep;
     const active = !complete && stepIndex === activeStep;
-    return done || active ? "text-ds-heading" : "text-[#9CA3AF]";
+    return done || active ? "text-ds-heading" : "text-ds-textSubtle";
   }
 
   const gridCols =

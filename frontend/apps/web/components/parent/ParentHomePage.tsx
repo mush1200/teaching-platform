@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ErrorState } from "@teaching-platform/ui";
+import { ErrorState } from "../ds";
 import { getRecentMaterialIds } from "../../lib/recent-materials";
 import {
   listMaterialsPreview,
@@ -66,7 +66,7 @@ export function ParentHomePage() {
         {error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}
 
         {loading ? (
-          <p className="text-center text-sm text-[#6B7280]" aria-live="polite">
+          <p className="text-center text-sm text-ds-textMuted" aria-live="polite">
             載入中…
           </p>
         ) : null}
@@ -102,7 +102,7 @@ export function ParentHomePage() {
         ) : null}
 
         {!loading && !error && hot.length === 0 && forYou.length === 0 ? (
-          <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-8 text-center text-sm text-[#6B7280]">
+          <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-8 text-center text-sm text-ds-textMuted">
             目前沒有可供展示的教材，請稍後再試。
           </p>
         ) : null}

@@ -100,7 +100,7 @@ export function ErrorState({
         <p className={`${titleBase} text-feedback-errorText`}>{title}</p>
         {description ? <p className="text-caption text-ds-textMuted">{description}</p> : null}
         {onRetry ? (
-          <Button intent="neutral" variant="outline" className="ml-auto min-h-10 px-3 py-1.5" onClick={onRetry}>
+          <Button intent="neutral" size="sm" className="ml-auto" onClick={onRetry}>
             {retryLabel}
           </Button>
         ) : null}

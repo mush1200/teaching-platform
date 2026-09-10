@@ -47,7 +47,7 @@ export default function AdminUsersPlaceholderPage() {
           </p>
           <Link
             href="/admin/activity-logs"
-            className="mt-2 inline-block text-sm font-medium text-edu-primary underline"
+            className="mt-2 inline-block text-sm font-medium text-ds-textAccent underline"
           >
             前往活動紀錄
           </Link>

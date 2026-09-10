@@ -1,4 +1,5 @@
 import type { MaterialReviewStatus } from "./api-types";
+import type { StatusTone } from "./status-tone";
 
 /**
  * 教材狀態的**創作者視角**文案。
@@ -22,14 +23,21 @@ export const CREATOR_MATERIAL_STATUS_LABEL: Record<MaterialReviewStatus, string>
   unpublished: "已下架",
 };
 
-export type CreatorStatusTone = "info" | "success" | "warning" | "error";
+/**
+ * `UI-CONS-12`（Wave UI-3）：原本是 `"info" | "success" | "warning" | "error"`。
+ * `error` 已改名為 canonical 的 `danger` —— 全 repo 只剩一套 tone 值域。
+ * **這只是 tone 名稱的收斂，創作者視角的 mapping 完全沒變。**
+ */
+export type CreatorStatusTone = StatusTone;
 
 export const CREATOR_MATERIAL_STATUS_TONE: Record<MaterialReviewStatus, CreatorStatusTone> = {
   pending_review: "info",
   // 需修改是**創作者要行動**的狀態，用 warning 讓它在清單中跳出來。
   changes_requested: "warning",
   published: "success",
-  unpublished: "error",
+  // 角色視角刻意與 Admin 不同：Admin 是 `neutral`（不是我的待辦），
+  // 創作者是 `danger`（我的教材被下架了）。`UI-CONS-12` 不得抹掉這個差異。
+  unpublished: "danger",
 };
 
 /** 選單／篩選順序：先看要動作的，再看等待中，最後是歷史。 */

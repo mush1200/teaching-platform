@@ -26,7 +26,7 @@ export function CategoryTabs({ tabs, activeId, onSelect }: Props) {
               onClick={() => onSelect(tab.id)}
               className={`flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
                 active
-                  ? "border-[#6C63FF] bg-[#EDE9FE] text-[#6C63FF] shadow-sm"
+                  ? "border-[#6C63FF] bg-[#EDE9FE] text-ds-textAccent shadow-sm"
                   : "border-[#E5E7EB] bg-white text-[#4B5563] hover:border-[#6C63FF]/40 hover:bg-[#FAFAFF]"
               }`}
             >

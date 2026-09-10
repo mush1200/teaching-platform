@@ -1,5 +1,15 @@
 "use client";
 
+/*
+ * `UI-CONS-21`（Wave UI-8）：auth 頁原本使用 `#6D5CFF` —— 與 canonical `edu-primary`
+ * (`#6C63FF`) 只差一個 hex digit，且**全 repo 只出現在這兩個檔案**。那不是刻意的第三套
+ * 品牌識別，是漂移；已全部改用 token utility（`text-ds-textAccent` / `border-edu-primary` /
+ * `ring-edu-primary/xx`），視覺差異肉眼不可辨。
+ *
+ * **CTA 漸層 `#7C3AED → #6366F1` 與其陰影仍保留** —— 那是一個獨立的視覺處理決定
+ * （auth 的主要 CTA 要不要用漸層），屬品牌定位，需 Owner 決定，本輪不自行改。
+ */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -111,7 +121,7 @@ export default function RegisterPage() {
         <section className="flex items-center justify-center">
           <div className="w-full max-w-[620px] rounded-[32px] border border-[#E5E7EB]/80 bg-white p-8 shadow-[0_20px_55px_rgba(15,23,42,0.08)] md:p-16">
             <div>
-              <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-[#6D5CFF]">
+              <p className="flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-ds-textAccent">
                 <span className="text-sm">🎓</span>
                 EDUMARKET
               </p>
@@ -135,7 +145,7 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
                   placeholder="you@example.com"
-                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
+                  className="h-14 w-full rounded-2xl border border-ds-borderControl bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-ds-textSubtle transition focus:border-edu-primary focus:ring-2 focus:ring-edu-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
                 />
               </div>
 
@@ -153,7 +163,7 @@ export default function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
+                  className="h-14 w-full rounded-2xl border border-ds-borderControl bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-ds-textSubtle transition focus:border-edu-primary focus:ring-2 focus:ring-edu-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
                 />
               </div>
 
@@ -170,7 +180,7 @@ export default function RegisterPage() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   disabled={loading}
-                  className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#6D5CFF] focus:ring-2 focus:ring-[#6D5CFF]/25"
+                  className="h-14 w-full rounded-2xl border border-ds-borderControl bg-[#FAFAFA] px-11 text-[#0F172A] placeholder:text-ds-textSubtle transition focus:border-edu-primary focus:ring-2 focus:ring-edu-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
                 />
               </div>
 
@@ -183,9 +193,9 @@ export default function RegisterPage() {
                     aria-checked={role === "parent"}
                     disabled={loading}
                     onClick={() => setRole("parent")}
-                    className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/35 ${
+                    className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus focus-visible:ring-2 focus-visible:ring-edu-primary/35 ${
                       role === "parent"
-                        ? "border-[#6D5CFF] bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
+                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#C4B5FD]"
                     }`}
                   >
@@ -198,9 +208,9 @@ export default function RegisterPage() {
                     aria-checked={role === "teacher" || role === "creator"}
                     disabled={loading}
                     onClick={() => setRole("creator")}
-                    className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/35 ${
+                    className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus focus-visible:ring-2 focus-visible:ring-edu-primary/35 ${
                       role === "teacher" || role === "creator"
-                        ? "border-[#6D5CFF] bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
+                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#C4B5FD]"
                     }`}
                   >
@@ -216,7 +226,7 @@ export default function RegisterPage() {
                   type="checkbox"
                   checked={terms}
                   onChange={(e) => setTerms(e.target.checked)}
-                  className="size-4 rounded border-[#CBD5E1] text-[#6D5CFF] focus:ring-[#6D5CFF]/40"
+                  className="size-4 rounded border-[#CBD5E1] text-ds-textAccent focus:ring-edu-primary/40"
                 />
                 我同意服務條款與隱私權政策
               </label>
@@ -224,15 +234,16 @@ export default function RegisterPage() {
               <button
                 type="button"
                 disabled={loading}
+                aria-describedby={message ? "auth-form-message" : undefined}
                 onClick={() => void submit()}
-                className="flex h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-white font-bold shadow-[0_14px_28px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(99,102,241,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D5CFF]/45 disabled:opacity-60"
+                className="flex h-[60px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#7C3AED] to-[#6366F1] text-white font-bold shadow-[0_14px_28px_rgba(99,102,241,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(99,102,241,0.45)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus focus-visible:ring-2 focus-visible:ring-edu-primary/45 disabled:opacity-60"
               >
                 {loading ? "送出中…" : "註冊"}
                 {!loading ? <ArrowRightIcon /> : null}
               </button>
             </div>
 
-            <div className="my-7 flex items-center gap-3 text-sm text-[#94A3B8]">
+            <div className="my-7 flex items-center gap-3 text-sm text-ds-textSubtle">
               <span className="h-px flex-1 bg-[#E5E7EB]" />
               或
               <span className="h-px flex-1 bg-[#E5E7EB]" />
@@ -259,11 +270,22 @@ export default function RegisterPage() {
 
             <p className="mt-7 text-center text-sm text-[#64748B]">
               已有帳號？{" "}
-              <Link href="/login" className="font-medium text-[#6D5CFF] hover:underline">
+              <Link href="/login" className="font-medium text-ds-textAccent hover:underline">
                 立即登入
               </Link>
             </p>
-            {message ? <p className="mt-3 text-center text-sm text-[#F59E0B]">{message}</p> : null}
+            {/*
+              `UI-CONS-04`（Wave UI-7）：這是**表單層級**的驗證訊息（不是欄位層級），
+              先前只是一個普通 `<p>` —— 螢幕閱讀器完全不會宣告它，鍵盤使用者按下送出
+              之後沒有任何回饋。補上 `role="alert"` 讓它被即時宣告，並用 `aria-describedby`
+              把送出鈕接上去，聚焦送出鈕時也讀得到。
+              **沒有欄位層級錯誤**，所以這裡不加 `aria-invalid`（那會是假的欄位狀態）。
+            */}
+            {message ? (
+              <p id="auth-form-message" role="alert" className="mt-3 text-center text-sm text-feedback-errorText">
+                {message}
+              </p>
+            ) : null}
           </div>
         </section>
 
@@ -313,7 +335,7 @@ export default function RegisterPage() {
             <div className="relative mt-12 flex items-end justify-between">
               <article className="-rotate-3 rounded-[28px] border border-white/70 bg-white p-5 shadow-[0_24px_50px_rgba(79,70,229,0.25)]">
                 <div className="h-44 w-[300px] rounded-2xl bg-gradient-to-br from-[#67E8F9] via-[#A5B4FC] to-[#C4B5FD]" />
-                <span className="mt-3 inline-block rounded-full bg-[#EDE9FE] px-3 py-1 text-xs font-semibold text-[#6D5CFF]">角色選擇</span>
+                <span className="mt-3 inline-block rounded-full bg-[#EDE9FE] px-3 py-1 text-xs font-semibold text-ds-textAccent">角色選擇</span>
                 <h3 className="mt-2 text-2xl font-bold text-[#0F172A]">購買 / 上架</h3>
                 <p className="mt-1 text-sm text-[#64748B]">依身份啟用最適合你的功能面板</p>
                 <p className="mt-3 text-sm font-semibold text-[#0F172A]">⭐ 體驗評分 <span className="font-normal text-[#64748B]">4.9</span></p>

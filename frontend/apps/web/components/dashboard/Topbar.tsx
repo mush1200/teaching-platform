@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { RefObject } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 type Props = {
   onMenuClick: () => void;
   cartBadge?: number;
+  /** `UI-CONS-23`：抽屜關閉後焦點要還回這顆觸發鈕。 */
+  menuButtonRef?: RefObject<HTMLButtonElement | null>;
+  /** 對應 `NavDrawer` 面板的 `id`，供 `aria-controls`。 */
+  drawerId?: string;
+  drawerOpen?: boolean;
 };
 
 function MenuIcon() {
@@ -27,7 +33,7 @@ function CartIcon() {
   );
 }
 
-export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
+export function Topbar({ onMenuClick, cartBadge = 2, menuButtonRef, drawerId, drawerOpen = false }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -51,10 +57,21 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[#E5E7EB]/80 bg-white/95 px-4 backdrop-blur md:gap-4 md:px-6">
+      {/*
+        `UI-CONS-05`：觸發鈕的可見範圍必須與側欄互補 —— 側欄是 `lg:block`，
+        所以觸發鈕是 `lg:hidden`。原本是 `md:hidden`，於是 768–1023 既有常駐側欄、
+        又沒有觸發鈕，與 Admin／Creator 不一致。
+        `UI-CONS-18`：導覽觸發鈕的觸控目標由 40×40（`p-2` ＋ 24px icon）補到 **44×44**。
+        `UI-CONS-23`：補上 `aria-expanded` / `aria-controls`，與 Admin／Creator 的觸發鈕一致。
+      */}
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={onMenuClick}
-        className="rounded-xl p-2 text-[#1F2937] hover:bg-[#F4F1FF] md:hidden"
+        aria-expanded={drawerOpen}
+        aria-controls={drawerId}
+        data-testid="nav-drawer-trigger"
+        className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#1F2937] hover:bg-[#F4F1FF] lg:hidden"
         aria-label="開啟選單"
       >
         <MenuIcon />
@@ -62,7 +79,7 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
 
       <div className="flex min-w-0 flex-1 justify-center md:justify-start">
         <label className="relative mx-auto w-full max-w-2xl md:mx-0">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" aria-hidden>
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ds-textSubtle" aria-hidden>
             🔍
           </span>
           <input
@@ -73,7 +90,7 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
               if (e.key === "Enter") pushQuery(q);
             }}
             placeholder="搜尋教材、主題、年齡..."
-            className="w-full rounded-full border border-[#E5E7EB] bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] transition focus:border-[#6C63FF]/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+            className="w-full rounded-full border border-ds-borderControl bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition focus:border-[#6C63FF]/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
           />
         </label>
       </div>
@@ -91,7 +108,12 @@ export function Topbar({ onMenuClick, cartBadge = 2 }: Props) {
         移除後這一區只剩購物車，`gap` 仍由 flex 容器維持，不需要補位元素。
       */}
       <div className="flex shrink-0 items-center gap-2 md:gap-3">
-        <Link href="/cart" className="relative rounded-xl p-2 hover:bg-[#F4F1FF]" aria-label="購物車">
+        {/* `UI-CONS-18`：頂欄的導覽目標同樣補到 44×44。 */}
+        <Link
+          href="/cart"
+          className="relative flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-[#F4F1FF]"
+          aria-label="購物車"
+        >
           <CartIcon />
           {cartBadge > 0 ? (
             <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.125rem] items-center justify-center rounded-full bg-[#FF6B73] px-1 text-[10px] font-bold text-white">

@@ -98,14 +98,19 @@ Tailwind prefix: `ds` (e.g. `bg-ds-page`, `text-ds-heading`, `rounded-ds-card`).
 
 ## 3. Layout Tokens
 
+> **實作現況（2026-09-08，`UI-CONS-07`／Wave UI-4B）**：`page-padding.*` 已成為全站 canonical
+> page gutter（`px-page-mobile sm:px-page-tablet lg:px-page-desktop` ＝ 16／24／32，斷點 `sm` 640 / `lg` 1024），
+> 實測四個 surface × 四個 viewport 一致，且**每頁只有一層**。
+> `content-max.*` 只有 `wide` 有實作 alias；分類與 semantic debt 見 `docs/ui-design-system.md` §7.4。
+
 | Token | Value | Usage |
 | --- | --- | --- |
 | `layout.sidebar-width` | `240px` | Desktop buyer sidebar **expanded** width |
 | `layout.sidebar-width-collapsed` | `72px` | Desktop buyer sidebar **collapsed** (icon rail) width |
-| `layout.content-max.narrow` | `768px` | Narrow content container |
-| `layout.content-max.normal` | `1024px` | Default content container |
-| `layout.content-max.wide` | `1280px` | Wide content container |
-| `layout.page-padding.mobile` | `16px` | Mobile page horizontal padding |
+| `layout.content-max.narrow` | `768px` | Narrow content container — **實作對應 `max-w-3xl`**（`max-w-narrow` alias 零 consumer，已於 `UI-CONS-17` 移除） |
+| ~~`layout.content-max.normal`~~ | ~~`1024px`~~ | **未實作**：實測 standard container 是 **1152px（`max-w-6xl`，10 個容器）**，不是 1024 |
+| `layout.content-max.wide` | `1280px` | Wide content container — 實作為 `max-w-wide`（唯一仍存在的 alias） |
+| `layout.page-padding.mobile` | `16px` | Mobile page horizontal padding — **canonical page gutter**（`UI-CONS-07`／2026-09-08，見下方註） |
 | `layout.page-padding.tablet` | `24px` | Tablet page horizontal padding |
 | `layout.page-padding.desktop` | `32px` | Desktop page horizontal padding |
 | `layout.section-gap.sm` | `16px` | Small section gap |
@@ -145,10 +150,14 @@ Core spacing follows Tailwind scale and project aliases:
 
 ## 6. Typography Scale
 
+> **實作現況（2026-09-08，`UI-CONS-13`）**：`type.h1` 從未有 consumer，實作端已移除。
+> 產品的 canonical page title 是 **24px（`text-h2`）**，由 `components/ds/PageHeader` 單一入口渲染。
+> 完整 hierarchy contract 見 `docs/ui-design-system.md` §5.2。
+
 | Token | Size | Line Height | Weight | Usage |
 | --- | --- | --- | --- | --- |
-| `type.h1` | `32px` | `40px` | 700 | Page primary heading |
-| `type.h2` | `24px` | `32px` | 700 | Section heading |
+| ~~`type.h1`~~ | ~~`32px`~~ | ~~`40px`~~ | ~~700~~ | **未實作，已於 `UI-CONS-13`（2026-09-08）自 `tailwind.config.ts` 移除** |
+| `type.h2` | `24px` | `32px` | 700 | **Application page title**（`components/ds/PageHeader` 的 `h1`）；亦用於 section heading |
 | `type.h3` | `20px` | `28px` | 700 | Block heading |
 | `type.title` | `16px` | `24px` | 600 | Card/header title |
 | `type.body` | `14px` | `22px` | 400 | Body text |

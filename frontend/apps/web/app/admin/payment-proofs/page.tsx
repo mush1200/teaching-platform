@@ -31,6 +31,8 @@ import {
   SearchField,
   StatusPill,
 } from "../../../components/ds";
+import { Button } from "../../../components/ui/Button";
+import { ConfirmAction } from "../../../components/ui/ConfirmAction";
 import { AdminReviewPlaceholder, AdminReviewWorkspace } from "../../../components/admin/AdminReviewWorkspace";
 import {
   downloadPaymentProof,
@@ -358,7 +360,7 @@ function ProofRow({
           onClick={onToggle}
           data-testid="payment-proof-open"
           aria-expanded={selected}
-          className={`min-h-10 rounded-xl px-4 text-sm font-semibold transition-colors ${
+          className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors ${
             pending
               ? "bg-edu-primary text-white hover:brightness-95"
               : "border border-ds-border bg-ds-surface text-ds-heading hover:bg-edu-page"
@@ -475,13 +477,21 @@ function PaymentProofPreview({
           className="max-h-[420px] w-full rounded-xl border border-ds-borderMuted bg-edu-page object-contain"
         />
       ) : null}
-      {error ? <p className="text-body text-edu-error">{error}</p> : null}
+      {/*
+        `UI-CONS-04`：憑證檢視／下載失敗屬**面板層級**錯誤（不是某個欄位無效），
+        因此補的是 `role="alert"` 讓它被宣告，**不加 `aria-invalid`** —— 那會是假的欄位狀態。
+      */}
+      {error ? (
+        <p role="alert" className="text-body text-edu-error">
+          {error}
+        </p>
+      ) : null}
       <button
         type="button"
         onClick={handleDownload}
         disabled={downloading}
         data-testid="payment-proof-download"
-        className="inline-block text-sm font-medium text-edu-primary underline disabled:opacity-60"
+        className="inline-block text-sm font-medium text-ds-textAccent underline disabled:opacity-60"
       >
         {downloading ? "下載中…" : "下載原始憑證檔"}
       </button>
@@ -564,7 +574,7 @@ function PaymentReviewPanel({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-10 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
+          className="min-h-11 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
         >
           關閉
         </button>
@@ -777,7 +787,7 @@ function PaymentReviewPanel({
                 value={paymentReceivedAt}
                 onChange={(event) => setPaymentReceivedAt(event.target.value)}
                 data-testid="payment-received-at"
-                className="mt-1 min-h-10 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               />
               <span className="mt-1 block text-meta text-ds-textMuted">
                 請填寫您在銀行帳戶上看到的入帳時間，而非購買者申報的匯款時間。
@@ -790,28 +800,40 @@ function PaymentReviewPanel({
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 placeholder="例如：已於銀行對帳單確認入帳"
-                className="mt-1 min-h-10 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               />
             </label>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void submit("approve")}
+              {/*
+                `UI-CONS-12`（Wave UI-3）：與 `MaterialReviewPanel` 的核准／退回是**同一組語意**，
+                這正是 `success` 通過「跨頁面 intent」門檻的第二個 surface。色值未變。
+              */}
+              {/*
+                `UI-CONS-16`（Wave UI-5）：與 `MaterialReviewPanel` 的核准同一類 ——
+                核准付款會讓訂單成立、買家取得下載授權，沒有反向端點可以撤銷。
+                「退回付款」有必填理由，維持就地理由表單，不另加 yes/no。
+              */}
+              <ConfirmAction
+                triggerLabel="核准付款"
+                triggerIntent="success"
+                intent="success"
                 disabled={busy !== null}
-                data-testid="payment-approve"
-                className="min-h-11 rounded-xl bg-edu-success px-5 text-sm font-semibold text-white transition-colors hover:brightness-95 disabled:opacity-50"
-              >
-                {busy === "approve" ? "處理中…" : "核准付款"}
-              </button>
-              <button
-                type="button"
+                loading={busy === "approve"}
+                title="確定要核准這筆付款？"
+                description="核准後訂單即成立，買家會立刻取得教材的下載授權，此操作沒有撤銷入口。"
+                confirmLabel={busy === "approve" ? "處理中…" : "確認核准付款"}
+                onConfirm={() => submit("approve")}
+                testId="payment-approve"
+              />
+              <Button
+                intent="danger"
+                variant="outline"
+                disabled={busy !== null}
                 onClick={() => setMode("reject")}
-                disabled={busy !== null}
                 data-testid="payment-reject-open"
-                className="min-h-11 rounded-xl border border-edu-error px-5 text-sm font-semibold text-edu-error transition-colors hover:bg-[#FEF2F2] disabled:opacity-50"
               >
                 退回付款
-              </button>
+              </Button>
             </div>
           </>
         ) : (
@@ -842,7 +864,7 @@ function PaymentReviewPanel({
                 rows={3}
                 data-testid="rejection-note"
                 placeholder="說明購買者需要怎麼處理，例如：請重新上傳可看清匯款金額的畫面"
-                className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
+                className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface p-3 text-sm text-ds-heading"
               />
             </label>
             <div className="flex flex-wrap gap-2">

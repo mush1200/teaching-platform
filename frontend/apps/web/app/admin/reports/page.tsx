@@ -12,6 +12,7 @@ import type {
 } from "../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";
 import { useListQueryState } from "../../../lib/useListQueryState";
+import { Button } from "../../../components/ui/Button";
 import {
   MATERIAL_STATUS_LABEL,
   REPORT_EVENT_LABEL,
@@ -429,7 +430,7 @@ function CaseRow({
           onClick={onToggle}
           aria-expanded={selected}
           data-testid="report-case-open"
-          className={`min-h-10 rounded-xl px-4 text-sm font-semibold transition-colors ${
+          className={`min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors ${
             selected
               ? "border border-ds-border bg-ds-surface text-ds-heading hover:bg-edu-page"
               : "bg-edu-primary text-white hover:brightness-95"
@@ -541,7 +542,7 @@ function CaseDetail({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-10 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
+            className="min-h-11 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
           >
             關閉
           </button>
@@ -577,7 +578,7 @@ function CaseDetail({
           <DetailField label="被檢舉教材">
             <Link
               href={`/admin/materials/${encodeURIComponent(report.material_id)}/reports`}
-              className="text-edu-primary underline"
+              className="text-ds-textAccent underline"
             >
               {report.material_title ?? report.material_id}
             </Link>
@@ -642,15 +643,20 @@ function CaseDetail({
           <h3 className="text-title text-ds-heading">處理動作</h3>
 
           {canInvestigate ? (
-            <button
-              type="button"
+            /*
+              `UI-CONS-08`／`-19`（Wave UI-5）：canonical `Button`。
+              `UI-CONS-16`：**接手調查刻意不加確認** —— 這是可逆的流程狀態變更
+              （open → investigating），不動任何買家可見的東西。
+            */
+            <Button
+              intent="action"
+              loading={busy === "investigate"}
               disabled={busy !== null}
               onClick={() => void act("investigate", {}, "已接手此案件，狀態為調查中。")}
               data-testid="report-investigate"
-              className="min-h-11 rounded-xl bg-edu-primary px-5 text-sm font-semibold text-white transition-colors hover:brightness-95 disabled:opacity-50"
             >
               {busy === "investigate" ? "處理中…" : "開始調查"}
-            </button>
+            </Button>
           ) : null}
 
           {canRequestResponse ? (
@@ -663,20 +669,21 @@ function CaseDetail({
                   rows={3}
                   data-testid="report-request-message"
                   placeholder="例如：請說明第 3 頁圖片的來源與授權"
-                  className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
+                  className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface p-3 text-sm text-ds-heading"
                 />
               </label>
-              <button
-                type="button"
+              <Button
+                intent="action"
+                variant="outline"
+                loading={busy === "request-response"}
                 disabled={busy !== null || !requestText.trim()}
                 onClick={() =>
                   void act("request-response", { message: requestText.trim() }, "已要求創作者補充說明。")
                 }
                 data-testid="report-request-response"
-                className="min-h-11 rounded-xl border border-edu-primary px-5 text-sm font-semibold text-edu-primary transition-colors hover:bg-white disabled:opacity-50"
               >
                 {busy === "request-response" ? "處理中…" : "要求創作者說明"}
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -688,7 +695,7 @@ function CaseDetail({
                 onChange={(event) => setNoteText(event.target.value)}
                 rows={2}
                 data-testid="report-admin-note"
-                className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
+                className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface p-3 text-sm text-ds-heading"
               />
             </label>
             <button
@@ -730,7 +737,7 @@ function CaseDetail({
                   onChange={(event) => setResolutionNote(event.target.value)}
                   rows={2}
                   data-testid="report-resolution-note"
-                  className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
+                  className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface p-3 text-sm text-ds-heading"
                 />
               </label>
               <button

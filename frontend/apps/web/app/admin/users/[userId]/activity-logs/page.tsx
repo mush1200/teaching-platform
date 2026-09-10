@@ -144,13 +144,13 @@ function EntryLinks({ log }: { log: ActivityLogRow }) {
   return (
     <>
       {targetHref ? (
-        <Link href={targetHref} className="font-medium text-edu-primary underline">
+        <Link href={targetHref} className="font-medium text-ds-textAccent underline">
           此對象紀錄
         </Link>
       ) : null}
       <Link
         href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
-        className="font-medium text-edu-primary underline"
+        className="font-medium text-ds-textAccent underline"
       >
         單筆詳情
       </Link>

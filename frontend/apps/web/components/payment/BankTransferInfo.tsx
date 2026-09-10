@@ -15,7 +15,7 @@ export function BankTransferInfo({ state }: { state: PaymentBankInfoState }) {
   if (state.status === "loading") {
     return (
       <div
-        className="rounded-2xl border border-dashed border-[#D8D2FF] bg-[#FAF8FF] p-4 text-sm text-[#6B7280]"
+        className="rounded-2xl border border-dashed border-[#D8D2FF] bg-[#FAF8FF] p-4 text-sm text-ds-textMuted"
         data-testid="bank-info-loading"
       >
         載入匯款資訊…

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "@teaching-platform/ui";
+
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "../../components/ds";
 import Link from "next/link";
 import type { Material, MaterialsListResponse, Review } from "../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../lib/api-client";
@@ -48,11 +49,11 @@ export default function MyReviewsPage() {
   }, [load]);
 
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">我的教學回饋</h1>
-      <p className="text-sm text-slate-600">
-        以下為您在平台上提交的教學回饋紀錄（與教材詳情頁回饋為同一資料來源）。
-      </p>
+    <section className="mx-auto flex w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader
+        title="我的教學回饋"
+        description="以下為您在平台上提交的教學回饋紀錄（與教材詳情頁回饋為同一資料來源）。"
+      />
 
       {loading ? <LoadingState title="載入教學回饋中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}

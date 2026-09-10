@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, InputField } from "@teaching-platform/ui";
+import { PageHeader } from "../../../../components/ds";
 import Link from "next/link";
 import type { Material } from "../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../lib/api-client";
@@ -257,11 +258,8 @@ export default function CreatorMaterialNewPage() {
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">新增教材（Creator）</h1>
-        <p className="text-sm text-slate-600">建立新教材後，預設會進入審核流程。</p>
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader title="新增教材（Creator）" description="建立新教材後，預設會進入審核流程。" />
 
       <article className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <InputField id="new-title" label="標題 *" value={form.title} onChangeText={(v) => update("title", v)} placeholder="例如：國小數學分數練習包" disabled={saving} />

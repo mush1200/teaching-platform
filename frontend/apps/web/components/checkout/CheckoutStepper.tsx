@@ -27,7 +27,7 @@ export function CheckoutStepper({ activeStep }: Props) {
                     ? "bg-[#6C63FF] text-white"
                     : current
                       ? "bg-[#FF6B73] text-white shadow-[var(--shadow-button-flow)] ring-4 ring-[#FF6B73]/20"
-                      : "border border-[#E5E7EB] bg-white text-[#9CA3AF]"
+                      : "border border-[#E5E7EB] bg-white text-ds-textSubtle"
                 }`}
                 aria-current={current ? "step" : undefined}
               >
@@ -35,7 +35,7 @@ export function CheckoutStepper({ activeStep }: Props) {
               </span>
               <span
                 className={`mt-2 text-[11px] font-semibold leading-snug sm:text-xs ${
-                  current ? "text-[#1F2937]" : done ? "text-[#6C63FF]" : "text-[#9CA3AF]"
+                  current ? "text-[#1F2937]" : done ? "text-ds-textAccent" : "text-ds-textSubtle"
                 }`}
               >
                 {label}

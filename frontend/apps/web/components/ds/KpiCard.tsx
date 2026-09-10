@@ -1,11 +1,38 @@
 "use client";
 
+import { SurfaceCard } from "./SurfaceCard";
+
+/**
+ * Canonical KPI 數值卡（`UI-CONS-11`，Wave UI-3）。
+ *
+ * ## 合併了什麼
+ *
+ * 收斂前有**兩份**幾乎相同的實作：
+ *
+ * ```text
+ * components/admin/AdminKpiCard.tsx    Admin dashboard   ＋ comparison
+ * components/reporting/StatCard.tsx    Creator sales     ＋ 長值降級
+ * ```
+ *
+ * 兩者的 props、`—` sentinel、skeleton 手法連註解都幾乎一樣，差異只在：
+ * 一邊多了「與前期比較」、另一邊多了「長金額降一級字」，以及一組彼此不一致的
+ * padding／字級／`textSubtle` vs `textMuted`。這裡取**兩邊各自較好的那一半**。
+ *
+ * ## 對比決策（`UI-CONS-01` 邊界）
+ *
+ * `subtext` 與 comparison 的說明文字一律用 **`text-ds-textMuted`（#6b7280，≈4.8:1）**，
+ * **不用** `text-ds-textSubtle`（#9ca3af，≈2.5:1）—— 舊的 `AdminKpiCard` 用的是後者，
+ * 而 `StatCard` 的原始碼裡早就寫下了不該這樣做的理由。
+ *
+ * 這是**選用一個既有且已通過 AA 的 token**，不是修改任何品牌色值 ——
+ * 品牌／對比色值的變更屬 `UI-CONS-01` / Wave UI-7，需 Owner sign-off。
+ */
+
 /** 數值不可用（來源 API 失敗）時的顯示字元。刻意不用 `0` —— `0` 代表真實資料為零。 */
 const UNAVAILABLE = "—";
 
 /**
- * 成長方向。刻意**不**叫 `up` / `down` 或直接指定顏色：
- * 「上升是好事」對所有指標並非必然成立，配色屬視覺層決定，不應寫進 component API。
+ * 成長方向。刻意**不**叫 `up` / `down`：「上升是好事」對所有指標並非必然成立。
  * `new` = 前期為 0 且本期 > 0，百分比無有限值。
  */
 export type KpiTrend = "positive" | "negative" | "neutral" | "new";
@@ -13,7 +40,7 @@ export type KpiTrend = "positive" | "negative" | "neutral" | "new";
 const trendClass: Record<KpiTrend, string> = {
   positive: "text-status-approvedText",
   negative: "text-status-rejectedText",
-  neutral: "text-ds-textSubtle",
+  neutral: "text-ds-textMuted",
   new: "text-status-reviewedText",
 };
 
@@ -31,8 +58,8 @@ export type KpiComparison = {
    * 本期與前期**都是 0**。
    *
    * Backend 的 `computeDeltaPercent(0, 0)` 回傳 `0`，與「5 → 5 真的持平」拿到同一個值，
-   * 但兩者的意思完全不同：一個是「兩期都沒有任何資料」，一個是「有資料且沒有變化」。
-   * 前端用 `previous*` 欄位把兩者分開 —— 這只是顯示層的判斷，**沒有**改動後端的比較定義。
+   * 但兩者意思完全不同。前端用 `previous*` 欄位把兩者分開 —— 只是顯示層的判斷，
+   * **沒有**改動後端的比較定義。
    */
   emptyBothPeriods?: boolean;
   /** 依 preset 決定的文案，例如「較前 30 天」。 */
@@ -41,16 +68,11 @@ export type KpiComparison = {
   title?: string;
 };
 
-type Props = {
+export type KpiCardProps = {
   label: string;
   /** `null` = 來源 API 失敗，渲染為 `—`。已格式化的字串 = 真實數值。 */
   value: string | null;
-  /**
-   * 額外的統計條件說明，例如「所選期間已核准」。
-   *
-   * **只在它真的補充了標題沒說的事情時才給**：卡片標題（「新增訂單」）、區塊標題
-   * （「本期表現」）與其下的日期區間已經說明了統計範圍，再寫一次「所選期間」是零資訊。
-   */
+  /** 單位或口徑說明，例如「筆」「份」「折扣前」「歷來累計」。權重最低。 */
   subtext?: string;
   /** 載入中顯示 skeleton。與 `value === null`（取得失敗）刻意分開，兩者不得共用同一個外觀。 */
   loading?: boolean;
@@ -69,9 +91,6 @@ function resolveTrend(comparison: KpiComparison): KpiTrend {
 /**
  * `+12%` / `-8%` / `0%` / `前期無資料` / `暫無變化`。
  * Backend 已四捨五入成整數，前端不再做數學。
- *
- * 「前期無資料」與「暫無變化」都是**完整的句子**，後面不再接「較前期」——
- * 舊的「新增 較前期」把狀態與比較用語黏在一起，中文讀不通。
  */
 function formatDelta(comparison: KpiComparison): string {
   if (comparison.deltaPercent == null) return "前期無資料";
@@ -86,29 +105,38 @@ function showsLabel(comparison: KpiComparison): boolean {
 }
 
 /**
- * 核心統計卡 — 定位是「可快速掃描的 summary strip」，不是第二組大型 KPI。
- * 數值降到 `text-xl`：除了降低卡片高度，也讓 `NT$ 10,550` 這類較長的值在
- * 1280px 的六欄版面下不再換行（換行會讓整排從 110px 撐到 142px）。
- *
- * skeleton 放在與數值同一個 `<p>` 內，沿用同一組字級／行高，載入完成時不會產生位移。
+ * 位數多的金額（例如 `NT$ 1,234,567`）在窄卡片內會換行，讓同一列的卡片高度不一致
+ * （實測 122px vs 92px）。依**字串長度**降一級字，而不是讓所有卡片都變小 ——
+ * 一般金額維持較大字級，只有長值才縮。`truncate` 只是最後防線。
+ * （這一段來自原 `StatCard`；原 `AdminKpiCard` 是全部固定 `text-xl`。）
  */
-export function AdminKpiCard({ label, value, subtext, loading = false, comparison = null }: Props) {
+const LONG_VALUE_CHARS = 11;
+
+export function KpiCard({ label, value, subtext, loading = false, comparison = null }: KpiCardProps) {
   const trend = comparison ? resolveTrend(comparison) : null;
+  const valueSize = (value?.length ?? 0) > LONG_VALUE_CHARS ? "text-lg" : "text-xl";
 
   return (
-    <article className="rounded-ds-card border border-ds-border bg-ds-surface px-3 py-2.5 shadow-ds-card-soft">
+    <SurfaceCard elevation="flat" className="px-4 py-2.5">
       <p className="text-meta text-ds-textMuted">{label}</p>
-      <p className="mt-1 text-xl font-bold leading-tight text-ds-heading">
+      {/* skeleton 與數值共用同一個 `<p>` 的字級行高，載入完成不會產生位移。 */}
+      <p
+        className={`mt-1 truncate whitespace-nowrap font-bold leading-tight tabular-nums text-ds-heading ${valueSize}`}
+        title={value ?? undefined}
+      >
         {loading ? (
           <>
-            <span aria-hidden className="inline-block h-4 w-16 animate-pulse motion-reduce:animate-none rounded-full bg-ds-surfaceMuted align-middle" />
+            <span
+              aria-hidden
+              className="inline-block h-4 w-16 animate-pulse motion-reduce:animate-none rounded-full bg-ds-surfaceMuted align-middle"
+            />
             <span className="sr-only">載入中</span>
           </>
         ) : (
           value ?? UNAVAILABLE
         )}
       </p>
-      {subtext ? <p className="mt-0.5 text-caption text-ds-textSubtle">{subtext}</p> : null}
+      {subtext ? <p className="mt-0.5 text-caption text-ds-textMuted">{subtext}</p> : null}
       {comparison && !loading && value != null ? (
         <p className="mt-0.5 text-caption" title={comparison.title}>
           <span className={`font-semibold ${trendClass[trend as KpiTrend]}`}>
@@ -119,11 +147,11 @@ export function AdminKpiCard({ label, value, subtext, loading = false, compariso
           {showsLabel(comparison) ? (
             <>
               {" "}
-              <span className="text-ds-textSubtle">{comparison.label}</span>
+              <span className="text-ds-textMuted">{comparison.label}</span>
             </>
           ) : null}
         </p>
       ) : null}
-    </article>
+    </SurfaceCard>
   );
 }

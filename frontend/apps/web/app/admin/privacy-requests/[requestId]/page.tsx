@@ -201,7 +201,7 @@ export default function AdminPrivacyRequestDetailPage() {
                 disabled={busy}
                 aria-label="下一個狀態"
                 data-testid="privacy-transition-select"
-                className="min-h-11 w-full rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+                className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
               >
                 <option value="">請選擇下一個狀態</option>
                 {request.allowedTransitions.map((s) => (
@@ -218,7 +218,7 @@ export default function AdminPrivacyRequestDetailPage() {
                 placeholder="處理說明（選填）"
                 aria-label="處理說明"
                 data-testid="privacy-transition-note"
-                className="w-full rounded-xl border border-ds-border bg-white px-3 py-2 text-sm text-ds-heading"
+                className="w-full rounded-xl border border-ds-borderControl bg-white px-3 py-2 text-sm text-ds-heading"
               />
               {actionError ? (
                 <p role="alert" className="text-meta text-rose-700" data-testid="privacy-transition-error">

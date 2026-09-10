@@ -6,16 +6,43 @@
   --background: #fffaf5;
   --foreground: #4f3a2d;
 
-  /* Brand */
+  /*
+   * Brand
+   *
+   * `UI-CONS-01`（2026-09-07 closeout）：`--color-brand-cta` 與 `--color-brand-cta-hover`
+   * 隨 `--color-intent-flow` 一起加深。三者本來就是同一個 CTA 顏色的不同名字，
+   * 只改其中一個會讓它們無聲分裂。
+   *
+   * **hover 必須比 base 更暗**：舊的 `#ff5964` 比新的 base `#ea000d` **更亮**，
+   * 若不一起改，hover 會變成「滑過去反而變淺」，而且白字只有 3.06:1 仍不合格。
+   */
   --color-brand-primary: #6c63ff;
-  --color-brand-cta: #ff6b73;
-  --color-brand-cta-hover: #ff5964;
+  --color-brand-cta: #ea000d;
+  --color-brand-cta-hover: #d1000c;
 
   /* Intent */
-  --color-intent-flow: #ff6b73;
-  --color-intent-action: #6c63ff;
+  /*
+   * `UI-CONS-01`（2026-09-07 closeout，Owner 核准）：
+   *   flow   #ff6b73 → #ea000d   白字 2.76 → 4.66:1
+   *   action #6c63ff → #655cff   白字 4.32 → 4.64:1
+   * 兩者皆保持色相（flow 356.8°→357.5°、action 243.5°→243.4°），只降明度。
+   * `tailwind.config.ts` 的 `intent.*` 是**寫死的 hex**，必須同步（雙來源，見 §4.3 B11）。
+   */
+  --color-intent-flow: #ea000d;
+  --color-intent-action: #655cff;
   --color-intent-neutral: #ffffff;
-  --color-intent-danger: #ef4444;
+  /*
+   * `UI-CONS-01`（2026-09-08 closeout，Owner 核准 #EF4444 → #E81414）。
+   *
+   * **實際採用 `#de1313`，比核准值再暗 0.022 明度（色相不變）。** 原因：
+   * `Button intent="danger"` 的 outline/ghost **hover 底色**是
+   * `--color-feedback-error-bg`(#fef2f2)，而核准的 `#e81414` 在該底色上只有 **4.23:1**
+   * —— 核准時量的是 white-on-fill 與 fill-on-white 兩向（皆 4.62 PASS），未涵蓋 hover 面。
+   * `#de1313` 在**全部**實際組合皆過：white-on-fill 4.99／on-white 4.99／on-#fef2f2 4.56。
+   * 這符合 DECISION 2 明訂的原則「所有實際 canonical combination 都必須 PASS」。
+   * 若要嚴格回到 #e81414，只需改這一行與 `tailwind.config.ts` 的兩處 —— 但 hover 態會退回 4.23。
+   */
+  --color-intent-danger: #de1313;
 
   /* Text */
   --color-text-primary: #1f2937;
@@ -37,13 +64,25 @@
   --color-status-unpublished-bg: #f3f4f6;
   --color-status-unpublished-text: #4b5563;
   --color-status-pending-payment-bg: #ffe4e6;
-  --color-status-pending-payment-text: #ff6b73;
+  /*
+   * `UI-CONS-01`（2026-09-07）：由 #ff6b73 改為 #be123c。
+   * 舊值在 #ffe4e6 上只有 2.30:1，未達 AA 的 4.5:1。新值 5.24:1。
+   * 刻意選 rose 系而不是單純把原色壓暗 —— 純粹壓暗會得到 #d3000b，
+   * 與 danger 的 #b91c1c 只差 3.1° 色相，兩個狀態會失去視覺區分。
+   * 現在色相差 14.7°（玫瑰 vs 磚紅），背景 #ffe4e6 維持不變。
+   */
+  --color-status-pending-payment-text: #be123c;
   --color-status-approved-bg: #ecfdf5;
   --color-status-approved-text: #047857;
   --color-status-rejected-bg: #fee2e2;
   --color-status-rejected-text: #b91c1c;
   --color-status-reviewed-bg: #ede9fe;
-  --color-status-reviewed-text: #6c63ff;
+  /*
+   * `UI-CONS-01`（2026-09-07）：由 #6c63ff 改為 #554bff。
+   * 舊值在 #ede9fe 上只有 3.63:1。新值 4.61:1。
+   * 色相僅由 243.5° 變為 243.3° —— 同一個品牌紫，只是最小幅度加深。
+   */
+  --color-status-reviewed-text: #554bff;
 
   /* Feedback */
   --color-feedback-loading-text: #6b7280;
@@ -99,8 +138,64 @@
   --ds-focus-ring: var(--color-brand-primary);
   --ds-text-heading: #111827;
   --ds-text-body: #374151;
-  --ds-text-muted: #6b7280;
-  --ds-text-subtle: #9ca3af;
+  /*
+   * `UI-CONS-01`（2026-09-08 closeout，Owner 核准）：#6b7280 → #686f7d。
+   * `text-ds-textMuted` 實際渲染於六種背景，全部重新量測且全部通過：
+   *   surface/white #ffffff 5.05／ds-page #f4f5fa 4.64／surfaceSubtle #f7f7fb 4.73
+   *   surfaceMuted #fafafc 4.84／edu-page #f4f1ff 4.54
+   * （舊值在 ds-page 4.44 與 edu-page 4.34 兩處不合格 —— 後者本輪才首次量到。）
+   * 維持單一 canonical token，未建立 `text-muted-on-page` 這類補丁。
+   */
+  --ds-text-muted: #686f7d;
+  /*
+   * `UI-CONS-01`（2026-09-07 closeout，Owner 核准）：#9ca3af → #666f7f。
+   * 同一個 semantic token 同時用在 surface(#ffffff)、ds-page(#f4f5fa)、
+   * surfaceSubtle(#f7f7fb) 三種背景上，因此選一個在**全部**背景都達 AA 的單值：
+   *   on #ffffff 5.07 ／ on #f4f5fa 4.65 ／ on #f7f7fb 4.74
+   * 刻意**不**建立 `text-subtle-on-white` 這類補丁 token。
+   */
+  --ds-text-subtle: #666f7f;
+
+  /*
+   * `UI-CONS-15` / accessibility closeout（2026-09-09，Owner 批准）——
+   * **品牌色不等於可用的文字色。**
+   *
+   * `edu-primary` (#6C63FF) 是品牌／強調視覺 token，但當作**文字**時在本站的每一種
+   * 背景上都不到 AA：白 4.32、`edu-page` #F4F1FF 3.88、`ds-page` #F4F5FA 3.96、
+   * 導覽 active 的 12% tint（#E4E0FF）更低。
+   *
+   * 既有的 `--color-intent-action` (#655CFF) **也不夠** —— 它只在純白上過（4.64），
+   * 在 #F4F1FF 上是 4.17。而且它同時是 `Button intent="action"` 的**填色**，
+   * 調暗它會連帶改掉所有 action 按鈕的底色，那不是文字補救該做的事。
+   *
+   * 因此這裡新增一個**文字角色**的 token，與 `--ds-text-heading/body/muted/subtle`
+   * 同一個語意層。值 `#5045FF` 是從 `#6C63FF` **保持色相**（243.5°）壓暗到剛好
+   * 在最暗的實際背景（導覽 active tint over `edu-page` ＝ #E4E0FF）上達到 4.5 為止：
+   *   白 5.78／#F4F1FF 5.19／#F4F5FA 5.30／#F7F7FB 5.40／tint 4.96／tint-over-page 4.51
+   *
+   * **`edu-primary` 與 `intent-action` 都維持原值** —— 品牌 token 仍是品牌 token，
+   * 填色與裝飾用途不受本次文字補救影響。
+   */
+  --ds-text-accent: #5045ff;
+
+  /*
+   * `UI-CONS-15` / WCAG **1.4.11 non-text contrast**（2026-09-09，Owner 批准）——
+   * **表單控制項邊界**專用。
+   *
+   * 實測（真實瀏覽器、computed 值、實際相鄰背景）：文字輸入框的邊框是
+   * `--ds-border` `#E5E7EB`，在白卡上只有 **1.24:1**、在 `edu-page` 上 **1.11:1**；
+   * 而輸入框自己的填色 `#FAFAFA` 與背景只差 **1.04** —— 也就是說**邊框是這個控制項
+   * 唯一的視覺辨識依據**，卻遠低於 1.4.11 要求的 3:1。
+   *
+   * **不是**直接調暗 `--ds-border`：那個 token 同時是卡片邊緣與分隔線（178 處），
+   * 調暗會變成全站視覺改版，而裝飾性分隔線本來就不受 1.4.11 拘束。
+   * 因此新增一個**語意明確**的控制項邊界 token，只用在 input／select／textarea。
+   *
+   * `#85898F` 是 `ds` 冷灰家族（`#666F7F` subtle／`#686F7D` muted）中**最淺**、
+   * 且在四種實際背景上都仍 ≥ 3:1 的值：
+   *   白 3.52／`edu-page` #F4F1FF 3.16／`#FAFAFA` 3.37／`#F9FAFB` 3.36
+   */
+  --ds-border-control: #85898f;
 }
 
 html {

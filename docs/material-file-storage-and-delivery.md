@@ -70,7 +70,11 @@ return res.json({ materialId, signedUrl, expiresInSeconds: 300 });
 
 - 授權邏輯**是對的**（見 §7）；交付是**假的**（`download.local` 不存在）。
 - 稽核已存在：`download.attempted` / `download.allowed`（meta 含 orderId）/ `download.denied`。
-- 前端 `app/downloads/page.tsx:92` 直接 `window.open(data.signedUrl)`。
+- ~~前端 `app/downloads/page.tsx:92` 直接 `window.open(data.signedUrl)`。~~
+  **已過期（2026-09-08 以 repo 實測更正，只改文件、未改行為）**：現行實作是
+  `app/downloads/page.tsx:96-110` 用隱藏的 `<a download>` 觸發下載，不是 `window.open`。
+  原因寫在該處註解：回應帶 `Content-Disposition: attachment`，瀏覽器不會離開目前頁面；
+  開新分頁會被彈出視窗攔截器擋掉，成功時也只是閃過一個空白分頁。
 - **`materials.status` 不在授權條件中** —— 下架後既有買家仍可下載，這正是我們要的（§7.3）。
 
 ### 2.4 傳輸層的硬限制（決定交付方式）

@@ -17,7 +17,7 @@ export function SortDropdown({ value, onChange, id = "explore-sort", compact = f
   return (
     <div className={compact ? "min-w-[120px]" : "min-w-[140px]"}>
       {!compact ? (
-        <label htmlFor={id} className="mb-1 block text-xs font-semibold text-[#6B7280]">
+        <label htmlFor={id} className="mb-1 block text-xs font-semibold text-ds-textMuted">
           排序
         </label>
       ) : null}
@@ -27,7 +27,7 @@ export function SortDropdown({ value, onChange, id = "explore-sort", compact = f
         onChange={(e) => onChange(e.target.value as MaterialsSort)}
         aria-label={compact ? "排序" : undefined}
         className={[
-          "w-full rounded-xl border border-[#E5E7EB] bg-white text-sm font-medium text-[#1F2937] shadow-sm focus-visible:border-ds-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus",
+          "w-full rounded-xl border border-ds-borderControl bg-white text-sm font-medium text-[#1F2937] shadow-sm focus-visible:border-ds-focus focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus",
           compact ? "h-[42px] px-3 py-0" : "px-3 py-2",
         ].join(" ")}
       >

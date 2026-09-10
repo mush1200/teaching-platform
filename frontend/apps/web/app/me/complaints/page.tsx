@@ -52,8 +52,14 @@ export default function MyComplaintsPage() {
     void load();
   }, [load]);
 
+  /*
+   * `COR-06` ＋ `UI-CONS-07`（Wave UI-4B）：這一頁原本渲染自己的 `<main>`，
+   * 而 `/me/complaints` 不在 `RoleShell` 的 `parentShellRoutes` 裡，因此外殼已經給了一個
+   * `<main>` —— 兩者相疊等於一份文件有兩個 main landmark。改成 `<div>`，語意由外殼持有。
+   * gutter 改用 canonical ladder（外殼在這條路由上不供應水平內距）。
+   */
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6" data-testid="my-complaints-page">
+    <div className="mx-auto w-full max-w-3xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6" data-testid="my-complaints-page">
       <PageHeader
         title="我的申訴"
         description="您對交易、付款或教材提出的申訴與處理進度。"
@@ -111,7 +117,7 @@ export default function MyComplaintsPage() {
           ))}
         </ul>
       ) : null}
-    </main>
+    </div>
   );
 }
 

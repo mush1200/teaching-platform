@@ -10,7 +10,7 @@ export function MaterialHero({ onExplore }: Props) {
       <div className="mx-auto flex max-w-4xl flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="max-w-lg space-y-2">
           <h2 className="text-2xl font-bold tracking-tight text-[#1F2937] sm:text-3xl">探索優質教材</h2>
-          <p className="text-sm leading-relaxed text-[#6B7280] sm:text-base">豐富您的教學，提升無限可能</p>
+          <p className="text-sm leading-relaxed text-ds-textMuted sm:text-base">豐富您的教學，提升無限可能</p>
           <div className="pt-2">
             <Button type="button" intent="flow" onClick={onExplore}>
               立即探索
@@ -18,7 +18,7 @@ export function MaterialHero({ onExplore }: Props) {
           </div>
         </div>
         <div
-          className="flex h-36 w-full shrink-0 items-center justify-center rounded-3xl border border-white/70 bg-white/50 text-5xl text-[#6B7280] shadow-inner md:h-40 md:w-52"
+          className="flex h-36 w-full shrink-0 items-center justify-center rounded-3xl border border-white/70 bg-white/50 text-5xl text-ds-textMuted shadow-inner md:h-40 md:w-52"
           role="img"
           aria-label="插畫預留區"
         >

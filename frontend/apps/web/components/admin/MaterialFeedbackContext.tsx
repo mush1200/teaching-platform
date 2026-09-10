@@ -158,7 +158,7 @@ export function MaterialFeedbackContext({ materialId, heading: Heading = "h3", l
           <button
             type="button"
             onClick={() => void load()}
-            className="min-h-10 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
+            className="min-h-11 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
           >
             重試
           </button>

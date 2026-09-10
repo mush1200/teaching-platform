@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { EmptyState, LoadingState } from "@teaching-platform/ui";
+import { EmptyState, LoadingState } from "../../../../components/ds";
 import { AppShell } from "../../../../components/layout/AppShell";
 import { MobileHeader } from "../../../../components/layout/MobileHeader";
 import { ReviewItem } from "../../../../components/reviews/ReviewItem";
@@ -56,17 +56,18 @@ export default function MaterialReviewsPage() {
         right="none"
         trailing={
           <Link href={id ? `/materials/${id}` : "/materials"}>
-            <Button type="button" intent="action" className="!px-3 !text-xs">
+            <Button type="button" intent="action" size="sm">
               前往教材
             </Button>
           </Link>
         }
       />
 
-      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-12 sm:px-6">
+      <div className="mx-auto max-w-2xl px-page-mobile sm:px-page-tablet lg:px-page-desktop space-y-6 pb-12">
         {loading ? <LoadingState title="教學回饋載入中…" /> : null}
         {!loading && !material ? (
-          <EmptyState title="找不到教材" description="請確認網址是否正確，或返回教材列表。" actionLabel="返回列表" onAction={() => router.push("/materials")} />
+          <EmptyState title="找不到教材" description="請確認網址是否正確，或返回教材列表。" action={<Button intent="action" onClick={() => router.push("/materials")}>返回列表</Button>}
+  />
         ) : null}
         {!loading && material ? (
           <>
@@ -78,6 +79,9 @@ export default function MaterialReviewsPage() {
                   ) : null}
                 </div>
                 <div className="min-w-0">
+                  {/* `UI-CONS-13` 例外：這個 `<h1>` 是 media object（80px 縮圖）右側的教材標題，
+                      不是版面頂端的頁面標題。套 `text-h2`（24px）會擠壓／換行這個 20 行高的摘要卡，
+                      屬版面改動而非 typography normalization —— 留待 UI-4B 一併處理。 */}
                   <h1 className="font-bold text-[#1F2937]">{material.title}</h1>
                   <p className="mt-1 text-xs text-emerald-700">{material.ageLabel}</p>
                   <p className="mt-2 text-sm font-semibold text-amber-500">
@@ -95,7 +99,7 @@ export default function MaterialReviewsPage() {
                   <button
                     type="button"
                     disabled
-                    className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-[#9CA3AF]"
+                    className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-ds-textSubtle"
                     title="預留未來：最新排序"
                   >
                     最新排序（即將推出）
@@ -103,7 +107,7 @@ export default function MaterialReviewsPage() {
                   <button
                     type="button"
                     disabled
-                    className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-[#9CA3AF]"
+                    className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs text-ds-textSubtle"
                     title="預留未來：最高評分篩選"
                   >
                     篩選（即將推出）
@@ -121,9 +125,8 @@ export default function MaterialReviewsPage() {
                 <EmptyState
                   title="尚無教學回饋"
                   description="購買並完成付款審核後，可至「我的教材」分享第一則教學回饋。"
-                  actionLabel="返回教材"
-                  onAction={() => router.push(`/materials/${material.id}`)}
-                />
+                  action={<Button intent="action" onClick={() => router.push(`/materials/${material.id}`)}>返回教材</Button>}
+                  />
               ) : null}
             </div>
           </>

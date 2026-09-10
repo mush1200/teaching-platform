@@ -111,7 +111,7 @@ function CreatorCasesContent() {
   const pagination = data?.pagination;
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <section className="mx-auto flex w-full max-w-4xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
       <PageHeader
         title="平台案件"
         description="平台對你的教材提出的檢舉處理案件。需要你補充說明時會顯示在「待我回覆」。"
@@ -221,7 +221,7 @@ function CaseRow({
           onClick={onToggle}
           aria-expanded={selected}
           data-testid="creator-case-open"
-          className="min-h-10 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white transition-colors hover:brightness-95"
+          className="min-h-11 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white transition-colors hover:brightness-95"
         >
           {selected ? "收合案件" : needsResponse ? "回覆案件" : "查看案件"}
         </button>
@@ -317,7 +317,7 @@ function CaseDetail({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-10 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
+            className="min-h-11 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
           >
             關閉
           </button>
@@ -359,7 +359,7 @@ function CaseDetail({
             rows={4}
             data-testid="creator-case-reply"
             placeholder="說明教材內容的來源、授權，或你已做的調整"
-            className="w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
+            className="w-full rounded-xl border border-ds-borderControl bg-ds-surface p-3 text-sm text-ds-heading"
           />
           <p className="text-caption text-ds-textSubtle">
             目前僅支援文字說明。若需要提供檔案佐證，請在說明中留下可存取的連結。
@@ -400,7 +400,7 @@ function TimelineItem({ event }: { event: ReportEvent }) {
 
 function CreatorCasesFallback() {
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
+    <section className="mx-auto flex w-full max-w-4xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
       <PageHeader title="平台案件" />
       <LoadingState title="載入案件中…" />
     </section>

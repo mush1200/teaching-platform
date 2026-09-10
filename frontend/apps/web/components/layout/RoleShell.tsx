@@ -393,7 +393,7 @@ export function RoleShell({ children }: { children: ReactNode }) {
         triggerRef={triggerRef}
         header={
           <>
-            <p className="truncate text-caption font-semibold uppercase tracking-wider text-edu-primary">
+            <p className="truncate text-caption font-semibold uppercase tracking-wider text-ds-textAccent">
               EDUMARKET
             </p>
             <p className="truncate text-sm font-bold text-ds-heading">{title}</p>
@@ -419,6 +419,23 @@ export function RoleShell({ children }: { children: ReactNode }) {
         `components/admin/AdminShell.tsx`。三者互斥（`/admin` 與 `(parent)` group 在上方 early return）。
       */}
       <div className={CONTENT_OFFSET_CLASS}>
+        {/*
+          `UI-CONS-07`（Wave UI-4B）—— **這個外殼刻意不擁有 page gutter**。
+
+          本輪一度把 canonical gutter 加在這裡（讓三個外殼一致），實測後退回，理由是
+          **這個 `<main>` 同時包住 full-bleed 元素**：
+            - `components/materials/detail/MaterialDetailHeader` 是 `sticky top-0` 的
+              滿版返回列（`border-b` 需要貼齊視窗左右邊）；
+            - landing `/` 的區塊底色帶同樣是滿版。
+          外殼一旦有內距，這些元素會被內縮，邊框與底色不再貼邊 —— 那是版面重新設計，
+          不是 spacing 收斂。
+
+          因此 gutter 的擁有者規則是**「每頁恰好一層」**，而不是「永遠是外殼」：
+            - `AdminShell`／`ParentAppShell` 供應 gutter → 其下的頁面**不得**再供應；
+            - 本外殼不供應 → 頁面用自己**唯一**的外層容器供應 canonical gutter
+              （`px-page-mobile sm:px-page-tablet lg:px-page-desktop`）。
+          兩種模式的數值相同，且 `tests/e2e/layout-contract.spec.ts` 實測「不會有兩層」。
+        */}
         <main className="min-h-dvh">{children}</main>
       </div>
     </div>

@@ -71,11 +71,11 @@ export default function Home() {
         <section className="rounded-[var(--radius-card-elevated)] border border-[#E5E7EB]/70 bg-white p-6 shadow-[var(--shadow-card-elevated)] sm:p-8 md:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
             <div className="max-w-xl space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#6C63FF]">EduMarket</p>
+              <p className="text-sm font-semibold uppercase tracking-wider text-ds-textAccent">EduMarket</p>
               <h1 className="text-3xl font-bold tracking-tight text-[#1F2937] sm:text-4xl md:text-[2rem] md:leading-tight">
                 找到適合孩子的優質教學資源
               </h1>
-              <p className="text-base leading-relaxed text-[#6B7280]">
+              <p className="text-base leading-relaxed text-ds-textMuted">
                 精選教具與數位教材，協助不同使用者更有效率地陪伴孩子學習。
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
@@ -87,7 +87,7 @@ export default function Home() {
                 </Link>
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center rounded-2xl border border-[var(--color-surface-border)] bg-white px-5 py-3 text-sm font-semibold text-[#1F2937] shadow-sm transition hover:border-[#6C63FF]/40 hover:text-[#6C63FF]"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[var(--color-surface-border)] bg-white px-5 py-3 text-sm font-semibold text-[#1F2937] shadow-sm transition hover:border-[#6C63FF]/40 hover:text-ds-textAccent"
                 >
                   登入帳號
                 </Link>
@@ -98,7 +98,7 @@ export default function Home() {
               role="img"
               aria-label="孩子與學習情境插畫區"
             >
-              <span className="text-6xl text-[#6B7280]" aria-hidden>
+              <span className="text-6xl text-ds-textMuted" aria-hidden>
                 🎓
               </span>
             </div>
@@ -119,7 +119,7 @@ export default function Home() {
                   </span>
                   <div>
                     <h3 className="font-bold text-[#1F2937]">{item.title}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-[#6B7280]">{item.desc}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ds-textMuted">{item.desc}</p>
                   </div>
                 </div>
               </Card>
@@ -133,7 +133,7 @@ export default function Home() {
             <h2 id="home-featured-heading" className="text-lg font-bold text-[#1F2937] md:text-xl">
               熱門教材預覽
             </h2>
-            <Link href="/materials" className="text-sm font-semibold text-[#6C63FF] hover:underline">
+            <Link href="/materials" className="text-sm font-semibold text-ds-textAccent hover:underline">
               查看全部
             </Link>
           </div>
@@ -143,7 +143,7 @@ export default function Home() {
             ))}
           </div>
           {!loadingPreview && previewMaterials.length === 0 ? (
-            <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-4 text-sm text-[#6B7280]">目前暫無教材預覽資料。</p>
+            <p className="rounded-2xl border border-[#E5E7EB]/80 bg-white p-4 text-sm text-ds-textMuted">目前暫無教材預覽資料。</p>
           ) : null}
         </section>
       </div>

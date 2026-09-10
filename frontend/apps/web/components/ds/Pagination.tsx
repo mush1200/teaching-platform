@@ -150,7 +150,7 @@ export function Pagination({
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
               aria-label="每頁筆數"
               data-testid="pagination-page-size"
-              className="min-h-9 rounded-xl border border-ds-border bg-ds-surface px-2 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="min-h-9 rounded-xl border border-ds-borderControl bg-ds-surface px-2 text-sm text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               {pageSizeOptions.map((size) => (
                 <option key={size} value={size}>

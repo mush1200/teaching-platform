@@ -79,28 +79,9 @@ export function SurfaceCard({
   );
 }
 
-function mapStatusToTone(status?: string): BadgeTone {
-  if (!status) return "info";
-  if (status in badgeToneStyles) return status as BadgeTone;
-  if (status === "pending") return "pending_review";
-  if (status === "completed" || status === "paid") return "approved";
-  return "info";
-}
-
-export function StatusBadge({ tone, label, status }: { tone?: BadgeTone; label: string; status?: string }) {
-  const resolvedTone = tone ?? mapStatusToTone(status);
-  const style = badgeToneStyles[resolvedTone];
-  return (
-    <XStack
-      alignSelf="flex-start"
-      backgroundColor={style.bg}
-      borderRadius={999}
-      paddingHorizontal={10}
-      paddingVertical={4}
-    >
-      <Paragraph color={style.color} fontSize={designTokens.fontSizes.sm}>
-        {label}
-      </Paragraph>
-    </XStack>
-  );
-}
+/*
+ * `UI-CONS-10`（Wave UI-3）：`StatusBadge` 與 `mapStatusToTone` 已移除。
+ * consumer 歸零（最後一個是 `app/teacher/materials/page.tsx`，已改用 ds `StatusPill`）。
+ * 它把 domain state（`published` / `pending_payment`…）與 visual tone 混在同一個 union，
+ * 正是 `UI-CONS-12` 要消除的形狀。`SurfaceCard` 仍有 consumer，故本檔保留。
+ */

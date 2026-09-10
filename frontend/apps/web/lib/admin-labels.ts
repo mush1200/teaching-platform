@@ -19,7 +19,13 @@ import type {
  * 不出現英文 role 字面值。
  */
 
-type Tone = "neutral" | "info" | "success" | "warning" | "danger";
+/*
+ * `UI-CONS-12`（Wave UI-3）：tone 值域改由 `lib/status-tone.ts` 單一定義。
+ * 這裡保留 `Tone` 這個本地別名，讓既有的 20+ 個 `Record<..., Tone>` 不必全部改寫。
+ */
+import type { StatusTone } from "./status-tone";
+
+type Tone = StatusTone;
 
 export const REPORT_STATUS_LABEL: Record<ReportCaseStatus, string> = {
   pending: "待處理",

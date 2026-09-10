@@ -1,7 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Button, EmptyState, ErrorState, LoadingState, Pagination, SelectField, StatusBadge, SurfaceCard } from "@teaching-platform/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Pagination, StatusPill, SurfaceCard } from "../../../components/ds";
+import { Button } from "../../../components/ui/Button";
+import { FormField } from "../../../components/ui/FormField";
+import { Select } from "../../../components/ui/Select";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Material, MaterialsListResponse } from "../../../lib/api-types";
@@ -14,6 +17,37 @@ import {
   creatorStatusTone,
 } from "../../../lib/material-status";
 import { MATERIAL_REVIEW_REASON_LABEL } from "../../../lib/admin-labels";
+import type { StatusTone } from "../../../lib/status-tone";
+
+/**
+ * `UI-CONS-10`（Wave UI-3）—— 這一頁是全 repo 對 legacy Tamagui 依賴**最深**的一支：
+ * 一次用到 `Button`／`SurfaceCard`／`SelectField`／`StatusBadge`／`Pagination`／
+ * `EmptyState`／`LoadingState`／`ErrorState` 八個 legacy 元件。遷移它一次清掉
+ * `StatusBadge`、`SelectField`、Tamagui `Pagination` 三者的**最後一個** consumer。
+ *
+ * ds 版的 `SurfaceCard` 只提供「表面」，沒有 legacy 版的 `title` / `description` slot。
+ * 這裡就地渲染標題與描述、不抽新的共用元件 —— 只有這一頁需要這個形狀，
+ * 而「頁面／區塊標題的收斂」是 `UI-CONS-13`（Wave UI-4）的範圍。
+ */
+function CardSection({
+  title,
+  description,
+  elevation = "raised",
+  children,
+}: {
+  title: string;
+  description?: string;
+  elevation?: "flat" | "raised";
+  children: React.ReactNode;
+}) {
+  return (
+    <SurfaceCard elevation={elevation} className="p-5">
+      <p className="text-title text-ds-heading">{title}</p>
+      {description ? <p className="mt-1 text-body text-ds-textMuted">{description}</p> : null}
+      <div className="mt-3">{children}</div>
+    </SurfaceCard>
+  );
+}
 
 /**
  * 狀態選項與文案全部來自 `lib/material-status.ts`（創作者視角）。
@@ -38,7 +72,7 @@ function getStatusLabel(status?: string): string {
   return creatorStatusLabel(status);
 }
 
-function getStatusTone(status?: string): "info" | "success" | "warning" | "error" {
+function getStatusTone(status?: string): StatusTone {
   return creatorStatusTone(status);
 }
 
@@ -136,20 +170,28 @@ function CreatorMaterialsPageContent() {
   }, [items]);
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">{view === "workbench" ? "你的創作者工作台" : "我的教材管理"}</h1>
-        <p className="text-sm text-slate-600">
-          {view === "workbench"
+    <section className="mx-auto flex w-full max-w-6xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader
+        title={view === "workbench" ? "你的創作者工作台" : "我的教材管理"}
+        description={
+          view === "workbench"
             ? "快速掌握教材狀態，並前往新增教材、審核追蹤與教學回饋處理。"
-            : "管理你的教材內容，並追蹤目前上架與審核狀態。（僅顯示你建立的教材）"}
-        </p>
-      </div>
+            : "管理你的教材內容，並追蹤目前上架與審核狀態。（僅顯示你建立的教材）"
+        }
+      />
 
-      <SurfaceCard title="篩選與操作" description="可先依狀態篩選，再進行編輯。" level="flat">
+      <CardSection title="篩選與操作" description="可先依狀態篩選，再進行編輯。" elevation="flat">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-[220px] flex-1">
-            <SelectField id="teacher-material-status" label="狀態" value={statusFilter} options={statusOptions} onValueChange={setStatusFilter} />
+            <FormField label="狀態" htmlFor="teacher-material-status">
+              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/creator/sales?tab=records">
@@ -160,10 +202,10 @@ function CreatorMaterialsPageContent() {
             </Link>
           </div>
         </div>
-      </SurfaceCard>
+      </CardSection>
 
       {view === "workbench" ? (
-        <SurfaceCard title="教材狀態總覽" description="方便快速查看審核流程進度。" level="default">
+        <CardSection title="教材狀態總覽" description="方便快速查看審核流程進度。">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {/* 需修改排在最前面：那是**創作者**要動作的狀態 */}
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
@@ -183,11 +225,11 @@ function CreatorMaterialsPageContent() {
               <p className="mt-1 text-2xl font-bold text-slate-900">{statusCounts.unpublished}</p>
             </div>
           </div>
-        </SurfaceCard>
+        </CardSection>
       ) : null}
 
       {view === "reviews" && !loading && !error ? (
-        <SurfaceCard title="教材教學回饋捷徑" description="從這裡快速進入各教材教學回饋頁。" level="default">
+        <CardSection title="教材教學回饋捷徑" description="從這裡快速進入各教材教學回饋頁。">
           {items.length === 0 ? (
             <EmptyState title="目前尚無教材可查看教學回饋" description="新增教材後即可查看使用者教學回饋。" />
           ) : (
@@ -201,7 +243,7 @@ function CreatorMaterialsPageContent() {
               ))}
             </div>
           )}
-        </SurfaceCard>
+        </CardSection>
       ) : null}
 
       {loading ? <LoadingState title="教材載入中…" /> : null}
@@ -211,7 +253,7 @@ function CreatorMaterialsPageContent() {
       ) : null}
 
       {!loading && !error && filteredItems.length > 0 ? (
-        <SurfaceCard title="教材列表" description={`共 ${totalItems} 筆`} level="default">
+        <CardSection title="教材列表" description={`共 ${totalItems} 筆`}>
           <div className="space-y-3">
             <Pagination page={currentPage} totalPages={totalPages} totalItems={totalItems} onPageChange={setCurrentPage} />
             <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -226,7 +268,7 @@ function CreatorMaterialsPageContent() {
                         <p className="text-xs text-slate-500">價格：NT$ {Math.floor(Number(m.price) || 0)}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
+                        <StatusPill tone={getStatusTone(m.status)} label={getStatusLabel(m.status)} />
                         <Link href={`/creator/materials/${encodeURIComponent(m.id)}/reviews`}>
                           <Button size="sm" intent="action">
                             教材教學回饋
@@ -289,7 +331,7 @@ function CreatorMaterialsPageContent() {
               })}
             </div>
           </div>
-        </SurfaceCard>
+        </CardSection>
       ) : null}
     </section>
   );
@@ -297,9 +339,8 @@ function CreatorMaterialsPageContent() {
 
 function CreatorMaterialsPageFallback() {
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-bold text-slate-900">我的教材管理</h1>
-      <p className="text-sm text-slate-600">載入中...</p>
+    <section className="mx-auto flex w-full max-w-6xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader title="我的教材管理" description="載入中..." />
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { EmptyState, ErrorState, LoadingState } from "@teaching-platform/ui";
+import { EmptyState, ErrorState, LoadingState } from "../../../../../components/ds";
 import { AppShell } from "../../../../../components/layout/AppShell";
 import { MobileHeader } from "../../../../../components/layout/MobileHeader";
 import { Button } from "../../../../../components/ui/Button";
@@ -83,24 +83,24 @@ export default function ShareTeachingFeedbackPage() {
   return (
     <AppShell>
       <MobileHeader title="分享教學回饋" backHref="/me/materials" right="none" />
-      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-10 sm:px-6">
+      <div className="mx-auto max-w-2xl px-page-mobile sm:px-page-tablet lg:px-page-desktop space-y-6 pb-10">
         {loading ? <LoadingState title="載入中…" /> : null}
         {!loading && error ? <ErrorState title="無法開啟頁面" description={error} onRetry={() => void load()} /> : null}
         {!loading && !error && !material ? (
-          <EmptyState title="找不到教材" description="請返回我的教材重新選擇。" actionLabel="返回我的教材" onAction={() => router.push("/me/materials")} />
+          <EmptyState title="找不到教材" description="請返回我的教材重新選擇。" action={<Button intent="action" onClick={() => router.push("/me/materials")}>返回我的教材</Button>}
+  />
         ) : null}
         {!loading && !error && material && owned === false ? (
           <EmptyState
             title="尚未購買此教材"
             description="僅能為已購買教材分享教學回饋。"
-            actionLabel="返回我的教材"
-            onAction={() => router.push("/me/materials")}
-          />
+            action={<Button intent="action" onClick={() => router.push("/me/materials")}>返回我的教材</Button>}
+            />
         ) : null}
         {!loading && !error && material && owned ? (
           <Card level="elevated" padding="md">
-            <h1 className="text-xl font-bold text-[#1F2937]">分享你的教學回饋</h1>
-            <p className="mt-1 text-sm text-[#6B7280]">你的使用經驗能幫助其他使用者選擇適合教材。</p>
+            <h1 className="text-h2 text-[#1F2937]">分享你的教學回饋</h1>
+            <p className="mt-1 text-sm text-ds-textMuted">你的使用經驗能幫助其他使用者選擇適合教材。</p>
             <p className="mt-4 text-sm font-medium text-[#4B5563]">教材：{material.title}</p>
 
             <div className="mt-4">
@@ -112,7 +112,7 @@ export default function ShareTeachingFeedbackPage() {
                     <button
                       key={star}
                       type="button"
-                      className={`rounded-lg p-1.5 ${star <= rating ? "text-amber-400" : "text-[#D1D5DB]"} hover:bg-amber-50`}
+                      className={`rounded-lg p-1.5 ${star <= rating ? "text-amber-400" : "text-ds-textSubtle"} hover:bg-amber-50`}
                       onClick={() => setRating(star)}
                       aria-label={`選擇 ${star} 星`}
                     >
@@ -134,7 +134,7 @@ export default function ShareTeachingFeedbackPage() {
                 placeholder="分享課堂情境、教材效果或使用建議（選填）"
                 rows={4}
                 disabled={submitting}
-                className="mt-2 w-full rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#374151] focus:border-[#6C63FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+                className="mt-2 w-full rounded-xl border border-ds-borderControl bg-white px-3 py-2 text-sm text-[#374151] focus:border-[#6C63FF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
               />
             </div>
 
@@ -143,7 +143,7 @@ export default function ShareTeachingFeedbackPage() {
                 {submitting ? "送出中…" : "送出教學回饋"}
               </Button>
               <Link href={`/materials/${materialId}/reviews`}>
-                <Button type="button" variant="outline">
+                <Button type="button" intent="neutral" variant="outline">
                   查看全部回饋
                 </Button>
               </Link>

@@ -103,14 +103,14 @@ export default function AdminActivityLogDetailPage() {
                   同一個 mapping —— 教材／訂單／使用者進 entity 時間軸，檢舉進案件正式入口。
                 */}
                 {targetHref ? (
-                  <Link href={targetHref} className="font-medium text-edu-primary underline">
+                  <Link href={targetHref} className="font-medium text-ds-textAccent underline">
                     查看此對象的完整紀錄
                   </Link>
                 ) : null}
                 {log.actor_id ? (
                   <Link
                     href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
-                    className="font-medium text-edu-primary underline"
+                    className="font-medium text-ds-textAccent underline"
                   >
                     此操作者紀錄
                   </Link>

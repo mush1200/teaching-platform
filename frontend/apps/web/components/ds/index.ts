@@ -15,3 +15,6 @@ export type { SearchFieldProps, FilterTabOption } from "./DataToolbar";
 export { PageHeader, StatusPill, DetailField, DetailGrid } from "./PageHeader";
 
 export { RefreshControl } from "./RefreshControl";
+
+export { KpiCard } from "./KpiCard";
+export type { KpiCardProps, KpiComparison, KpiTrend } from "./KpiCard";

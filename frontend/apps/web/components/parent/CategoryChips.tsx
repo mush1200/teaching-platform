@@ -25,7 +25,7 @@ export function CategoryChips({ activeId, onSelect }: Props) {
             className={[
               "rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors",
               active
-                ? "border-[#6C63FF] bg-[#EDE9FE] text-[#6C63FF] shadow-sm"
+                ? "border-[#6C63FF] bg-[#EDE9FE] text-ds-textAccent shadow-sm"
                 : "border-[#E5E7EB] bg-white text-[#4B5563] hover:border-[#6C63FF]/40 hover:bg-[#FAF8FF]",
             ].join(" ")}
             onClick={() => onSelect(c.id)}

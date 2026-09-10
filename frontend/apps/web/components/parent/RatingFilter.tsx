@@ -10,7 +10,7 @@ export function RatingFilter({ minRating4, onChange }: Props) {
         type="checkbox"
         checked={minRating4}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-4 rounded border-[#D1D5DB] text-[#6C63FF] focus:ring-[#6C63FF]"
+        className="size-4 rounded border-[#D1D5DB] text-ds-textAccent focus:ring-[#6C63FF]"
       />
       <span>4 星以上</span>
     </label>

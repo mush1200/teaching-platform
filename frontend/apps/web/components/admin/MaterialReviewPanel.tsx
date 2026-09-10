@@ -20,6 +20,11 @@ import {
   describeActivity,
 } from "../../lib/admin-labels";
 import { DetailField, DetailGrid, ErrorState, LoadingState, StatusPill } from "../ds";
+import { Button } from "../ui/Button";
+import { ConfirmAction } from "../ui/ConfirmAction";
+import { FormField } from "../ui/FormField";
+import { Select } from "../ui/Select";
+import { Textarea } from "../ui/Textarea";
 import { MediaImage, MediaLink } from "../materials/MediaImage";
 import { formatFileSize, type MaterialFileInfo } from "../../lib/material-file";
 import {
@@ -130,15 +135,16 @@ function FileSlot({
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <span className="text-body text-ds-text">{file.originalFilename}</span>
         <span className="text-meta text-ds-textSubtle">{formatFileSize(file.sizeBytes)}</span>
-        <button
-          type="button"
+        <Button
+          intent="neutral"
+          variant="outline"
+          size="sm"
+          loading={busy}
           onClick={onDownload}
-          disabled={busy}
-          className="rounded-lg border border-ds-border bg-ds-surface px-3 py-1.5 text-meta font-medium text-ds-heading transition-colors hover:bg-edu-page disabled:opacity-50"
           data-testid={`material-review-file-download-${tone}`}
         >
           {busy ? "下載中…" : "下載審閱"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -162,6 +168,8 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** `UI-CONS-04`：字數不足改為**欄位層級**錯誤，而不是頁尾一段與欄位無關的文字。 */
+  const [noteError, setNoteError] = useState<string | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
   const [fileDownload, setFileDownload] = useState<"pending" | "approved" | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -216,6 +224,7 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
     setReasonCode("incomplete_info");
     setNote("");
     setMessage(null);
+    setNoteError(null);
     setDecision(null);
     setShowTechnical(false);
   }, [row.id]);
@@ -226,9 +235,14 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
 
   async function submit(action: "approve" | "request-changes") {
     if (action === "request-changes" && noteTooShort) {
-      setMessage(`補充說明至少 ${MATERIAL_REVIEW_NOTE_MIN_LENGTH} 個字，創作者才知道要修改什麼。`);
+      /*
+        `UI-CONS-04`：改送**欄位層級**錯誤。原本這一則進 `message`，
+        渲染在頁尾一段與欄位無關的 `<p>` —— 看得見，但輔助技術無從知道是哪個欄位。
+      */
+      setNoteError(`補充說明至少 ${MATERIAL_REVIEW_NOTE_MIN_LENGTH} 個字，創作者才知道要修改什麼。`);
       return;
     }
+    setNoteError(null);
     setMessage(null);
     setBusy(action === "approve" ? "approve" : "reject");
     try {
@@ -324,13 +338,9 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
               tone={MATERIAL_STATUS_TONE[status] ?? "neutral"}
               label={MATERIAL_STATUS_LABEL[status] ?? String(status)}
             />
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-h-10 rounded-xl border border-ds-border px-3 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
-            >
+            <Button intent="neutral" variant="outline" size="sm" onClick={onClose}>
               關閉
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -373,7 +383,7 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
               {material.demo_video_url ? (
                 <MediaLink
                   src={material.demo_video_url}
-                  className="inline-block text-sm font-medium text-edu-primary underline"
+                  className="inline-block text-sm font-medium text-ds-textAccent underline"
                 >
                   開啟示範影片
                 </MediaLink>
@@ -583,7 +593,7 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
               aside={
                 <Link
                   href={`/admin/materials/${encodeURIComponent(row.id)}/activity-logs`}
-                  className="text-caption font-medium text-edu-primary underline"
+                  className="text-caption font-medium text-ds-textAccent underline"
                 >
                   完整紀錄
                 </Link>
@@ -610,16 +620,24 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
 
             {/* 11. 技術資訊（預設收合） */}
             <Section title="技術資訊">
+              {/*
+                `UI-CONS-24`／disclosure semantics（Wave UI-7）：這是 disclosure，不是一般按鈕。
+                補上 `aria-expanded` 與 `aria-controls` 之後，輔助技術才知道它控制的區塊
+                目前是展開還是收合 —— 其餘四個 disclosure（admin 三個列表列 ＋ creator/cases）
+                本來就有，只有這一個漏掉。
+              */}
               <button
                 type="button"
                 onClick={() => setShowTechnical((prev) => !prev)}
+                aria-expanded={showTechnical}
+                aria-controls="material-technical-details"
                 data-testid="material-technical-toggle"
                 className="text-meta font-medium text-ds-textMuted underline"
               >
                 {showTechnical ? "隱藏技術資訊" : "顯示技術資訊"}
               </button>
               {showTechnical ? (
-                <dl className="grid grid-cols-1 gap-1 rounded-xl bg-edu-page p-3 font-mono text-caption text-ds-textMuted sm:grid-cols-2">
+                <dl id="material-technical-details" className="grid grid-cols-1 gap-1 rounded-xl bg-edu-page p-3 font-mono text-caption text-ds-textMuted sm:grid-cols-2">
                   <div>
                     <dt className="inline">material id：</dt>
                     <dd className="inline">{material.id}</dd>
@@ -673,14 +691,9 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
               自己剛才做了什麼（尤其退回會寄信給創作者）。由 Admin 自己決定何時前進。
             */}
             {onNext ? (
-              <button
-                type="button"
-                onClick={onNext}
-                data-testid="material-review-next"
-                className="min-h-10 rounded-xl bg-edu-primary px-4 text-sm font-semibold text-white transition-colors hover:brightness-95"
-              >
+              <Button intent="action" size="sm" onClick={onNext} data-testid="material-review-next">
                 下一筆待審 →
-              </button>
+              </Button>
             ) : (
               <span className="text-meta text-ds-textMuted">沒有其他待審教材了。</span>
             )}
@@ -694,82 +707,109 @@ export function MaterialReviewPanel({ row, onReviewed, onClose, onNext }: Props)
           </p>
         ) : mode === "idle" ? (
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void submit("approve")}
+            {/*
+              `UI-CONS-12` / `UI-CONS-08`（Wave UI-3）—— 這一組在 Wave UI-2 刻意延後，
+              因為 canonical `Button` 當時沒有 success 語意，而改用其他 intent 等於改顏色
+              （`UI-CONS-01`）。本輪 `success` 通過了「跨頁面 semantic intent」門檻
+              （本檔 ＋ `app/admin/payment-proofs`），因此整組一起遷移。
+
+              **色值完全沒變**：`success` solid 沿用既有的 `edu-success`(#22C55E)。
+              白字 on #22C55E ＝ 2.28:1 的對比缺口**依然存在**，但已從兩個檔案的複製貼上
+              集中到 primitive 一處，待 `UI-CONS-01` / Wave UI-7 由 Owner 決定色值後一次修好。
+            */}
+            {/*
+              `UI-CONS-16`（Wave UI-5）：核准是**高影響且實質不可逆**的決定 ——
+              它會寫入 `approved_file_id`（唯一能寫的路徑）並讓教材對買家可購買可下載；
+              要收回只能改走檢舉處置的 `unpublish_material`，不是同一條流程的「復原」。
+              旁邊的「退回修改」有必填理由、理由輸入本身就是確認步驟，所以只有這一顆需要補確認。
+            */}
+            <ConfirmAction
+              triggerLabel="核准上架"
+              triggerIntent="success"
+              intent="success"
               disabled={busy !== null}
-              data-testid="material-approve"
-              className="min-h-11 rounded-xl bg-edu-success px-5 text-sm font-semibold text-white transition-colors hover:brightness-95 disabled:opacity-50"
-            >
-              {busy === "approve" ? "處理中…" : "核准上架"}
-            </button>
-            <button
-              type="button"
+              loading={busy === "approve"}
+              title="確定要核准這份教材上架？"
+              description="核准後教材會對買家公開販售，並鎖定目前這一版檔案為可下載版本。要收回只能另外走檢舉處置的下架流程。"
+              confirmLabel={busy === "approve" ? "處理中…" : "確認核准上架"}
+              onConfirm={() => submit("approve")}
+              testId="material-approve"
+            />
+            <Button
+              intent="danger"
+              variant="outline"
+              disabled={busy !== null}
               onClick={() => setMode("reject")}
-              disabled={busy !== null}
               data-testid="material-request-changes-open"
-              className="min-h-11 rounded-xl border border-edu-error px-5 text-sm font-semibold text-edu-error transition-colors hover:bg-[#FEF2F2] disabled:opacity-50"
             >
               退回修改
-            </button>
+            </Button>
           </div>
         ) : (
           /*
             退回表單就地展開，不用 modal —— 填原因時 Admin 仍然需要對照上方的教材內容。
           */
           <div className="space-y-3">
-            <label className="block">
-              <span className="text-meta text-ds-textMuted">退回原因（必選，創作者會看到）</span>
-              <select
+            {/*
+              `UI-CONS-04` —— 這兩個欄位原本是 `<label>` 包 `<span>` ＋ 裸控制項，
+              字數不足的錯誤則被送到頁尾一個**與欄位無關**的 `<p>`（`material-review-message`）。
+              視覺上看得到、程式上沒有任何關聯：`aria-invalid` 與 `aria-describedby` 全 app 皆為 0。
+              改用 `FormField` 後，錯誤會同時 (a) 讓 textarea 帶 `aria-invalid="true"`、
+              (b) 由 `aria-describedby` 指向錯誤節點，(c) 以 `role="alert"` 在送出後朗讀。
+            */}
+            <FormField label="退回原因（必選，創作者會看到）">
+              <Select
+                size="sm"
                 value={reasonCode}
                 onChange={(event) => setReasonCode(event.target.value as MaterialReviewReasonCode)}
                 data-testid="material-reason-select"
-                className="mt-1 min-h-10 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
               >
                 {MATERIAL_REVIEW_REASONS.map((code) => (
                   <option key={code} value={code}>
                     {MATERIAL_REVIEW_REASON_LABEL[code]}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-meta text-ds-textMuted">
-                補充說明（必填，至少 {MATERIAL_REVIEW_NOTE_MIN_LENGTH} 字）
-              </span>
-              <textarea
+              </Select>
+            </FormField>
+            <FormField
+              label={`補充說明（必填，至少 ${MATERIAL_REVIEW_NOTE_MIN_LENGTH} 字）`}
+              help={`目前 ${noteLength(note)} 字`}
+              error={noteError}
+            >
+              <Textarea
                 value={note}
-                onChange={(event) => setNote(event.target.value)}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                  // 使用者一開始修正就撤下錯誤 —— 錯誤訊息不該在已經改好之後還留在畫面上。
+                  if (noteError) setNoteError(null);
+                }}
                 rows={3}
                 data-testid="material-reason-note"
                 placeholder="具體說明要修改什麼，例如：活動步驟只寫了一句，請補充完整流程與所需時間。"
-                className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface p-3 text-sm text-ds-heading"
               />
-              <span className="text-caption text-ds-textSubtle">
-                目前 {noteLength(note)} 字
-              </span>
-            </label>
+            </FormField>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void submit("request-changes")}
+              <Button
+                intent="danger"
+                loading={busy === "reject"}
                 disabled={busy !== null}
+                onClick={() => void submit("request-changes")}
                 data-testid="material-request-changes-confirm"
-                className="min-h-11 rounded-xl bg-edu-error px-5 text-sm font-semibold text-white transition-colors hover:brightness-95 disabled:opacity-50"
               >
                 {busy === "reject" ? "處理中…" : "確認退回"}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                intent="neutral"
+                variant="outline"
+                disabled={busy !== null}
                 onClick={() => {
                   setMode("idle");
                   setMessage(null);
+                  setNoteError(null);
                 }}
-                disabled={busy !== null}
-                className="min-h-11 rounded-xl border border-ds-border px-5 text-sm font-medium text-ds-textMuted hover:bg-edu-page"
               >
                 取消
-              </button>
+              </Button>
             </div>
           </div>
         )}

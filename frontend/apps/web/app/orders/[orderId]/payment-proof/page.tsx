@@ -239,7 +239,7 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
       <div className="md:hidden">
         <MobileHeader title="付款憑證" backHref="/me/orders" right="none" />
       </div>
-      <div className="mx-auto w-full max-w-[1120px] bg-transparent px-4 pb-20 pt-6 md:px-6">
+      <div className="mx-auto w-full max-w-[1120px] px-page-mobile sm:px-page-tablet lg:px-page-desktop bg-transparent pb-20 pt-6">
         <div className="mx-auto max-w-[1040px] space-y-4">
           <AccountPageHeaderOrders title="上傳付款憑證" description="完成匯款後，請上傳圖檔憑證，平台將進行人工審核。" />
           {!token ? (
@@ -260,26 +260,26 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                     className="flex w-full items-center justify-between rounded-xl border border-[#ececf2] bg-[#fafafc] px-3 py-2.5 text-left"
                   >
                     <span className="text-sm font-semibold text-[#1F2937]">訂單資訊</span>
-                    <span className="text-sm text-[#6B7280]">{orderInfoOpen ? "收合 ▴" : "展開 ▾"}</span>
+                    <span className="text-sm text-ds-textMuted">{orderInfoOpen ? "收合 ▴" : "展開 ▾"}</span>
                   </button>
                   {orderInfoOpen ? (
                     <div className="mt-3 rounded-xl border border-[#ececf2] bg-white p-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-ds-textSubtle">訂單資訊明細</p>
                       <div className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-sm">
-                        <p className="text-[#6B7280]">訂單編號</p>
+                        <p className="text-ds-textMuted">訂單編號</p>
                         <p className="font-medium text-[#4B5563]">{orderId}</p>
-                        <p className="text-[#6B7280]">訂單成立時間</p>
+                        <p className="text-ds-textMuted">訂單成立時間</p>
                         <p className="font-medium text-[#4B5563]">{formatTime(orderDetail?.order?.created_at) || "—"}</p>
-                        <p className="text-[#6B7280]">付款期限</p>
+                        <p className="text-ds-textMuted">付款期限</p>
                         <p className="font-medium text-[#4B5563]">
                           {orderDetail?.order?.payment_due_at
                             ? `請於 ${formatPaymentDue(orderDetail.order.payment_due_at)} 前完成匯款並提交付款資訊`
                             : PAYMENT_DUE_UNSET_TEXT}
                         </p>
-                        <p className="text-[#6B7280]">付款方式</p>
+                        <p className="text-ds-textMuted">付款方式</p>
                         <p className="font-medium text-[#4B5563]">銀行轉帳（代碼 812）</p>
-                        <p className="text-[#6B7280]">付款金額</p>
-                        <p className="text-[28px] font-extrabold leading-none tracking-tight text-[#6C63FF]">
+                        <p className="text-ds-textMuted">付款金額</p>
+                        <p className="text-[28px] font-extrabold leading-none tracking-tight text-ds-textAccent">
                           NT${Number(orderDetail?.order?.total_amount || 0).toLocaleString()}
                         </p>
                       </div>
@@ -287,8 +287,8 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                   ) : null}
                   <div className="my-3 h-px w-full bg-[#ececf2]" />
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-ds-textSubtle">付款憑證</p>
-                  <p className="mt-1 text-sm font-medium text-[#777777]">訂單編號：{orderId}</p>
-                  <p className="mt-1 text-sm text-[#6B7280]">付款方式：銀行轉帳</p>
+                  <p className="mt-1 text-sm font-medium text-ds-textMuted">訂單編號：{orderId}</p>
+                  <p className="mt-1 text-sm text-ds-textMuted">付款方式：銀行轉帳</p>
                   <div className="mt-2">
                     <BankTransferInfo state={bankInfo} />
                   </div>
@@ -308,7 +308,7 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                   {submissionBlocked ? null : (
                     <>
                       <p className="text-sm font-semibold text-[#1F2937]">上傳付款憑證</p>
-                      <p className="mt-1 text-xs text-[#6B7280]">請上傳匯款憑證圖片成功的畫面截圖。</p>
+                      <p className="mt-1 text-xs text-ds-textMuted">請上傳匯款憑證圖片成功的畫面截圖。</p>
                       <label
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
@@ -334,7 +334,7 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                           {proofFiles.map((f) => (
                             <li key={`${f.name}-${f.lastModified}`} className="overflow-hidden rounded-xl border border-[#ececf2] bg-white p-2">
                               <img src={URL.createObjectURL(f)} alt={f.name} className="h-20 w-full rounded-lg object-cover" />
-                              <p className="mt-1 line-clamp-1 text-xs text-[#6B7280]">{f.name}</p>
+                              <p className="mt-1 line-clamp-1 text-xs text-ds-textMuted">{f.name}</p>
                             </li>
                           ))}
                         </ul>
@@ -370,7 +370,7 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                     <legend className="px-1 text-sm font-semibold text-ds-body">
                       匯款資訊（選填，可加速對帳）
                     </legend>
-                    <p className="mt-1 text-xs text-[#6B7280]">
+                    <p className="mt-1 text-xs text-ds-textMuted">
                       這些是您提供的匯款資訊，平台會再與銀行實際入帳紀錄核對。為保護您的權益，請勿填寫完整帳號。
                     </p>
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -437,7 +437,7 @@ export default function PaymentProofPage({ params }: { params: Promise<{ orderId
                       返回我的訂單
                     </Link>
                     {(String(orderDetail?.order?.order_progress_state || "") === "approved" || String(orderDetail?.order?.status || "") === "approved") ? (
-                      <Link href="/me/materials" className="inline-flex h-[42px] w-full items-center justify-center rounded-xl border border-[#dcd0ff] bg-[#f7f4ff] px-5 text-sm font-semibold text-[#6C63FF]">
+                      <Link href="/me/materials" className="inline-flex h-[42px] w-full items-center justify-center rounded-xl border border-[#dcd0ff] bg-[#f7f4ff] px-5 text-sm font-semibold text-ds-textAccent">
                         前往我的教材
                       </Link>
                     ) : null}

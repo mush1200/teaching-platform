@@ -150,7 +150,7 @@ CSS：`--ds-*`（見 `design-tokens-v1.1.md` §2.6）
 | --- | --- | --- |
 | `Input` | `components/ui/Input.tsx` | 表單一律經此元件；聚焦環使用 brand primary；**新改動應改為 `text-ds-heading` / `border-ds-border`，避免新增硬編碼 hex** |
 | `Chip` | `components/ui/Chip.tsx` | 教材特色 tag；`tone` 對應 `materialFeatures` 分類色 |
-| `Checkbox` | `components/ui/Checkbox.tsx` | 與表單同頁時 spacing 跟隨 `Input` 的 `gap-1.5` 節奏 |
+| ~~`Checkbox`~~ | ~~`components/ui/Checkbox.tsx`~~ | **已於 2026-09-05 刪除**（`UI-CONS-22` ／ Owner Decision 1：0 consumer 的 dead code）。canonical stack 目前沒有 Checkbox primitive；要重建需先有 ≥ 3 個真實使用點，並同步 `docs/ui-design-system.md` §9 |
 
 **Feedback（Loading / Empty / Error）：** 使用 `feedback.*` token；各頁對照見 `page-token-usage-mapping-v1.1.md`。
 
@@ -164,8 +164,23 @@ CSS：`--ds-*`（見 `design-tokens-v1.1.md` §2.6）
 
 | Token | 值 | Tailwind 別名 |
 | --- | --- | --- |
-| 頁面水平 padding | 16 / 24 / 32 | `px-page-mobile` …（或 container 內 `px-4 md:px-6 lg:px-8` 對齊 scale） |
-| 內容最大寬 | 768 / 1024 / 1280 | `max-w-narrow` / `max-w-normal` / `max-w-wide` |
+| 頁面水平 padding | 16 / 24 / 32 | **`px-page-mobile sm:px-page-tablet lg:px-page-desktop`**（canonical，`UI-CONS-07`／2026-09-08）。`px-4 sm:px-6 lg:px-8` 等值但不再是首選寫法 |
+| 內容最大寬 | 768 / 1152 / 1280 / 1440 | `max-w-3xl`（narrow）／`max-w-6xl`（standard）／`max-w-wide`（wide）／`max-w-[1440px]`（full）。~~`max-w-narrow`／`max-w-normal`~~ **不存在**（零 consumer，已於 `UI-CONS-17` 移除）；完整分類與 semantic debt 見 `docs/ui-design-system.md` §7.4 |
+
+**Authenticated navigation breakpoint（`UI-CONS-05`，Wave UI-6，2026-09-08）：`lg` / 1024。**
+Admin／Creator／Buyer 三個角色相同 —— `< 1024` 沒有常駐側欄且必須有 drawer 觸發鈕、
+主內容左偏移為 0；`>= 1024` 常駐側欄出現、偏移等於側欄寬度。買家原本是 `md`（768）。
+展開側欄寬度的唯一來源是 `components/layout/shell-constants.ts` 的 `SIDEBAR_WIDTH_EXPANDED_PX`；
+買家的收合寬度（72px）是 role-intentional 例外。抽屜行為三個外殼共用
+`components/layout/NavDrawer`（`aria-modal` ＋ focus trap ＋ scroll lock ＋ `Escape`）。
+完整契約見 `docs/ui-design-system.md` §8.2.1～§8.2.4，護欄見
+`frontend/apps/web/tests/e2e/responsive-nav-contract.spec.ts`。
+
+**Gutter ownership（`UI-CONS-07`，Wave UI-4B）：一頁恰好一層水平內距。**
+`AdminShell` 供應 `/admin/*` 的 gutter，其下頁面**不得**再供應；
+其餘所有 surface 由**頁面唯一的外層容器**供應（`RoleShell` 與 `ParentAppShell` 都不供應）。
+理由與例外見 `docs/ui-design-system.md` §7.3／§7.5，實測護欄見
+`frontend/apps/web/tests/e2e/layout-contract.spec.ts`。
 | 區塊間距 | 16–48 | `gap-section-sm` … `gap-section-xl` |
 
 **Mobile-first：** 預設單欄；`md:` / `lg:` 再切雙欄與 sidebar。
@@ -181,7 +196,12 @@ CSS：`--ds-*`（見 `design-tokens-v1.1.md` §2.6）
 
 ### 7.3 Typography
 
-優先 Tailwind `text-h1` … `text-caption`（見 `tailwind.config.ts`）。頁面主標題一頁僅一個 `h1`，區塊標題用 `h2`/`h3` 或 `text-title`。
+優先 Tailwind `text-h2` … `text-caption`（見 `tailwind.config.ts`）。頁面主標題一頁僅一個 `h1`，區塊標題用 `h2`/`h3` 或 `text-title`。
+
+**application page title 一律走 `components/ds/PageHeader`**（渲染 `<h1 className="text-h2">`）；
+無法使用 PageHeader 時直接寫 `<h1 className="text-h2 …">`。`text-h1` 已於 `UI-CONS-13`（2026-09-08）
+移除 —— 它 consumer 為 0，且描述的 32px 字級在產品中不存在。完整 hierarchy contract 見
+`docs/ui-design-system.md` §5.2。
 
 ---
 

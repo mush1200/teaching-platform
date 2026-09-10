@@ -213,7 +213,9 @@ test.describe("Admin material review", () => {
     await page.goto("/admin/materials");
     await page.getByTestId("material-review-open").first().click();
 
+    /* `UI-CONS-16`：核准上架現在是兩段式 —— 先展開確認面板，再按確認。 */
     await page.getByTestId("material-approve").click();
+    await page.getByTestId("material-approve-confirm").click();
 
     await expect.poll(() => mocks.posts.at(-1)?.url).toContain("/approve");
     // 結果留在畫面上；**不自動跳下一筆**
@@ -235,7 +237,20 @@ test.describe("Admin material review", () => {
     await page.getByTestId("material-reason-note").fill("太短");
     const before = mocks.posts.length;
     await page.getByTestId("material-request-changes-confirm").click();
-    await expect(page.getByTestId("material-review-message")).toContainText("至少 10");
+    /*
+      `UI-CONS-04`（Wave UI-2）——「字數不足」原本是頁尾一段與欄位無關的文字
+      （`material-review-message`）：看得見，但輔助技術無從知道是哪個欄位錯了。
+      現在它是**欄位層級**錯誤，因此這裡改為斷言真正的可及關係，而不只是字串出現在頁面上：
+        1. 訊息仍然看得到（內容不變，仍含「至少 10」）
+        2. textarea 帶 aria-invalid="true"
+        3. aria-describedby 指向那一則錯誤訊息的節點
+    */
+    const note = page.getByTestId("material-reason-note");
+    await expect(note).toHaveAttribute("aria-invalid", "true");
+    const describedBy = await note.getAttribute("aria-describedby");
+    expect(describedBy, "錯誤時 textarea 必須以 aria-describedby 指向錯誤訊息").toBeTruthy();
+    const errorNode = page.locator(`#${describedBy!.split(" ").pop()}`);
+    await expect(errorNode).toContainText("至少 10");
     expect(mocks.posts.length).toBe(before);
 
     await page.getByTestId("material-reason-select").selectOption("media_quality");
@@ -350,9 +365,20 @@ test.describe("Creator material review UX", () => {
     await expect(banner).not.toContainText("usr_admin_secret");
     await expect(page.getByRole("link", { name: "修改教材" })).toBeVisible();
 
-    // 幽靈狀態 draft 已移除
+    /*
+      幽靈狀態 draft 已移除。
+
+      `UI-CONS-10`（Wave UI-3）：狀態篩選由 Tamagui Select 換成原生 `<select>` 之後，
+      選項是**真的存在於 DOM** 的 `<option>`（先前只有展開時才渲染）。因此：
+        - 上面這條 `option` 斷言現在才真正有意義（原本恆為 0，形同空斷言）；
+        - 下面那條原本寫 `getByText("需修改").first()`，現在會先命中
+          `<option>需修改</option>`（native option 被視為 hidden）而非狀態徽章。
+      改為明確指向狀態徽章 —— 那本來就是這條斷言的意圖。
+    */
     await expect(page.getByRole("option", { name: "草稿" })).toHaveCount(0);
-    await expect(page.getByText("需修改", { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByTestId("status-pill").filter({ hasText: "需修改" }).first()
+    ).toBeVisible();
   });
 
   test("edit page shows the reason and resubmit is an explicit action", async ({ page }) => {

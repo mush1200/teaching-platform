@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NAV_RAIL_ACTIVE, NAV_RAIL_BASE, NAV_RAIL_INACTIVE } from "./nav-active";
 import {
   SIDEBAR_DESKTOP_WIDTH_CLASS,
   SIDEBAR_NAV_SCROLL_CLASS,
@@ -52,18 +53,14 @@ export function CreatorSidebar({
   onLogout,
 }: Props) {
   const itemClass = (item: CreatorNavItem) =>
-    [
-      "flex items-center gap-3 rounded-xl border-l-[3px] px-3 py-2.5 text-sm transition-colors",
-      activeId === item.id
-        ? "border-edu-primary bg-[#EDE9FE] font-semibold text-edu-primary"
-        : "border-transparent font-medium text-[#4B5563] hover:bg-[#F7F4FF] hover:text-ds-heading",
-    ].join(" ");
+    /* `UI-CONS-14`：與 `AdminSidebar` 共用同一組 active 配方。 */
+    [NAV_RAIL_BASE, activeId === item.id ? NAV_RAIL_ACTIVE : NAV_RAIL_INACTIVE].join(" ");
 
   return (
     <aside className={rootByVariant[variant]} data-testid={`creator-sidebar-${variant}`}>
       {variant === "desktop" ? (
         <div className={`${SIDEBAR_STATIC_CLASS} border-b border-ds-borderMuted px-4 pb-4 pt-5`}>
-          <p className="px-1 text-xs font-semibold uppercase tracking-wider text-edu-primary">EDUMARKET</p>
+          <p className="px-1 text-xs font-semibold uppercase tracking-wider text-ds-textAccent">EDUMARKET</p>
           <div data-testid="sidebar-identity" className="mt-4 flex items-center gap-3 rounded-2xl bg-edu-page p-3.5">
             <span className="shrink-0 text-[28px] leading-none" aria-hidden>
               🎓
@@ -80,7 +77,7 @@ export function CreatorSidebar({
         {sections.map((section, index) => (
           <div key={section.label}>
             <p
-              className={`mb-2 px-3 text-xs font-semibold tracking-wide text-[#7C74C8] ${index === 0 ? "mt-2" : "mt-5"}`}
+              className={`mb-2 px-3 text-xs font-semibold tracking-wide text-ds-textAccent ${index === 0 ? "mt-2" : "mt-5"}`}
             >
               {section.label}
             </p>
@@ -162,7 +159,7 @@ export function SimpleNavSidebar({
     <aside className={rootByVariant[variant]} data-testid={`role-sidebar-${variant}`}>
       {variant === "desktop" ? (
         <div className={`${SIDEBAR_STATIC_CLASS} border-b border-ds-borderMuted px-5 py-6`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-edu-primary">EduMarket</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-ds-textAccent">EduMarket</p>
           <p className="text-lg font-bold text-ds-heading">{title}</p>
         </div>
       ) : null}
@@ -176,7 +173,7 @@ export function SimpleNavSidebar({
             aria-current={isActive(item) ? "page" : undefined}
             className={`rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${
               isActive(item)
-                ? "bg-edu-page text-edu-primary"
+                ? "bg-edu-page text-ds-textAccent"
                 : "text-ds-textMuted hover:bg-[#F9FAFB] hover:text-ds-heading"
             }`}
           >

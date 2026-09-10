@@ -99,7 +99,7 @@ export function AdminReviewWorkspace({
               onClick={onBackToList}
               data-testid="review-workspace-back"
               /* 雙欄時清單就在旁邊，返回鈕沒有意義，只在單欄流程出現。 */
-              className="min-h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm font-medium text-ds-heading transition-colors hover:bg-edu-page xl:hidden"
+              className="min-h-11 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm font-medium text-ds-heading transition-colors hover:bg-edu-page xl:hidden"
             >
               ← {backLabel}
             </button>

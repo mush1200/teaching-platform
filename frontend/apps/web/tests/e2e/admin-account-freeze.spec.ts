@@ -159,9 +159,14 @@ test.describe("OPS-02 — admin account freeze UI", () => {
     await expect(page.getByTestId("frozen-at")).not.toContainText("—");
 
     await expect(page.getByTestId("freeze-open")).toHaveCount(0);
+    /*
+      `UI-CONS-16`（Wave UI-5）：兩段式確認改由 `ConfirmAction` composite 提供，
+      testid 由觸發鈕衍生（`unfreeze-open` → `-panel` / `-confirm`）。
+      **互動語意沒變**：仍是「先展開、再確認」，這裡只更新選擇器。
+    */
     await page.getByTestId("unfreeze-open").click();
-    await expect(page.getByTestId("unfreeze-confirm")).toBeVisible();
-    await page.getByTestId("unfreeze-submit").click();
+    await expect(page.getByTestId("unfreeze-open-panel")).toBeVisible();
+    await page.getByTestId("unfreeze-open-confirm").click();
     await expect.poll(() => unfroze).toBe(true);
   });
 

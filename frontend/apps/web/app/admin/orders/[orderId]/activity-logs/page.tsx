@@ -143,14 +143,14 @@ function EntryLinks({ log }: { log: ActivityLogRow }) {
       {log.actor_id ? (
         <Link
           href={`/admin/users/${encodeURIComponent(log.actor_id)}/activity-logs`}
-          className="font-medium text-edu-primary underline"
+          className="font-medium text-ds-textAccent underline"
         >
           此操作者紀錄
         </Link>
       ) : null}
       <Link
         href={`/admin/activity-logs/${encodeURIComponent(log.id)}`}
-        className="font-medium text-edu-primary underline"
+        className="font-medium text-ds-textAccent underline"
       >
         單筆詳情
       </Link>

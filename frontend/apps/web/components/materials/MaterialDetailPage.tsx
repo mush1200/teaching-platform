@@ -177,7 +177,7 @@ export function MaterialDetailPage({ materialId }: Props) {
       <AppShell className="bg-ds-page">
         <div className="mx-auto max-w-lg px-page-mobile py-16 text-center sm:px-page-tablet">
           <p className="text-lg font-semibold text-ds-heading">找不到教材</p>
-          <Link href="/materials" className="mt-4 inline-block text-sm font-semibold text-edu-primary hover:text-edu-cta">
+          <Link href="/materials" className="mt-4 inline-block text-sm font-semibold text-ds-textAccent hover:text-edu-cta">
             返回列表
           </Link>
         </div>

@@ -44,7 +44,7 @@ export function RefreshControl({
         data-testid="refresh-button"
         aria-label={label}
         title={label}
-        className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:bg-edu-page hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:bg-edu-page hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus disabled:opacity-50"
       >
         <span aria-hidden className={busy ? "animate-spin motion-reduce:animate-none" : undefined}>
           ↻

@@ -102,13 +102,44 @@ export function NavDrawer({
   triggerRef,
 }: NavDrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const handleClose = useCallback(() => onClose(), [onClose]);
 
   useEffect(() => {
     if (!open) return;
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      /*
+       * `UI-CONS-23`（Wave UI-6）：focus trap。
+       *
+       * 這個面板是 `aria-modal="true"` —— 也就是我們已經對輔助技術宣告「背景是 inert」。
+       * 宣告了卻讓 Tab 走得出去，鍵盤使用者會焦點跑到看不見、也讀不到的背景內容上。
+       * （這與 `components/ui/ConfirmAction` 刻意**不** trap 是同一個判準的兩面：
+       * 那個面板沒有宣告為 modal，所以不該 trap。）
+       */
+      if (event.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     /*
@@ -143,6 +174,7 @@ export function NavDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        ref={panelRef}
         data-testid="nav-drawer-panel"
         /*
          * `inset-y-0` + `flex flex-col` 是這個元件的重點：面板高度被鎖在視窗高度，
@@ -206,7 +238,7 @@ export function MobileNavBar({
         <IconMenu />
       </button>
       <div className="min-w-0">
-        <p className="text-caption font-semibold uppercase tracking-wider text-edu-primary">{eyebrow}</p>
+        <p className="text-caption font-semibold uppercase tracking-wider text-ds-textAccent">{eyebrow}</p>
         <p className="truncate text-sm font-bold text-ds-heading">{title}</p>
       </div>
     </header>

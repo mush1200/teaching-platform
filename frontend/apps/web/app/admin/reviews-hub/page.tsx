@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "@teaching-platform/ui";
+import { EmptyState, ErrorState, LoadingState } from "../../../components/ds";
 import { ReviewItem } from "../../../components/reviews/ReviewItem";
 import { toAdminReviewCard } from "../../../components/admin/MaterialFeedbackContext";
 import { apiFetch, parseApiErrorMessage } from "../../../lib/api-client";

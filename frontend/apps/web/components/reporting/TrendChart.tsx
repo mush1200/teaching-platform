@@ -188,6 +188,33 @@ export function TrendChart({
 
               <line x1="0" y1={BASELINE_Y} x2={VIEW_W} y2={BASELINE_Y} className="stroke-ds-border" strokeWidth="1" />
             </svg>
+            {/*
+              `UI-CONS-24`（Wave UI-7）：圖表的**資料點只有滑鼠可及** ——
+              `onMouseEnter` / `onMouseLeave`，沒有 `tabIndex` / `onFocus` / `onKeyDown`。
+              `role="img"` ＋ `aria-label` ＋ `<desc>` 只說明了「這是什麼圖」，
+              沒有提供**數值本身**，鍵盤與螢幕閱讀器使用者因此讀不到資料。
+
+              這裡補一份等價的表格文字替代（`sr-only`）。**不是**把圖表改成可鍵盤操作的
+              互動元件 —— 那是功能開發，不是 accessibility remediation；
+              表格替代已足以讓資訊不再是指標裝置獨佔。
+            */}
+            <table className="sr-only">
+              <caption>{`${title}：${description}`}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">期間</th>
+                  <th scope="col">數值</th>
+                </tr>
+              </thead>
+              <tbody>
+                {points.map((point) => (
+                  <tr key={point.key}>
+                    <th scope="row">{formatBucketFull(point.key, granularity)}</th>
+                    <td>{formatValue(point.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
             {/* 軸標籤放在 SVG 外：`preserveAspectRatio="none"` 會讓 SVG 內的文字被水平拉伸。 */}
             <div className="mt-1 flex text-caption text-ds-textSubtle">

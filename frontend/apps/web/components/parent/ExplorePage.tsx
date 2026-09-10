@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { EmptyState, ErrorState } from "@teaching-platform/ui";
+
 import type { ListMaterialsResult, MaterialsSort } from "../../lib/materials-query";
 import { listMaterials } from "../../lib/materials-query";
 import { AgeFilter } from "./AgeFilter";
@@ -10,9 +10,16 @@ import { CategoryChips } from "./CategoryChips";
 import type { PriceMode } from "./PriceFilter";
 import { PriceFilter } from "./PriceFilter";
 import { MaterialGrid } from "./MaterialGrid";
-import { PaginationBar } from "./PaginationBar";
+/*
+ * `UI-CONS-11` / `UI-CONS-10`（Wave UI-3）：`parent/PaginationBar` 已併入 `ds/Pagination`。
+ * ds 版能完整表達原本的互動模型（上一頁／下一頁），且每頁筆數選單只在
+ * 有傳 `onPageSizeChange` ＋ `pageSize` 時才渲染 —— 這裡不傳，因此不會多出控制項。
+ * 唯一的可見差異是**多了頁碼**，那是 ds 版的既有能力，不是為了合併而改的 UX。
+ */
+import { EmptyState, ErrorState, Pagination } from "../ds";
 import { RatingFilter } from "./RatingFilter";
 import { SortDropdown } from "./SortDropdown";
+import { Button } from "../ui/Button";
 
 function parsePriceMode(sp: URLSearchParams): PriceMode {
   const pm = sp.get("price_min");
@@ -145,7 +152,7 @@ export function ExplorePage() {
         </div>
       </section>
 
-      {loading ? <div className="text-sm text-[#6B7280]">載入中…</div> : null}
+      {loading ? <div className="text-sm text-ds-textMuted">載入中…</div> : null}
 
       {error ? (
         <ErrorState title="載入失敗" description={error} onRetry={() => router.refresh()} />
@@ -155,9 +162,8 @@ export function ExplorePage() {
         <EmptyState
           title="找不到教材"
           description="試試調整關鍵字、分類或篩選條件。"
-          actionLabel="清除篩選"
-          onAction={clearFilters}
-        />
+          action={<Button intent="action" onClick={clearFilters}>清除篩選</Button>}
+          />
       ) : null}
 
       {!error && (loading || items.length > 0) ? (
@@ -166,12 +172,11 @@ export function ExplorePage() {
             <MaterialGrid materials={items} trackRecent className={loading ? "opacity-60" : ""} />
           </section>
           {!loading && items.length > 0 ? (
-            <PaginationBar
+            <Pagination
               page={page}
               totalPages={totalPages}
               disabled={loading}
-              onPrev={() => pushQuery({ page: String(Math.max(1, page - 1)) })}
-              onNext={() => pushQuery({ page: String(Math.min(totalPages, page + 1)) })}
+              onPageChange={(next) => pushQuery({ page: String(Math.min(totalPages, Math.max(1, next))) })}
             />
           ) : null}
         </>
@@ -185,7 +190,7 @@ export function ExplorePage() {
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(false)}
-                className="rounded-lg px-2 py-1 text-sm font-medium text-[#6B7280] hover:bg-[#F3F4F6]"
+                className="rounded-lg px-2 py-1 text-sm font-medium text-ds-textMuted hover:bg-[#F3F4F6]"
               >
                 關閉
               </button>

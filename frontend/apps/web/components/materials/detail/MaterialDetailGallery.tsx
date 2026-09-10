@@ -56,7 +56,7 @@ export function MaterialDetailGallery({
           <button
             type="button"
             onClick={() => scrollThumbs("left")}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:border-ds-borderStrong hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:border-ds-borderStrong hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             aria-label="上一張縮圖"
           >
             <IconChevronLeft className="size-4" />
@@ -88,7 +88,7 @@ export function MaterialDetailGallery({
           <button
             type="button"
             onClick={() => scrollThumbs("right")}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:border-ds-borderStrong hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-textMuted transition-colors hover:border-ds-borderStrong hover:text-ds-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             aria-label="下一張縮圖"
           >
             <IconChevronLeft className="size-4 rotate-180" />

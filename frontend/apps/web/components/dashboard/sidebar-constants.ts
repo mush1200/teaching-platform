@@ -1,7 +1,22 @@
-/** Desktop buyer sidebar widths (px) */
+import { SIDEBAR_WIDTH_EXPANDED_PX } from "../layout/shell-constants";
 
-export const SIDEBAR_WIDTH_EXPANDED = 240;
+/**
+ * Desktop buyer sidebar widths (px).
+ *
+ * `UI-CONS-06`（Wave UI-6）：**展開寬度不再在這裡宣告第二次** ——
+ * 它的唯一來源是 `components/layout/shell-constants.ts` 的
+ * `SIDEBAR_WIDTH_EXPANDED_PX`，與 Admin／Creator 用的 `layout-sidebar` token 同值。
+ * 這裡只保留 re-export，讓買家外殼的既有 import 不必全部改寫。
+ */
+export const SIDEBAR_WIDTH_EXPANDED = SIDEBAR_WIDTH_EXPANDED_PX;
 
+/**
+ * 收合寬度（icon rail）。
+ *
+ * **這是買家外殼特有的能力**，Admin／Creator 沒有收合模式，因此這個值刻意留在
+ * 買家自己的常數檔，不上升為共用 shell 尺寸（`ROLE-INTENTIONAL`，見
+ * `docs/ui-design-system.md` §7.6）。
+ */
 export const SIDEBAR_WIDTH_COLLAPSED = 72;
 
 

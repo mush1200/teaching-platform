@@ -11,7 +11,7 @@ export default function DashboardPage() {
 
 function DashboardFallback() {
   return (
-    <div className="mx-auto max-w-7xl animate-pulse space-y-8 md:space-y-10">
+    <div className="mx-auto max-w-7xl px-page-mobile sm:px-page-tablet lg:px-page-desktop animate-pulse space-y-8 md:space-y-10">
       <div className="max-h-[200px] h-[140px] rounded-[20px] bg-[#EDE9FE]/50 shadow-[0_1px_3px_rgba(15,23,42,0.06)]" />
       <div className="h-10 rounded-xl bg-white/80 shadow-sm" />
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

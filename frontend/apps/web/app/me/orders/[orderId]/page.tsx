@@ -126,10 +126,10 @@ export default function MyOrderDetailPage({ params }: { params: Promise<{ orderI
   return (
     <AppShell withBottomNav>
       <MobileHeader title="訂單詳情" backHref="/me/orders" right="none" />
-      <div className="mx-auto w-full max-w-[860px] space-y-4 px-4 pb-24 pt-4 sm:px-6">
+      <div className="mx-auto w-full max-w-[860px] px-page-mobile sm:px-page-tablet lg:px-page-desktop space-y-4 pb-24 pt-4">
         <Card level="default">
-          <h1 className="text-lg font-bold text-[#1F2937]">訂單編號：{orderId}</h1>
-          {loading ? <p className="mt-2 text-sm text-[#6B7280]">載入中…</p> : null}
+          <h1 className="text-h2 text-[#1F2937]">訂單編號：{orderId}</h1>
+          {loading ? <p className="mt-2 text-sm text-ds-textMuted">載入中…</p> : null}
           {error ? <p className="mt-2 text-sm text-amber-700">{error}</p> : null}
           {data ? (
             <>
@@ -174,7 +174,7 @@ export default function MyOrderDetailPage({ params }: { params: Promise<{ orderI
                 </Link>
                 <Link
                   href="/me/complaints"
-                  className="inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-semibold text-[#6C63FF]"
+                  className="inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-semibold text-ds-textAccent"
                 >
                   我的申訴
                 </Link>
@@ -189,7 +189,7 @@ export default function MyOrderDetailPage({ params }: { params: Promise<{ orderI
               </ul>
               <div className="mt-4 flex gap-2">
                 <Link href="/me/orders" className="flex-1">
-                  <Button intent="neutral" variant="outline" fullWidth>
+                  <Button intent="neutral" fullWidth>
                     返回訂單列表
                   </Button>
                 </Link>

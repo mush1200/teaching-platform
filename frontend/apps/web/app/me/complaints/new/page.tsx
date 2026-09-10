@@ -28,6 +28,12 @@ import {
  * 前端不預先判斷、也不隱藏該錯誤。
  */
 export default function NewComplaintPage() {
+  /*
+   * `COR-06` ＋ `UI-CONS-07`（Wave UI-4B）：這一頁原本渲染自己的 `<main>`，
+   * 而 `/me/complaints` 不在 `RoleShell` 的 `parentShellRoutes` 裡，因此外殼已經給了一個
+   * `<main>` —— 兩者相疊等於一份文件有兩個 main landmark。改成 `<div>`，語意由外殼持有。
+   * gutter 改用 canonical ladder（外殼在這條路由上不供應水平內距）。
+   */
   return (
     <Suspense fallback={null}>
       <NewComplaintForm />
@@ -78,7 +84,7 @@ function NewComplaintForm() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-6" data-testid="new-complaint-page">
+    <div className="mx-auto w-full max-w-2xl px-page-mobile sm:px-page-tablet lg:px-page-desktop py-6" data-testid="new-complaint-page">
       <PageHeader
         title="提出申訴"
         description={
@@ -109,7 +115,7 @@ function NewComplaintForm() {
             value={complaintType}
             onChange={(e) => setComplaintType(e.currentTarget.value as ComplaintType)}
             data-testid="complaint-type"
-            className="mt-1 min-h-11 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+            className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
           >
             {COMPLAINT_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -128,7 +134,7 @@ function NewComplaintForm() {
             onChange={(e) => setSubject(e.currentTarget.value)}
             placeholder="例：已匯款但訂單仍顯示未付款"
             data-testid="complaint-subject"
-            className="mt-1 min-h-11 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+            className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
           />
         </label>
 
@@ -141,7 +147,7 @@ function NewComplaintForm() {
             onChange={(e) => setStatement(e.currentTarget.value)}
             placeholder="請說明發生的情況、時間，以及您希望平台如何處理。"
             data-testid="complaint-statement"
-            className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface px-3 py-2 text-sm text-ds-heading"
+            className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 py-2 text-sm text-ds-heading"
           />
           <span className="mt-1 block text-meta text-ds-textMuted">
             送出後可在申訴詳情頁補充匯款截圖等佐證資料。
@@ -164,6 +170,6 @@ function NewComplaintForm() {
           {busy ? "送出中…" : "送出申訴"}
         </button>
       </div>
-    </main>
+    </div>
   );
 }

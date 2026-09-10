@@ -78,10 +78,10 @@ function statusChipClass(o: UiOrder): string {
   if (p === "rejected") return "border-amber-200 bg-amber-50 text-amber-950";
   if (p === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-950";
   // 與下方 `s === "cancelled"` 的 fallback 同一組灰階：同一個語意不該有兩種視覺。
-  if (p === "cancelled") return "border-[#ececf2] bg-gray-50 text-[#777777]";
+  if (p === "cancelled") return "border-[#ececf2] bg-gray-50 text-ds-textMuted";
   const s = String(o.status ?? "").toLowerCase();
   if (s === "approved" || s === "completed" || s === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-950";
-  if (s === "cancelled" || s === "canceled") return "border-[#ececf2] bg-gray-50 text-[#777777]";
+  if (s === "cancelled" || s === "canceled") return "border-[#ececf2] bg-gray-50 text-ds-textMuted";
   return "border-[#ececf2] bg-white text-ds-body";
 }
 
@@ -289,7 +289,7 @@ export default function OrdersPage() {
               <span className="font-semibold tabular-nums text-ds-body">{refLabel}</span>
               <button
                 type="button"
-                className="mt-0.5 block w-fit text-left text-sm font-semibold text-edu-primary underline-offset-4 transition-opacity hover:opacity-75 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+                className="mt-0.5 block w-fit text-left text-sm font-semibold text-ds-textAccent underline-offset-4 transition-opacity hover:opacity-75 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
                 onClick={() => void toggleDetail(o.id)}
                 aria-expanded={expandedId === o.id}
               >
@@ -298,7 +298,7 @@ export default function OrdersPage() {
               </button>
             </div>
             {dateStr ? (
-              <p className="mt-2.5 text-sm leading-snug text-[#888888]" title={dateFull ?? undefined}>
+              <p className="mt-2.5 text-sm leading-snug text-ds-textMuted" title={dateFull ?? undefined}>
                 成立時間 {dateStr}
               </p>
             ) : null}
@@ -417,13 +417,13 @@ export default function OrdersPage() {
         aria-selected={active}
         onClick={onClick}
         className={`relative flex items-center gap-1.5 rounded-t-lg px-3 pb-2.5 pt-1.5 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus ${
-          active ? "font-bold text-edu-primary" : "font-medium text-[#888888] hover:text-ds-body"
+          active ? "font-bold text-ds-textAccent" : "font-medium text-ds-textMuted hover:text-ds-body"
         }`}
       >
         <span>{label}</span>
         <span
           className={`inline-flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums ${
-            active ? "bg-edu-primary/15 text-edu-primary" : "bg-[#f0f0f5] text-[#888888]"
+            active ? "bg-edu-primary/15 text-ds-textAccent" : "bg-[#f0f0f5] text-ds-body"
           }`}
         >
           {count}
@@ -438,7 +438,7 @@ export default function OrdersPage() {
       <div className="md:hidden">
         <MobileHeader title="我的訂單" backHref="/materials" right="none" />
       </div>
-      <div className="mx-auto w-full max-w-[960px] bg-transparent px-4 pb-20 pt-6 md:px-6">
+      <div className="mx-auto w-full max-w-[960px] px-page-mobile sm:px-page-tablet lg:px-page-desktop bg-transparent pb-20 pt-6">
         {!token ? (
           <SurfaceCard elevation="raised" className="border-[#ececf2] p-8 text-center shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
             <p className="text-lg font-semibold text-ds-heading">請先登入</p>

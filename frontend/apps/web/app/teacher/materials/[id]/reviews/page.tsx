@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, EmptyState, ErrorState, LoadingState, SurfaceCard } from "@teaching-platform/ui";
+import { Button, SurfaceCard } from "@teaching-platform/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "../../../../../components/ds";
 import type { Material, MaterialsListResponse, Review, UserRole } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
 
@@ -91,16 +92,16 @@ export default function CreatorMaterialReviewsPage() {
   }, [load]);
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900">教材教學回饋</h1>
-          <p className="text-sm text-slate-600">查看這份教材的使用者教學回饋內容與分數概況。</p>
-        </div>
-        <Link href="/creator/materials">
-          <Button variant="secondary">返回教材列表</Button>
-        </Link>
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader
+        title="教材教學回饋"
+        description="查看這份教材的使用者教學回饋內容與分數概況。"
+        action={
+          <Link href="/creator/materials">
+            <Button variant="secondary">返回教材列表</Button>
+          </Link>
+        }
+      />
 
       {loading ? <LoadingState title="載入教材教學回饋中…" /> : null}
       {!loading && error ? <ErrorState title="載入失敗" description={error} onRetry={() => void load()} /> : null}

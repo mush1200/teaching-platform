@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { EmptyState } from "@teaching-platform/ui";
+
 import { Button } from "../../components/ui/Button";
 import {
   AccountPageHeader,
@@ -10,7 +10,7 @@ import {
   LibraryGridSkeleton,
   QueryErrorBanner,
 } from "../../components/account/ProductAccountChrome";
-import { SurfaceCard } from "../../components/ds";
+import { EmptyState, SurfaceCard } from "../../components/ds";
 import type { DownloadLinkResponse, MyLibraryItem, MyLibraryResponse } from "../../lib/api-types";
 import { apiFetch, getStoredToken, parseApiErrorMessage } from "../../lib/api-client";
 
@@ -115,7 +115,7 @@ export default function DownloadsPage() {
 
   if (!hydrated) {
     return (
-      <section className={`${pageBg} px-4 py-8 pb-16 md:px-6 md:pb-12`}>
+      <section className={`${pageBg} px-page-mobile sm:px-page-tablet lg:px-page-desktop py-8 pb-16 md:pb-12`}>
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 h-24 animate-pulse rounded-ds-card bg-ds-surface/80 shadow-ds-card-soft" />
           <LibraryGridSkeleton />
@@ -126,18 +126,17 @@ export default function DownloadsPage() {
 
   if (!token) {
     return (
-      <section className={`${pageBg} px-4 py-8 pb-16 md:px-6`}>
+      <section className={`${pageBg} px-page-mobile sm:px-page-tablet lg:px-page-desktop py-8 pb-16`}>
         <div className="mx-auto max-w-6xl">
           <AccountPageHeader title="我的教材" description="登入後即可瀏覽已購買並取得授權的教材。" />
           <div className="mt-10">
             <EmptyState
               title="請先登入"
               description="我們會依你的帳號顯示可用教材，並保護下載授權。"
-              actionLabel="前往登入"
-              onAction={() => {
+              action={<Button intent="action" onClick={() => {
                 window.location.href = `/login?redirect=${encodeURIComponent("/me/materials")}`;
-              }}
-            />
+              }}>前往登入</Button>}
+              />
           </div>
         </div>
       </section>
@@ -145,7 +144,7 @@ export default function DownloadsPage() {
   }
 
   return (
-    <section className={`${pageBg} px-4 py-8 pb-20 md:px-6 md:pb-14`}>
+    <section className={`${pageBg} px-page-mobile sm:px-page-tablet lg:px-page-desktop py-8 pb-20 md:pb-14`}>
       <div className="mx-auto max-w-6xl">
         <AccountPageHeader
           title="我的教材"
@@ -171,11 +170,10 @@ export default function DownloadsPage() {
               <EmptyState
                 title="尚未擁有教材"
                 description="完成購買並通過審核後，教材會自動出現在這裡。"
-                actionLabel="前往探索教材"
-                onAction={() => {
+                action={<Button intent="action" onClick={() => {
                   window.location.href = "/explore";
-                }}
-              />
+                }}>前往探索教材</Button>}
+                />
             </SurfaceCard>
           ) : null}
 
@@ -223,7 +221,7 @@ export default function DownloadsPage() {
                             </div>
                           ) : null}
                           {updateHint ? (
-                            <p className="pt-0.5 text-[11px] font-medium text-edu-primary/90">{updateHint}</p>
+                            <p className="pt-0.5 text-[11px] font-medium text-ds-textAccent">{updateHint}</p>
                           ) : null}
                         </dl>
 

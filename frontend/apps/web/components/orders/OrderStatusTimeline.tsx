@@ -31,10 +31,10 @@ function iconByTone(tone: TimelineTone): LucideIcon {
 }
 
 function classByTone(tone: TimelineTone): string {
-  if (tone === "completed") return "border-emerald-200 bg-emerald-50 text-[#16A34A]";
+  if (tone === "completed") return "border-emerald-200 bg-emerald-50 text-status-approvedText";
   if (tone === "processing") return "border-violet-200 bg-violet-50 text-[#7C3AED]";
   if (tone === "failed") return "border-rose-200 bg-rose-50 text-[#DC2626]";
-  return "border-gray-200 bg-gray-50 text-[#9CA3AF]";
+  return "border-gray-200 bg-gray-50 text-ds-textSubtle";
 }
 
 export function OrderStatusTimeline({
@@ -60,7 +60,7 @@ export function OrderStatusTimeline({
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold leading-5 text-[#1F2937]">{item.label}</p>
-                {item.helper ? <p className="mt-1 text-xs leading-5 text-[#6B7280]">{item.helper}</p> : null}
+                {item.helper ? <p className="mt-1 text-xs leading-5 text-ds-textMuted">{item.helper}</p> : null}
               </div>
             </li>
           );

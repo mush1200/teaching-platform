@@ -22,7 +22,7 @@ export function RatingSummary({ average, reviewCount, distribution }: Props) {
                 <IconStar key={i} className={i < Math.round(average) ? "opacity-100" : "opacity-25"} />
               ))}
             </div>
-            <p className="mt-1 text-sm text-[#6B7280]">{reviewCount} 則教學回饋</p>
+            <p className="mt-1 text-sm text-ds-textMuted">{reviewCount} 則教學回饋</p>
           </div>
         </div>
         {reviewCount > 0 ? (
@@ -31,17 +31,17 @@ export function RatingSummary({ average, reviewCount, distribution }: Props) {
               const stars = row.star;
               return (
                 <div key={stars} className="flex items-center gap-2 text-xs">
-                  <span className="w-8 shrink-0 text-[#6B7280]">{stars} 星</span>
+                  <span className="w-8 shrink-0 text-ds-textMuted">{stars} 星</span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#F3F4F6]">
                     <div className="h-full rounded-full bg-[#6C63FF]/70" style={{ width: `${row.percent * 100}%` }} />
                   </div>
-                  <span className="w-10 shrink-0 text-right text-[#9CA3AF]">{Math.round(row.percent * 100)}%</span>
+                  <span className="w-10 shrink-0 text-right text-ds-textSubtle">{Math.round(row.percent * 100)}%</span>
                 </div>
               );
             })}
           </div>
         ) : (
-          <p className="text-sm text-[#6B7280]">尚無教學回饋資料。</p>
+          <p className="text-sm text-ds-textMuted">尚無教學回饋資料。</p>
         )}
       </div>
     </div>

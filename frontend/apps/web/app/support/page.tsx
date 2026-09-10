@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { SurfaceCard } from "../../components/ds";
+import { PageHeader, SurfaceCard } from "../../components/ds";
 import { getSupportContact } from "../../lib/support-contact";
 
 /**
@@ -65,11 +65,11 @@ export default function SupportPage() {
 
   return (
     // `RoleShell` 已提供唯一的 <main> landmark（`COR-06`）；這裡再包一層會產生巢狀 landmark。
-    <div className="mx-auto w-full max-w-[820px] px-5 py-10 md:py-14">
-      <h1 className="text-2xl font-bold text-ds-heading md:text-3xl">聯絡平台</h1>
-      <p className="mt-2 text-body text-ds-textMuted">
-        請依問題類型選擇下方對應的管道。不同類型由不同流程處理，走對管道才會被正確受理。
-      </p>
+    <div className="mx-auto w-full max-w-[820px] px-page-mobile sm:px-page-tablet lg:px-page-desktop py-10 md:py-14">
+      <PageHeader
+        title="聯絡平台"
+        description="請依問題類型選擇下方對應的管道。不同類型由不同流程處理，走對管道才會被正確受理。"
+      />
 
       <div className="mt-7 space-y-4">
         {/* A. 一般使用問題 —— 唯一使用客服 Email 的一段。 */}
@@ -81,7 +81,7 @@ export default function SupportPage() {
               <a
                 href={contact.mailto}
                 data-testid="support-email-link"
-                className="font-semibold text-edu-primary underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+                className="font-semibold text-ds-textAccent underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
               >
                 {contact.email}
               </a>
@@ -115,7 +115,7 @@ export default function SupportPage() {
             <Link
               href="/me/complaints"
               data-testid="support-complaint-link"
-              className="font-semibold text-edu-primary underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="font-semibold text-ds-textAccent underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               前往「申訴與消費爭議」
             </Link>{" "}
@@ -133,7 +133,7 @@ export default function SupportPage() {
             <Link
               href="/materials"
               data-testid="support-report-materials-link"
-              className="font-semibold text-edu-primary underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="font-semibold text-ds-textAccent underline underline-offset-4 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               前往教材列表
             </Link>

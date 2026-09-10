@@ -233,8 +233,17 @@ function AdminComplaintsContent() {
     </div>
   );
 
+  /*
+   * `COR-06`：外殼是 main landmark 的唯一擁有者。這裡原本渲染第二個 `<main>`，
+   * 實測（Wave UI-4B STEP 11）在 `/admin/complaints` 量到
+   * `document.querySelectorAll("main").length === 2`。
+   *
+   * `UI-CONS-07`：同時移除頁面自己的 `px-4 py-6` —— gutter 由 `AdminShell` 供應，
+   * 頁面不得疊第二層。`max-w-6xl`（1152）在 `AdminShell` 的 1200 上限＋32 內距下
+   * 實測永不生效（有效寬度 1136），屬死上限，一併移除。
+   */
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6" data-testid="admin-complaints-page">
+    <div className="w-full" data-testid="admin-complaints-page">
       <PageHeader
         title="消費申訴"
         description="買家對自己交易提出的申訴。依消費者保護法 §43 II，應於申訴之日起十五日內妥適處理。"
@@ -267,7 +276,7 @@ function AdminComplaintsContent() {
         listLabel="申訴佇列"
         detailLabel="申訴詳情"
       />
-    </main>
+    </div>
   );
 }
 
@@ -480,7 +489,7 @@ function ComplaintDetailPanel({
               value={toStatus}
               onChange={(e) => setToStatus(e.currentTarget.value as ComplaintStatus | "")}
               data-testid="complaint-transition-status"
-              className="mt-1 min-h-11 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+              className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
             >
               <option value="">請選擇…</option>
               {allowed.map((next) => (
@@ -498,7 +507,7 @@ function ComplaintDetailPanel({
               value={message}
               onChange={(e) => setMessage(e.currentTarget.value)}
               data-testid="complaint-transition-message"
-              className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface px-3 py-2 text-sm text-ds-heading"
+              className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 py-2 text-sm text-ds-heading"
             />
           </label>
 
@@ -520,7 +529,7 @@ function ComplaintDetailPanel({
                 value={resolutionSummary}
                 onChange={(e) => setResolutionSummary(e.currentTarget.value)}
                 data-testid="complaint-resolution-summary"
-                className="mt-1 w-full rounded-xl border border-ds-border bg-ds-surface px-3 py-2 text-sm text-ds-heading"
+                className="mt-1 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 py-2 text-sm text-ds-heading"
               />
             </label>
           ) : null}
@@ -546,7 +555,7 @@ function ComplaintDetailPanel({
                 onChange={(e) => setRemedyCaseId(e.currentTarget.value)}
                 placeholder="補救案件編號"
                 data-testid="complaint-remedy-case-id"
-                className="mt-1 min-h-11 w-full rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-heading"
+                className="mt-1 min-h-11 w-full rounded-xl border border-ds-borderControl bg-ds-surface px-3 text-sm text-ds-heading"
               />
             </label>
             <p className="mt-1 text-meta text-ds-textMuted">

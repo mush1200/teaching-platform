@@ -109,7 +109,7 @@ function AdminOrdersContent() {
   }, [load]);
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       {/*
        * 訂單管理是 Reference / Investigation 型頁面，不是佇列 ——
        * 依 `docs/admin-information-architecture.md` §7，這裡**不提供**重新整理按鈕。
@@ -180,7 +180,7 @@ function AdminOrdersContent() {
               <p className="text-sm text-ds-textMuted">金額：{formatMoney(o.total_amount ?? o.total_price)}</p>
               <p className="text-sm text-ds-textMuted">建立時間：{formatDateTime(o.created_at)}</p>
               <Link href={`/admin/orders/${encodeURIComponent(o.id)}/activity-logs`}>
-                <span className="text-xs font-medium text-edu-primary underline">此訂單活動紀錄</span>
+                <span className="text-xs font-medium text-ds-textAccent underline">此訂單活動紀錄</span>
               </Link>
             </SurfaceCard>
           ))}
@@ -205,7 +205,7 @@ function AdminOrdersContent() {
 
 function AdminOrdersFallback() {
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6">
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <PageHeader title="訂單管理" />
       <LoadingState title="載入訂單中…" />
     </section>

@@ -248,7 +248,7 @@ export default function CheckoutPage() {
   return (
     <AppShell withBottomNav>
       <MobileHeader title="結帳" backHref="/cart" right="none" />
-      <div className="mx-auto w-full max-w-6xl space-y-4 px-4 pb-28 pt-4 sm:px-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4 px-page-mobile sm:px-page-tablet lg:px-page-desktop pb-28 pt-4">
         <Card level="flat" padding="md" className="mx-auto w-full max-w-[720px]">
           <ol className="grid grid-cols-3 gap-2 text-center">
             {[
@@ -274,12 +274,12 @@ export default function CheckoutPage() {
                         ? "bg-[#6C63FF] text-white"
                         : active
                           ? "bg-[#6C63FF] text-white shadow-[0_0_0_3px_rgba(108,99,255,0.16)]"
-                          : "border border-[#D1D5DB] bg-white text-[#9CA3AF]"
+                          : "border border-[#D1D5DB] bg-white text-ds-textSubtle"
                     }`}
                   >
                     {done ? "✓" : s.step}
                   </span>
-                  <p className={`text-xs font-semibold ${active || done ? "text-[#1F2937]" : "text-[#9CA3AF]"}`}>
+                  <p className={`text-xs font-semibold ${active || done ? "text-[#1F2937]" : "text-ds-textSubtle"}`}>
                     {s.label}
                   </p>
                 </li>
@@ -340,7 +340,7 @@ export default function CheckoutPage() {
                 <input
                   value={billing.name}
                   onChange={(e) => setBilling((v) => ({ ...v, name: e.target.value }))}
-                  className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2"
+                  className="w-full rounded-xl border border-ds-borderControl px-3 py-2"
                 />
               </label>
               <label className="block text-sm">
@@ -348,7 +348,7 @@ export default function CheckoutPage() {
                 <input
                   value={billing.email}
                   onChange={(e) => setBilling((v) => ({ ...v, email: e.target.value }))}
-                  className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2"
+                  className="w-full rounded-xl border border-ds-borderControl px-3 py-2"
                 />
               </label>
               <label className="block text-sm">
@@ -356,7 +356,7 @@ export default function CheckoutPage() {
                 <input
                   value={billing.phone}
                   onChange={(e) => setBilling((v) => ({ ...v, phone: e.target.value }))}
-                  className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2"
+                  className="w-full rounded-xl border border-ds-borderControl px-3 py-2"
                 />
               </label>
             </div>
@@ -387,7 +387,7 @@ export default function CheckoutPage() {
               }`}
             >
               <p className="font-semibold text-[#1F2937]">銀行轉帳 {paymentMode === "manual_transfer" ? "✓" : ""}</p>
-              <p className="text-sm text-[#6B7280]">MVP 付款方式</p>
+              <p className="text-sm text-ds-textMuted">MVP 付款方式</p>
             </button>
             <BankTransferInfo state={bankInfo} />
             {step2BlockReason ? (
@@ -420,7 +420,7 @@ export default function CheckoutPage() {
           <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
             <Card level="default">
               <h2 className="text-lg font-bold text-[#1F2937]">Step 3 審核確認</h2>
-              <p className="mt-1 text-sm text-[#6B7280]">請確認商品、帳單與付款方式後再送出訂單。</p>
+              <p className="mt-1 text-sm text-ds-textMuted">請確認商品、帳單與付款方式後再送出訂單。</p>
               <h3 className="mt-4 text-sm font-semibold text-[#1F2937]">商品列表</h3>
               <ul className="mt-3 space-y-3">
                 {cartItems.map((item) => (
@@ -431,10 +431,10 @@ export default function CheckoutPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-[#1F2937]">{item.title || "教材"}</p>
-                        <p className="mt-0.5 text-xs text-[#6B7280]">{item.age_range ? `適合 ${String(item.age_range).replace(/^適合\s*/, "")}` : "適合全年齡"}</p>
+                        <p className="mt-0.5 text-xs text-ds-textMuted">{item.age_range ? `適合 ${String(item.age_range).replace(/^適合\s*/, "")}` : "適合全年齡"}</p>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {(Array.isArray(item.material_features) ? item.material_features : []).slice(0, 4).map((tag) => (
-                            <span key={`${item.id}-${tag}`} className="rounded-full bg-[#F4F1FF] px-2 py-0.5 text-[11px] font-medium text-[#6C63FF]">
+                            <span key={`${item.id}-${tag}`} className="rounded-full bg-[#F4F1FF] px-2 py-0.5 text-[11px] font-medium text-ds-textAccent">
                               {tag}
                             </span>
                           ))}
@@ -468,7 +468,7 @@ export default function CheckoutPage() {
                     value={promoCodeInput}
                     onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
                     placeholder="輸入優惠代碼"
-                    className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-ds-borderControl px-3 py-2 text-sm"
                   />
                   <Button type="button" intent="neutral" variant="outline" disabled={promoBusy} onClick={() => void applyPromoCode()}>
                     {promoBusy ? "套用中" : "套用"}
@@ -500,9 +500,9 @@ export default function CheckoutPage() {
                       value={invoiceCarrier}
                       onChange={(e) => setInvoiceCarrier(e.target.value.toUpperCase())}
                       placeholder="/ABC1234"
-                      className="w-full rounded-xl border border-[#E5E7EB] px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-ds-borderControl px-3 py-2 text-sm"
                     />
-                    <p className="mt-1 text-xs text-[#6B7280]">請輸入手機載具條碼，例如：/ABC1234</p>
+                    <p className="mt-1 text-xs text-ds-textMuted">請輸入手機載具條碼，例如：/ABC1234</p>
                   </div>
                 ) : null}
               </div>
@@ -540,7 +540,7 @@ export default function CheckoutPage() {
           </section>
         ) : null}
 
-        {cartLoading ? <p className="mx-auto max-w-[720px] text-sm text-[#6B7280]">載入明細中…</p> : null}
+        {cartLoading ? <p className="mx-auto max-w-[720px] text-sm text-ds-textMuted">載入明細中…</p> : null}
         {!cartLoading && cartItems.length === 0 ? (
           <Card level="default" className="mx-auto w-full max-w-[720px]">
             <p className="text-sm font-medium text-[#1F2937]">購物車目前是空的</p>

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Button, EmptyState, ErrorState, InputField, LoadingState } from "@teaching-platform/ui";
+import { InputField } from "@teaching-platform/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "../../../../../components/ds";
+import { Button } from "../../../../../components/ui/Button";
 import Link from "next/link";
 import type { Material } from "../../../../../lib/api-types";
 import { apiFetch, parseApiErrorMessage } from "../../../../../lib/api-client";
@@ -367,13 +369,11 @@ export default function CreatorMaterialEditPage() {
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-slate-900">編輯教材（Creator）</h1>
-        <p className="text-sm text-slate-600">
-          修改內容會先儲存；準備好之後再按「儲存並重新送審」，教材才會回到審核佇列。
-        </p>
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl px-page-mobile sm:px-page-tablet lg:px-page-desktop flex-col gap-4 py-6">
+      <PageHeader
+        title="編輯教材（Creator）"
+        description="修改內容會先儲存；準備好之後再按「儲存並重新送審」，教材才會回到審核佇列。"
+      />
 
       {/* 審核意見：來自 materials 的最近一次審核快照，不顯示任何內部識別碼。 */}
       {material?.status === "changes_requested" ? (
@@ -489,11 +489,17 @@ export default function CreatorMaterialEditPage() {
             <MaterialFeaturesSelector selected={form.selectedFeatures} onToggle={toggleFeature} disabled={saving} />
 
             <div className="flex flex-wrap gap-2">
+              {/*
+                `UI-CONS-10`：legacy Tamagui Button → canonical Button。
+                `onPress` → `onClick`；`variant="primary"|"secondary"` 是舊的**顏色**語意，
+                對應到 canonical 的 `intent="flow"|"action"`（顏色只由 intent 決定）。
+                `loading` 兩邊同名且語意相同，行為不變。
+              */}
               <Button
-                onPress={() => void handleSave()}
+                onClick={() => void handleSave()}
                 disabled={saving || resubmitting}
                 loading={saving && !resubmitting}
-                variant={canResubmit(material?.status) ? "secondary" : "primary"}
+                intent={canResubmit(material?.status) ? "action" : "flow"}
               >
                 {saving && !resubmitting ? "儲存中…" : "儲存變更"}
               </Button>
@@ -505,7 +511,7 @@ export default function CreatorMaterialEditPage() {
               {canResubmit(material?.status) ? (
                 <div data-testid="creator-resubmit">
                   <Button
-                    onPress={() => void handleSaveAndResubmit()}
+                    onClick={() => void handleSaveAndResubmit()}
                     disabled={saving || resubmitting}
                     loading={resubmitting}
                   >
@@ -514,7 +520,7 @@ export default function CreatorMaterialEditPage() {
                 </div>
               ) : null}
               <Link href="/creator/materials">
-                <Button variant="secondary" disabled={saving || resubmitting}>
+                <Button intent="action" disabled={saving || resubmitting}>
                   返回列表
                 </Button>
               </Link>

@@ -168,7 +168,7 @@ export default function AdminPrivacyRequestsPage() {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           data-testid="privacy-status-filter"
-          className="min-h-11 rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+          className="min-h-11 rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
         >
           <option value="">全部</option>
           {(data?.statusOptions ?? []).map((o) => (
@@ -204,7 +204,7 @@ export default function AdminPrivacyRequestsPage() {
             onChange={(e) => setRequestType(e.target.value)}
             disabled={busy}
             data-testid="privacy-type-select"
-            className="min-h-11 w-full rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+            className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
           >
             <option value="">請選擇請求類型</option>
             {(data?.requestTypeOptions ?? []).map((o) => (
@@ -224,7 +224,7 @@ export default function AdminPrivacyRequestsPage() {
             disabled={busy}
             placeholder="來信之電子郵件位址"
             data-testid="privacy-reference-input"
-            className="min-h-11 w-full rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+            className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
           />
           {/* 資料最小化：只記回覆所需的聯絡識別。 */}
           <p className="text-meta text-ds-textMuted">
@@ -241,7 +241,7 @@ export default function AdminPrivacyRequestsPage() {
             onChange={(e) => setReceivedAt(e.target.value)}
             disabled={busy}
             data-testid="privacy-received-input"
-            className="min-h-11 w-full rounded-xl border border-ds-border bg-white px-3 text-sm text-ds-heading"
+            className="min-h-11 w-full rounded-xl border border-ds-borderControl bg-white px-3 text-sm text-ds-heading"
           />
 
           <label htmlFor="pr-summary" className="block text-meta font-medium text-ds-heading">
@@ -254,7 +254,7 @@ export default function AdminPrivacyRequestsPage() {
             disabled={busy}
             rows={3}
             data-testid="privacy-summary-input"
-            className="w-full rounded-xl border border-ds-border bg-white px-3 py-2 text-sm text-ds-heading"
+            className="w-full rounded-xl border border-ds-borderControl bg-white px-3 py-2 text-sm text-ds-heading"
           />
 
           {formError ? (

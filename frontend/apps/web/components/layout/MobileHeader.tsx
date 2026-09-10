@@ -16,6 +16,13 @@ type Props = {
   onMenuClick?: () => void;
 };
 
+/*
+ * `UI-CONS-18`（Wave UI-6，navigation subset）：本檔的導覽觸發鈕（返回／選單／搜尋）
+ * 與對稱佔位由 40×40 補到 **44×44**，與 `shell-constants.NAV_ICON_BUTTON_CLASS`
+ * 及 Admin／Creator 的 hamburger 一致。
+ * **只動導覽 chrome** —— FilterTabs／分頁／表格動作／創作者表單控制項仍留在
+ * `UI-CONS-18` 後續，本輪不碰。
+ */
 export function MobileHeader({
   title = "EduMarket",
   backHref,
@@ -30,11 +37,11 @@ export function MobileHeader({
     >
       <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {leading === "none" ? <div className="size-10 shrink-0" aria-hidden /> : null}
+          {leading === "none" ? <div className="size-11 shrink-0" aria-hidden /> : null}
           {leading !== "none" && backHref ? (
             <Link
               href={backHref}
-              className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
+              className="flex size-11 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
               aria-label="返回"
             >
               ←
@@ -43,7 +50,7 @@ export function MobileHeader({
           {leading !== "none" && !backHref ? (
             <button
               type="button"
-              className="flex size-10 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
+              className="flex size-11 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
               aria-label="選單"
               onClick={onMenuClick}
             >
@@ -63,21 +70,21 @@ export function MobileHeader({
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              className="flex size-10 items-center justify-center rounded-2xl text-[#6B7280] hover:bg-[#F4F1FF] hover:text-[#6C63FF]"
+              className="flex size-11 items-center justify-center rounded-2xl text-ds-textMuted hover:bg-[#F4F1FF] hover:text-ds-textAccent"
               aria-label="搜尋"
             >
               <IconSearch />
             </button>
             <Link
               href="/cart"
-              className="flex size-10 items-center justify-center rounded-2xl text-[#6B7280] hover:bg-[#F4F1FF] hover:text-[#6C63FF]"
+              className="flex size-11 items-center justify-center rounded-2xl text-ds-textMuted hover:bg-[#F4F1FF] hover:text-ds-textAccent"
               aria-label="購物車"
             >
               <IconCart />
             </Link>
           </div>
         ) : right === "edit" ? (
-          <button type="button" className="text-sm font-semibold text-[#6C63FF]">
+          <button type="button" className="text-sm font-semibold text-ds-textAccent">
             編輯
           </button>
         ) : null}

@@ -18,6 +18,18 @@
  * 不是這一輪新造的值 —— 這裡只是讓兩個 shell 都真的去用它。
  */
 
+/**
+ * **展開側欄寬度的唯一來源**（`UI-CONS-06`，Wave UI-6）。
+ *
+ * 先前這個 240 有兩個各自宣告的來源：本檔的 `layout-sidebar` token（class 形式）
+ * 與 `components/dashboard/sidebar-constants.ts` 的 `SIDEBAR_WIDTH_EXPANDED = 240`
+ * （數值形式，買家外殼用 inline style 套用）。兩者剛好相等純屬巧合，任何一邊改動都會分歧。
+ *
+ * 數值仍然對應 `tailwind.config.ts` 的 `spacing["layout-sidebar"] = 240px`；
+ * 需要 class 的用 `SIDEBAR_DESKTOP_WIDTH_CLASS`，需要數值的用這一個。
+ */
+export const SIDEBAR_WIDTH_EXPANDED_PX = 240;
+
 /** Desktop 固定側欄寬度。`lg` 以下不佔文件流。 */
 export const SIDEBAR_DESKTOP_WIDTH_CLASS = "lg:w-layout-sidebar";
 

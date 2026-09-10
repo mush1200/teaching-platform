@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { StatusTone } from "../../lib/status-tone";
 
 /**
  * 清單／詳情頁的標準頁首（Epic §13）。
@@ -40,9 +41,15 @@ export function StatusPill({
   tone = "neutral",
 }: {
   label: string;
-  tone?: "neutral" | "info" | "success" | "warning" | "danger";
+  tone?: StatusTone;
 }) {
-  const tones: Record<string, string> = {
+  /*
+   * ✅ `UI-CONS-01`（2026-09-07）：五個 tone pair 全部通過 AA 4.5:1。
+   *   neutral 6.87 / info 4.61 / success 5.21 / warning 4.51 / danger 5.30
+   * `info` 由 #6C63FF 加深為 #554BFF（3.63 → 4.61），色相僅移動 0.2°。
+   * 色值定義在 `globals.css` ＋ `tailwind.config.ts`，**不得在此就地覆寫**。
+   */
+  const tones: Record<StatusTone, string> = {
     neutral: "bg-status-draftBg text-status-draftText",
     info: "bg-status-reviewedBg text-status-reviewedText",
     success: "bg-status-approvedBg text-status-approvedText",
