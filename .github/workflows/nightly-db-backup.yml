@@ -1,0 +1,273 @@
+# PRE-08 (i) —— production 資料庫的每日排程 logical backup
+#
+# canonical 契約：`docs/db-backup-and-migration.md` §8.3.1（十二條 launch minimum）。
+# 這個檔案是那份契約的實作；**兩者不一致時以 §8.3.1 為準**，並且應該回頭修這個檔案。
+#
+# ## 為什麼需要排程（Owner decision 2026-09-10）
+#
+# 手動 `pg_dump`／`pg_restore` 程序**早就驗證可行**，未解決的風險**不是程序不可靠，
+# 而是備份不會自動發生**。Neon Free 的 provider-native history 只有 6 小時 —— 那撐不過
+# 一個週末。**上線就緒不得依賴「操作者記得執行 pg_dump」。**
+#
+# ## 這個 workflow 刻意不做的事
+#
+#   * **不上傳 GitHub Actions artifact。** 本 repo 是 PUBLIC，artifact 任何人都能下載，
+#     而 dump **內含全部個資**。上傳等於公開發布整個資料庫。這是硬性禁止（§8.3.1 第 6 條）。
+#   * **不刪除任何既有備份。** 保存期限由 B2 lifecycle rule 執行（operator 設定），
+#     而不是由 CI 刪檔 —— 一個有 bug 的清理步驟可以把所有備份一次刪光。
+#     搭配 write-only 的 application key，這個 job **在權限上就沒有刪除能力**。
+#   * **不還原、不碰 production 以外的任何東西。** 還原一律是人工、且先進隔離庫（§8.3.1 第 9／10 條）。
+#
+# ## Secret 處理（public repo ⇒ log 也是公開的）
+#
+#   * production 連線字串只以 `BACKUP_DATABASE_URL_RO` 進入 env，
+#     並且**只以 `"$VAR"` 傳給 pg_dump**，永不出現在任何輸出
+#   * B2 金鑰只以 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` 進入 aws-cli 的 env
+#   * 全程不得 `set -x`；不 echo 任何 secret；失敗訊息一律不含連線字串或金鑰
+#   * production DB 憑證應為 **read-only**（備份不需要任何寫入權）
+#   * B2 application key 應為 **限定此單一 bucket、具 write ＋ read、但無 delete**
+#
+# ## 為什麼 B2 key 需要 read 而不是純 write-only
+#
+# 「write-only 最安全」在直覺上成立，但它會讓下面的〈Verify the uploaded object〉
+# 無法執行 —— `head-object` 需要讀取權。**沒有讀回比對，就只能相信 upload 的 exit code，
+# 而那不足以證明物件真的在那裡、大小正確。** 一個無法驗證的備份等於沒有備份。
+#
+# 取捨結果：**放棄 read 的限制，保留 delete 的限制。**
+# 讀自己的備份不構成有意義的權限升級；**不能刪除**才是真正重要的那一條 ——
+# 它讓外洩的 CI 憑證無法銷毀既有備份，也讓保存期限只能由 B2 lifecycle rule 執行。
+
+name: nightly-db-backup
+
+on:
+  # 每日一次。02:37 Asia/Taipei = 18:37 UTC（前一日）。
+  # 刻意避開整點與 00:00 —— 那是 GitHub scheduler 負載最高、延遲最嚴重的時段。
+  schedule:
+    - cron: "37 18 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly-db-backup
+  # 不取消進行中的備份 —— 取消會留下一個沒有成功也沒有明確失敗的空窗。
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Nightly logical backup to B2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # ---------------------------------------------------------------------
+      # 明確安裝 client，不依賴 runner image 內建的版本。
+      #
+      # runner image 內建的 postgresql-client 版本**沒有保證**，而且正在
+      # Ubuntu 24.04 → 26.04 的遷移期。`pg_dump` 版本低於 server 會直接拒絕執行，
+      # 那會變成「備份每晚安靜失敗」。這正是 `OPS-07` 那次 `jq` 事件的同一類相依 ——
+      # 讓關鍵判斷依賴隱性的 runner 工具，image 一變就安靜壞掉。
+      # ---------------------------------------------------------------------
+      - name: Install PostgreSQL 17 client
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "pg_dump: $(pg_dump --version)"
+
+      # ---------------------------------------------------------------------
+      # 前置斷言：client 主版本不得低於 server（§8.3 既有規則）。
+      # 寧可在這裡明確失敗，也不要產生一個不完整或根本沒產生的備份。
+      # ---------------------------------------------------------------------
+      - name: Pre-flight — client version must not be older than server
+        env:
+          DB_URL: ${{ secrets.BACKUP_DATABASE_URL_RO }}
+        run: |
+          set -uo pipefail
+          if [ -z "${DB_URL}" ]; then
+            echo "::error::BACKUP_DATABASE_URL_RO secret is not set"
+            exit 1
+          fi
+
+          # 只取主版本號；連線字串本身永不輸出。
+          server_major="$(psql "$DB_URL" -Atqc 'SHOW server_version_num;' 2>/dev/null | cut -c1-2)"
+          if [ -z "$server_major" ]; then
+            echo "::error::could not read server version (connection failed; URL redacted)"
+            exit 1
+          fi
+          client_major="$(pg_dump --version | grep -oE '[0-9]+' | head -1)"
+
+          echo "server major: $server_major"
+          echo "client major: $client_major"
+          if [ "$client_major" -lt "$server_major" ]; then
+            echo "::error::pg_dump ($client_major) is older than server ($server_major); refusing to back up"
+            exit 1
+          fi
+
+      - name: Dump production database
+        env:
+          DB_URL: ${{ secrets.BACKUP_DATABASE_URL_RO }}
+        run: |
+          set -uo pipefail
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          file="teaching-platform-${stamp}.dump"
+          echo "BACKUP_FILE=$file" >> "$GITHUB_ENV"
+
+          # §8.3.1 第 3 條：flags 由 canonical 契約規定，不得自行更動。
+          # --no-owner / --no-privileges 讓 dump 可以還原到任何隔離目標，
+          # 不必先重建 Neon 的角色。
+          if ! pg_dump --format=custom --no-owner --no-privileges \
+                       --dbname="$DB_URL" --file="$file" 2>/tmp/dump.err; then
+            echo "::error::pg_dump failed (details withheld: stderr may contain the connection string)"
+            # 只輸出錯誤類別，不輸出可能含連線字串的原文。
+            grep -oiE 'authentication|permission denied|timeout|could not connect|version' /tmp/dump.err \
+              | sort -u | sed 's/^/  error class: /' || true
+            exit 1
+          fi
+
+          size="$(wc -c < "$file")"
+          echo "BACKUP_SIZE=$size" >> "$GITHUB_ENV"
+          echo "dump complete: $file ($size bytes)"
+
+          # 空檔或極小檔代表出了問題 —— 一個成功的 exit code 不足以證明備份有內容。
+          if [ "$size" -lt 1024 ]; then
+            echo "::error::dump is implausibly small ($size bytes); treating as failure"
+            exit 1
+          fi
+
+      - name: Compute checksum
+        run: |
+          set -euo pipefail
+          sum="$(sha256sum "$BACKUP_FILE" | cut -d' ' -f1)"
+          echo "BACKUP_SHA256=$sum" >> "$GITHUB_ENV"
+          # checksum 不是機密 —— 它正是還原時要拿來比對的東西，記在 log 才有用。
+          echo "sha256: $sum"
+
+      # ---------------------------------------------------------------------
+      # 直接上傳到 B2，**不經過 GitHub artifact**（§8.3.1 第 6 條）。
+      # B2 提供 S3 相容 API，因此用 runner 內建的 aws-cli 即可，不需額外套件。
+      # ---------------------------------------------------------------------
+      - name: Upload to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_B2_REGION }}
+          B2_BUCKET: ${{ secrets.BACKUP_B2_BUCKET }}
+          B2_ENDPOINT: ${{ secrets.BACKUP_B2_ENDPOINT }}
+        run: |
+          set -uo pipefail
+          for v in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION B2_BUCKET B2_ENDPOINT; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v secret is not set"
+              exit 1
+            fi
+          done
+
+          # --sse AES256：server-side encryption（§8.3.1 第 6 條）。
+          # bucket 端也應設預設加密；兩層都設，任一層被改動仍有保護。
+          # 物件前綴為 `production/db/`（Owner decision 2026-09-10）：
+          # `production/` 區隔環境，`db/` 再把 CI 憑證的命名空間縮到只有資料庫備份。
+          # **B2 application key 以同一個前綴限制**，因此這裡改動路徑就等於改動權限邊界 ——
+          # 兩者必須一致，不一致的話第一次上傳就會 403。
+          if ! aws s3 cp "$BACKUP_FILE" "s3://${B2_BUCKET}/production/db/${BACKUP_FILE}" \
+                 --endpoint-url "$B2_ENDPOINT" \
+                 --sse AES256 \
+                 --only-show-errors 2>/tmp/upload.err; then
+            echo "::error::upload to B2 failed"
+            grep -oiE 'AccessDenied|NoSuchBucket|InvalidAccessKeyId|SignatureDoesNotMatch|timeout' /tmp/upload.err \
+              | sort -u | sed 's/^/  error class: /' || true
+            exit 1
+          fi
+          echo "uploaded: db/${BACKUP_FILE}"
+
+      # ---------------------------------------------------------------------
+      # 上傳成功的 exit code 不等於「物件真的在那裡而且大小正確」。
+      # 這一步把 B2 上的物件大小讀回來跟本地比對。
+      # ---------------------------------------------------------------------
+      - name: Verify the uploaded object
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_B2_REGION }}
+          B2_BUCKET: ${{ secrets.BACKUP_B2_BUCKET }}
+          B2_ENDPOINT: ${{ secrets.BACKUP_B2_ENDPOINT }}
+        run: |
+          set -uo pipefail
+          remote_size="$(aws s3api head-object \
+            --bucket "$B2_BUCKET" --key "production/db/${BACKUP_FILE}" \
+            --endpoint-url "$B2_ENDPOINT" \
+            --query 'ContentLength' --output text 2>/dev/null)" || remote_size=""
+
+          if [ -z "$remote_size" ]; then
+            echo "::error::could not read back the uploaded object"
+            echo "  most likely cause: the B2 application key lacks read permission."
+            echo "  This key must be scoped to this bucket with write AND read, but NOT delete."
+            echo "  Read is required — without it the upload cannot be verified, and an"
+            echo "  unverifiable backup is not a backup. Delete stays forbidden so a leaked"
+            echo "  CI credential cannot destroy existing backups."
+            exit 1
+          fi
+
+          echo "local size : $BACKUP_SIZE"
+          echo "remote size: $remote_size"
+          if [ "$remote_size" != "$BACKUP_SIZE" ]; then
+            echo "::error::size mismatch between local dump and uploaded object"
+            exit 1
+          fi
+          echo "verified: object present and size matches"
+
+      - name: Remove the local dump
+        if: always()
+        run: |
+          set -uo pipefail
+          # runner 是 ephemeral，但明確刪除仍然值得 —— dump 內含全部個資，
+          # 不應該在後續 step 的任何操作中還躺在磁碟上。
+          rm -f ./*.dump
+          echo "local dump removed"
+
+      # ---------------------------------------------------------------------
+      # 通知：沿用 `OPS-07` 已在運作的 Healthchecks.io 模式。
+      #
+      # 這同時給到兩種偵測：
+      #   備份失敗       → /fail → 立即告警
+      #   備份根本沒跑    → 沒有 ping → period + grace 之後自行 DOWN
+      # 後者對備份特別重要 —— 「備份安靜地停止執行」正是這個工作項要消滅的風險。
+      # ---------------------------------------------------------------------
+      - name: Ping Healthchecks.io (success)
+        if: success()
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_BACKUP_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_BACKUP_URL secret is not set"
+            exit 1
+          fi
+          if curl --silent --show-error --fail --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null "$HC_PING_URL" > /dev/null 2>&1; then
+            echo "success ping sent"
+          else
+            echo "::error::Healthchecks ping failed (URL redacted)"
+            exit 1
+          fi
+
+      - name: Signal failure to Healthchecks.io
+        if: failure()
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_BACKUP_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_BACKUP_URL secret is not set; failure could not be signalled"
+            exit 1
+          fi
+          base="${HC_PING_URL%/}"
+          curl --silent --show-error --fail --max-time 20 --retry 3 --retry-delay 5 \
+               --output /dev/null "${base}/fail" > /dev/null 2>&1 \
+            && echo "failure signal sent — check should go DOWN" \
+            || echo "::error::failure signal could not be sent (URL redacted)"

@@ -2562,17 +2562,91 @@ canonical 同步  已於同一 commit 更新 `docs/db-backup-and-migration.md`
                **保存期限／銷毀方式未在該處定義** —— 維持 `O-20`／`L-21`／`RM-15`，BLOCKED — LEGAL
 ```
 
-**剩餘 operator gates（七項，本輪一項都未執行、未假裝完成）**
+#### Owner destination decision（2026-09-10）＋ scheduler 實作
 
 ```text
-[ ] private encrypted off-site backup destination selected/provisioned
+destination    Backblaze B2，**新的專用 private production-backup bucket**
+isolation      **與既有 private-files bucket 分開**（不同存取需求、不同刪除故事，見 SEC-03）
+encryption     server-side encryption 啟用（workflow 亦帶 --sse AES256，兩層都設）
+cadence        nightly
+retention      **30 天的 nightly 備份**（Owner 2026-09-10）。
+               這是 **operational recovery window**，**不等於 legal retention／destruction policy**
+               —— 後者仍 **BLOCKED — LEGAL**（O-20／L-21／RM-15），不得由本項代為決定
+versioning     **不列為需求。** B2 bucket **預設就保留檔案版本**，
+               **不得自行發明一條「啟用 versioning」的要求**（Owner 明示）。
+               到期由後續設定的 **Lifecycle Rules** 控制
+scheduler      GitHub Actions
+dump storage   **直接上傳 B2；不得產生 GitHub Actions artifact**
+recovery       B2 → 隔離庫 → 驗證 → smoke → production recovery 另需 Owner 核准
+```
+
+**實作：`.github/workflows/nightly-db-backup.yml`（本輪新增，尚未生效）**
+
+```text
+排程            37 18 * * *（UTC）＝ 02:37 Asia/Taipei；避開整點與 00:00 的 scheduler 尖峰
+permissions     {}（不 checkout、不呼叫 GitHub API）
+步驟            明確安裝 postgresql-client-17（**不依賴 runner image 內建版本**）
+                → 前置斷言 client 主版本 ≥ server 主版本（否則拒絕備份）
+                → pg_dump --format=custom --no-owner --no-privileges
+                → 檔案過小（<1 KB）視同失敗
+                → SHA-256
+                → aws s3 cp 直傳 B2（--sse AES256）
+                → head-object 讀回比對大小
+                → 刪除 runner 上的 dump
+                → Healthchecks success ping ／ 失敗送 /fail
+驗證            YAML parse OK；9 個 run block 全數 bash -n 通過；
+                0 個 artifact upload、0 個刪除既有備份的指令、0 個 set -x、
+                0 個硬編 endpoint／bucket／UUID／金鑰／email
+```
+
+> **為什麼明確安裝 client 而不用 runner 內建的：** runner image 的 postgresql-client 版本
+> **沒有保證**，而且正處於 Ubuntu 24.04 → 26.04 的遷移期。`pg_dump` 版本低於 server 會
+> **直接拒絕執行**，結果就是「備份每晚安靜失敗」。這與 `OPS-07` 的 `jq` 事件是同一類相依 ——
+> 讓關鍵判斷依賴隱性的 runner 工具，image 一變就安靜壞掉。
+>
+> **B2 application key 的權限取捨（實作時發現並修正的一個設計衝突）：**
+> 初版建議 **write-only**，直覺上最安全 —— 但那會讓「讀回比對」無法執行，
+> 於是只能相信 upload 的 exit code，而**那不足以證明物件真的在、大小正確**。
+> **一個無法驗證的備份等於沒有備份。** 最終取捨：**放棄 read 限制，保留 delete 限制** ——
+> 讀自己的備份不構成有意義的權限升級；**不能刪除**才是關鍵，
+> 它讓外洩的 CI 憑證無法銷毀既有備份，也讓保存期限只能由 B2 lifecycle rule 執行。
+>
+> **保存期限由 B2 lifecycle rule 執行，不由 CI 刪檔** —— 一個有 bug 的清理步驟
+> 可以把所有備份一次刪光；而上述 key 權限讓這個 job 在**權限上就沒有刪除能力**。
+
+**剩餘 operator gates（本輪一項都未執行、未假裝完成）**
+
+**Owner 指定的順序（2026-09-10）：先確認 bucket，再做 application-key least-privilege 設計，
+最後才是 workflow。本檔依此順序記錄，不得跳步。**
+
+```text
+[x] backup destination 選定                          ← Owner 2026-09-10（B2 專用 bucket）
+--- STEP 1：待 Owner 確認（下一輪的前提）-----------------------------------
+[ ] dedicated B2 bucket 已建立
+[ ] bucket 為 Private
+[ ] server-side encryption 已啟用
+[ ] bucket name 已知
+[ ] S3 endpoint 已知
+--- STEP 2：Owner 確認後才進行 -------------------------------------------
+[ ] application key least-privilege 設計（**僅此一輪，不含實作**）
+--- STEP 3：其後 ---------------------------------------------------------
 [ ] backup storage credentials provisioned
 [ ] production read-only DATABASE_URL secret provisioned
+[ ] Healthchecks backup check 建立
+[ ] GitHub Secrets 建立
+[ ] Lifecycle Rule 設定為 30 天到期
 [ ] scheduled backup workflow active
 [ ] failure notification path active
 [ ] first scheduled backup observed
 [ ] stored backup disposable-restore verification PASS
 ```
+
+> ⚠️ **順序偏離，如實記錄：** `.github/workflows/nightly-db-backup.yml` 的實作
+> **在 Owner 發出「先確認 bucket、暫不建 workflow」指示之前就已完成並 commit**
+> （`1ae747c`，本機）。**未 push、未生效、未建立任何 bucket／secret／credential** ——
+> 它在 `main` 上不存在，也沒有任何可用的 secret，因此不可能執行。
+> **處置待 Owner 指示**：保留在本機待 STEP 1／2 完成後再 push，或撤回該 commit 重做。
+> **本檔不把它記為已完成的 operator gate。**
 
 **PHASE 8 — 判定：`PRE-08` (i) ＝ 🟡 PARTIAL（決策已定，實作未開始）**
 
