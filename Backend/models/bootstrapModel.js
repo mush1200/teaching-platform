@@ -172,7 +172,11 @@ async function runIdempotentMigrations() {
       id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
       order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
       proof_url TEXT NOT NULL,
-      review_status TEXT NOT NULL,
+      -- \`PRE-06\`：DEFAULT 必須與 canonical 一致（\`db/db_schema.sql:398\`）。
+      -- runtime 的唯一 INSERT 路徑一律顯式帶 review_status，因此缺 DEFAULT 不會造成
+      -- production 缺陷；但**全新資料庫的定義必須與 canonical 相同**，否則
+      -- provisioning 出來的庫與 \`db_schema.sql\` 不是同一份 schema。
+      review_status TEXT NOT NULL DEFAULT 'pending',
       note TEXT,
       reviewed_by TEXT,
       reviewed_at TIMESTAMP,
@@ -275,7 +279,11 @@ async function runIdempotentMigrations() {
   await db.query(`
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS review_reason_code TEXT;
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS review_note TEXT;
-    ALTER TABLE materials ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+    -- \`PRE-06\`：FK 必須與 canonical 一致（\`db/db_schema.sql:86\`）。
+    -- \`ADD COLUMN IF NOT EXISTS\` 在欄位已存在時會**整段跳過**（含 REFERENCES），
+    -- 因此這個修正**只影響全新資料庫**，不會對既有 dev／test／production 加上約束。
+    -- 那正是所要的行為：Owner 明示不得 ALTER 任何既有資料庫。
+    ALTER TABLE materials ADD COLUMN IF NOT EXISTS reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
     ALTER TABLE materials ADD COLUMN IF NOT EXISTS published_at TIMESTAMP;
   `);
@@ -290,10 +298,20 @@ async function runIdempotentMigrations() {
         ));
     END $$;
   `);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_materials_status ON materials(status);`);
-  await db.query(
-    `CREATE INDEX IF NOT EXISTS idx_materials_status_updated_at ON materials(status, updated_at DESC);`
-  );
+  /*
+   * `PRE-06`（2026-09-10 Owner decision）—— 這裡原本宣告兩個索引：
+   *   idx_materials_status              ON materials(status)
+   *   idx_materials_status_updated_at   ON materials(status, updated_at DESC)
+   *
+   * 兩者**都不存在於 canonical `db/db_schema.sql`**，也就是說 bootstrap 建出來的庫
+   * 比 canonical 多了兩個索引 —— drift 的方向與 tracker 原本記載的相反。
+   *
+   * Owner 決定：**bootstrap 必須向 canonical 看齊，而不是把它們補進 canonical。**
+   * 因此在此移除宣告。
+   *
+   * **既有資料庫不受影響** —— 移除 `CREATE INDEX IF NOT EXISTS` 只會讓新庫不再建立它們；
+   * dev／test／production 既有的索引**不會被 DROP**（本輪未執行任何 DROP INDEX）。
+   */
 
   /*
    * 教材本體檔案（material_files）與交付。見 docs/material-file-storage-and-delivery.md。

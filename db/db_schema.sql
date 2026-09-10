@@ -665,6 +665,44 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ---------------------------------------------------------------------------
+-- INDEX OWNERSHIP — non-canonical historical artifacts (`PRE-06`)
+--
+-- Owner decision, 2026-09-10. The indexes listed below are **NOT part of
+-- canonical fresh provisioning**. They are classified as historical artifacts:
+--
+--   introduced by bootstrap, never declared here
+--     idx_materials_status                  ON materials(status)
+--     idx_materials_status_updated_at       ON materials(status, updated_at DESC)
+--
+--   present only in the pre-existing dev/test databases
+--     idx_orders_user_id                    ON orders(user_id)
+--     idx_orders_status                     ON orders(status)
+--     idx_orders_user_status                ON orders(user_id, status)
+--     idx_orders_payment_mode               ON orders(payment_mode)
+--     idx_materials_teacher_id              ON materials(teacher_id)
+--     idx_materials_category                ON materials(category)
+--     idx_order_items_order_id              ON order_items(order_id)
+--     idx_order_items_material_id           ON order_items(material_id)
+--
+-- Rules:
+--   * existing databases MAY retain them — nothing drops them, and this file
+--     does not ask anyone to
+--   * canonical fresh provisioning MUST NOT recreate them
+--   * their absence from a fresh database is NOT a launch blocker
+--   * do NOT re-add them merely because a dev/test/production database has
+--     them; presence in an existing database is drift, not a requirement
+--
+-- Rationale: no planner evidence supports them. Measured 2026-09-10 — with all
+-- eight present and 103 rows in `orders`, the planner still chose a Seq Scan;
+-- production holds a single order. If a future workload produces real evidence,
+-- adopt them HERE first, then in bootstrap — never the other way round.
+--
+-- `Backend/models/bootstrapModel.js` was aligned to this file in the same
+-- change; this file is the canonical source of truth for what a new database
+-- must contain.
+-- ---------------------------------------------------------------------------
+
 -- Typical indexes created by migrations / bootstrap (idempotent elsewhere)
 CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_manual_payment_proofs_order ON manual_payment_proofs(order_id);
