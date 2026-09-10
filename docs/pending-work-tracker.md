@@ -100,22 +100,23 @@
 > **正式 Launch Go ＝ BLOCKED**（External：Legal ＋ Domain）。
 >
 > ```text
-> CURRENT FOCUS（2026-09-10 部署後更新）
+> CURRENT FOCUS（2026-09-10 `REL-04` 驗收後更新）
 >   ✅ production deployment ＋ evidence rebuild      REL-05   DONE（2026-09-10）
->   1  REL-04 ＋ production auth／role revalidation    REL-04   OPEN  P1（由 P3 升級）
->   2  production launch data baseline cleanup        PRE-15   OPEN  P1
->   3  SEC-03 (a) engineering deletion capability     SEC-03   OPEN  P2（工程面）
+>   ✅ REL-04 ＋ production auth／role revalidation    REL-04   DONE（2026-09-10）
+>   1  production launch data baseline cleanup        PRE-15   OPEN  P1
+>   2  SEC-03 (a) engineering deletion capability     SEC-03   OPEN  P2（工程面）
+>   3  monitoring／error visibility                    OPS-07   OPEN  P1
 >
 > NEXT UP（完整理由見 §2）
->   4  monitoring／error visibility                    OPS-07   OPEN  P1
->   5  production schema／index parity                 PRE-06   OPEN  P3
->   6  backup／recovery operational readiness          PRE-08   後續工作
->   7  Admin remedy-cases operational UI              IA-10    OPEN  P2
->   8  Technical Go/No-Go gate                        PRE-16   OPEN  P1
+>   4  production schema／index parity                 PRE-06   OPEN  P3
+>   5  backup／recovery operational readiness          PRE-08   後續工作
+>   6  Admin remedy-cases operational UI              IA-10    OPEN  P2
+>   7  Technical Go/No-Go gate                        PRE-16   OPEN  P1
 > ```
 >
-> **`REL-05` 已於 2026-09-10 完成並驗收**（Owner 手動部署 ＋ byte-identity 驗證，見 §1.6.0）。
-> **仍未執行：** `REL-04` 未修、production fixture 未清、Legal／Domain 未動、backend／DB 未動。
+> **`REL-05` 與 `REL-04` 皆已於 2026-09-10 完成並在 production 驗收**
+> （見 §1.6.0 與 §1.6.0-A）。production ＝ commit `94c38fe`。
+> **仍未執行：** production fixture 未清（`PRE-15`）、Legal／Domain 未動、backend／DB／ENV 未動。
 
 > **兩軌並行。`P1-09` 已不是「進行中的 implementation」。**
 >
@@ -1456,7 +1457,7 @@ E2E 的授權矩陣包含**經檢舉處置真實下架**（`POST /reports` → `
 | `A11Y-03` | `P3` | Frontend / A11y · UI | **`/materials` 工具列的焦點框被 `overflow-x-auto` 容器裁掉右側 4px** | `ExplorePage` 的排序 select 與「篩選」按鈕位於 `overflow-x-auto` 容器最右緣，outline 畫在 border box 外 2px、寬 2px，因此右側 4px 落在裁切區外。**焦點指示仍清楚可辨**（其餘三側完整，已於真實瀏覽器確認），故非阻擋項 | 2026-08-30 實測（desktop 1280）：button `right = 1256`、outline 右緣 `1260`、scroller 右緣 `1256` → **裁切 4px**。**這是既存狀況，非 `A11Y-01` 造成**：先前的 `focus:ring-2`（Tailwind ring ＝ box-shadow）同樣被裁，只是 2px；本輪改為 canonical outline 後變 4px。mobile（375）該容器確實會捲動（`scrollWidth 520 > clientWidth 343`），但聚焦時瀏覽器會把元素捲入視野 | **OPEN — COSMETIC** | 需在三者間擇一並說明理由：(1) 該控制項改用負 offset（`-outline-offset-2`，畫在元素內側，永不被裁）—— **但會與其餘 36 處的 offset 不一致**，違反「offset 一致」；(2) 調整該容器的裁切行為 —— **屬 layout 改動**，`A11Y-01` 明文禁止，需獨立評估；(3) 接受現況並記錄。**本輪選 (3)：** `A11Y-01` 的 completion criteria 要求「offset 一致」，就地做一次性偏離會製造 ticket 自己警告的「第三套 focus style」 || ~~`DOC-01`~~ | `P2` ✅ | Docs / Reconciliation | **`REL-01` 前後盤點確認的 6 項文件落差（D1～D6）與新發現尚未回寫 canonical docs** | Phase A／Phase B 的發現當時只存在於對話中，違反 `CLAUDE.md` §11.2（stale API contract、stale canonical doc、sensitive-data 風險皆屬必須入 tracker 的類別）。其中 **D4 是不可逆的資訊遺失，愈晚處理愈難補** | D1 本檔 §0／§1 把 `P1-09` 寫成 implementation in progress；D2 §2 有一列宣稱「`DX` 僅剩 `DX-15`」「`BUY-03`／`BUY-04` 為工程軌 #1／#2」，與同節排序列及 §1 直接矛盾；D3 baseline 的 Gate 4／11／12 落後於本檔；D4 見 `READINESS-01`；D5 `CLAUDE.md` §5 宣稱 spec v1.4 仍寫 `PUT = Full update`，實測 spec §11 已非如此；D6 `ui-design-system.md` §4.3 B9 寫 62 檔，實測 67 檔／694 處 | ✅ **DONE**（2026-08-30）—— **DOCS-ONLY**：0 行 production code、0 個 test、0 個 schema／migration、0 處 legal wording。D1～D6 全部處置，`REL-01` 關閉，新增 `READINESS-01`／`TEST-01`／`DX-19`／`A11Y-01`／`DX-20`，新增 §17 External Review Boundary | （已達成）(1) D1～D6 逐項 RESOLVED 或明確標示為 ACCEPTED LOSS；(2) `REL-01` 四處同步（Status／Current Focus／Next Up／Recently Completed）；(3) 新增項目皆附可複驗的 repository evidence；(4) 未觸及 production code／schema／legal wording |
 | `COR-08` | `P3` | Creator / UX · Contract consistency | **新增教材表單把「分類」標成必填，但前後端都沒有強制** —— UI 承諾與 create 契約不一致 | 產品對創作者說這個欄位必填，實際上可以整個省略。省略時 `materials.category` 為 NULL，該教材在買家的分類篩選底下**永遠不會出現**（篩選以 canonical id 比對，`categoryLabel()` 對空值只回「其他」）——等於一份看得到的上架教材，買家用分類篩不到。`P1-10` 已把分類從自由文字改成選單，但**沒有一併補上必填驗證**，required marker 是那一輪留下的 | 2026-09-02（`PRE-07` STEP 6 Phase 2 pre-flight 讀碼）：`frontend/apps/web/app/teacher/materials/new/page.tsx` 的 select label 寫 `分類 *`，但 `handleCreate()` 全篇**沒有**任何 category 檢查，送出時是 `category: form.category.trim() \|\| undefined`；Backend `routes/materials.js` 的 `validatePayload({isCreate:true})` 十條必填檢查中**不含 category**；`materials.category` 在 DB 為 `TEXT`、無 NOT NULL 也無 CHECK（`db/db_schema.sql:54`）。**Phase 2 的 production 教材有帶分類（`category = art`），因此該筆資料未受影響** —— 這是 contract 缺陷，不是那筆資料的缺陷 | **OPEN — SAFE / INDEPENDENT**（非 `PRE-07` Phase 2 blocker） | 先由產品擇一 canonical 規則，再讓三層一致。**方案 A（真的必填）**：前端 `handleCreate()` ＋ Backend `validatePayload()` ＋ required marker 三者一致，並決定既有 NULL 資料如何處理；**方案 B（選填）**：移除 required marker 與相關文案，並確認買家分類篩選／探索頁對 NULL／空字串的行為安全且可預期。**兩案都必須前後端同時更新**，不得只改一邊 |
 | `DX-22` | `P3` | Tooling / Ops scripts | **維運機器的 Node 是 18，已在 AWS SDK v3 的支援窗之外** —— 影響 `check-production-storage.js` 這類 production 唯讀檢查腳本 | **production 不受影響**（`render.yaml` 兩個 service 都釘 `NODE_VERSION=22`），但 `PRE-07`／`PRE-08` 的 production 檢查與還原演練是在**維運機器**上跑的，而那台是 Node 18。SDK 目前仍可運作，因此這是**維護債，不是現行故障**；風險在於 SDK 後續版本可能不再於 Node 18 上執行，屆時會讓 production 檢查工具在最需要它的時候失效 | 2026-09-02：本機 `node --version` → **`v18.20.8`**；`render.yaml:84-85` 與 `:156-157` 兩個 service 皆為 `NODE_VERSION: "22"`（working tree 與 `HEAD` 一致，本輪未修改該檔）；`check-production-storage.js` 執行時由 AWS SDK v3 印出 Node 18 超出支援窗的警告，**但腳本本身仍 `RESULT: PASS — 0 problems`** | **OPEN — SAFE / INDEPENDENT**（**不得**在 `PRE-07` 進行中的 checkpoint 內升級） | 維運機器 Node 升到 ≥ 20（建議與 production 對齊為 22）；升級後重跑 `check-production-db.js` 與 `check-production-storage.js` 兩支唯讀腳本，確認 exit 0 且該警告消失。**不變更 production `NODE_VERSION`**（已是 22） |
-| `REL-04` | `P1`（2026-09-10 由 `P3` 升級，理由見 Status 欄） | Reliability / Ops · Frontend UX | **production 冷啟動延遲已超出文件記載的預期，且會以「登入失敗」的樣子呈現給使用者** | Render Free tier 15 分鐘無流量即 spin down。文件（`render.yaml` 註解與 `PRE-07` 紀錄）寫「首次請求可能 30–60 秒」，但實測**超出該預期**。真正的問題不是慢，而是**它看起來像壞掉**：喚醒超過邊緣等待上限時回 502，而 `/api/auth/login` 原樣轉發 upstream status，前端 `mapStatusMessage` **沒有 502／503／504 分支**，於是落到 default 文案「操作失敗，請稍後再試。」——封閉測試者會把「服務在喚醒」讀成「登入壞了」。**注意 401 有專屬文案「帳號或密碼錯誤」，所以看到 default 文案反而代表不是憑證問題** | 2026-09-02 實測（兩次，皆為 production 正常操作時踩到）：`GET /health` 冷啟動 **22.5 秒**與 **252.6 秒（4 分 12 秒）**；同時段 frontend `/` 為 0.5–1.0 秒 → **只有 backend 休眠**。  **⚠️ 2026-09-10 事實更正：「只有 backend 休眠」已不成立。** 同日唯讀實測（本輪直接取得）：frontend `/` **200 ／ 冷啟動 58.07 秒**、frontend `/support` **200 ／ 2.94 秒（暖機）**、backend `/health` **200 ／ 冷啟動 22.69 秒**。**兩個 service 都會 spin down**，最壞情境是使用者先等前端近一分鐘、再送出登入、再撞上 backend 冷啟動。2026-09-02 的量測**未被推翻**（那是當時的真實數據，保留不刪），**但不得再被引用為「只有 backend 會睡」的依據**。Owner 實際遇到的 `POST /api/auth/login` → **502 `{"message":"invalid response payload"}`**；該字串由 `frontend/apps/web/app/api/auth/login/route.ts:17` 的 `response.json().catch(...)` 產生（upstream 回非 JSON 的 HTML 錯誤頁），**502 則是 `response.status` 原樣轉發，該 route 自己不會產生 502**。UX 後果**已由讀碼確認**：`frontend/apps/web/lib/auth.ts:14` 的 `mapStatusMessage` 只有 400/401/403/404/409/500 分支。**與已修的 `Content-Length` proxy bug 無關** —— 那個是 200＋截斷，這條 route 不複製任何 upstream header | **OPEN — SAFE / INDEPENDENT · `P1`（2026-09-10 由 `P3` 升級）**（非缺陷修復，屬已知 Free-tier 特性 ＋ 一個文案缺口）。**升級理由（三項並存，不是「感覺變嚴重了」）：** (1) 它位於**核心認證路徑**，使用者第一次接觸產品就會踩到；(2) **2026-09-10 實測推翻了「只有 backend 休眠」**，前端冷啟動 58.07 秒使暴露窗更大（見 Evidence 欄的更正）；(3) 依 Owner 2026-09-10 重新定義的 Launch Critical Path，Legal／Domain 已排除，**本項成為少數直接影響 technical launch readiness 且無外部依賴的項目**。**核心問題未變，且已於 2026-09-10 讀碼複核仍然成立：** `frontend/apps/web/lib/auth.ts:14` 的 `mapStatusMessage` 只有 400／401／403／404／409／500 分支，**沒有 502／503／504**，冷啟動 502 因此落到 default 文案「操作失敗，請稍後再試。」**本輪未修改任何 code。** Legal / Domain dependency：**none**。排序見 §2（CURRENT FOCUS #2） | (1) **不要**把文件直接改寫成「22–252 秒」——**單次量測不構成保證範圍**；應記載為「實測已超出文件預期，已知最大值 252 秒」，並讓封閉測試者知悉首次請求可能需要數分鐘；(2) `mapStatusMessage` 增加 502／503／504 分支，文案需誠實表達「服務喚醒中／暫時無法使用」而**不得**暗示帳密錯誤；(3) 一併檢視 `/api/auth/register/route.ts`（同一形狀）。**本輪不實作** |
+| `REL-04` | `P1`（2026-09-10 由 `P3` 升級，理由見 Status 欄） | Reliability / Ops · Frontend UX | **production 冷啟動延遲已超出文件記載的預期，且會以「登入失敗」的樣子呈現給使用者** | Render Free tier 15 分鐘無流量即 spin down。文件（`render.yaml` 註解與 `PRE-07` 紀錄）寫「首次請求可能 30–60 秒」，但實測**超出該預期**。真正的問題不是慢，而是**它看起來像壞掉**：喚醒超過邊緣等待上限時回 502，而 `/api/auth/login` 原樣轉發 upstream status，前端 `mapStatusMessage` **沒有 502／503／504 分支**，於是落到 default 文案「操作失敗，請稍後再試。」——封閉測試者會把「服務在喚醒」讀成「登入壞了」。**注意 401 有專屬文案「帳號或密碼錯誤」，所以看到 default 文案反而代表不是憑證問題** | 2026-09-02 實測（兩次，皆為 production 正常操作時踩到）：`GET /health` 冷啟動 **22.5 秒**與 **252.6 秒（4 分 12 秒）**；同時段 frontend `/` 為 0.5–1.0 秒 → **只有 backend 休眠**。  **⚠️ 2026-09-10 事實更正：「只有 backend 休眠」已不成立。** 同日唯讀實測（本輪直接取得）：frontend `/` **200 ／ 冷啟動 58.07 秒**、frontend `/support` **200 ／ 2.94 秒（暖機）**、backend `/health` **200 ／ 冷啟動 22.69 秒**。**兩個 service 都會 spin down**，最壞情境是使用者先等前端近一分鐘、再送出登入、再撞上 backend 冷啟動。2026-09-02 的量測**未被推翻**（那是當時的真實數據，保留不刪），**但不得再被引用為「只有 backend 會睡」的依據**。Owner 實際遇到的 `POST /api/auth/login` → **502 `{"message":"invalid response payload"}`**；該字串由 `frontend/apps/web/app/api/auth/login/route.ts:17` 的 `response.json().catch(...)` 產生（upstream 回非 JSON 的 HTML 錯誤頁），**502 則是 `response.status` 原樣轉發，該 route 自己不會產生 502**。UX 後果**已由讀碼確認**：`frontend/apps/web/lib/auth.ts:14` 的 `mapStatusMessage` 只有 400/401/403/404/409/500 分支。**與已修的 `Content-Length` proxy bug 無關** —— 那個是 200＋截斷，這條 route 不複製任何 upstream header ✅ **DONE（2026-09-10 修復、部署並於 production 驗收）** —— 修復已隨 commit **`94c38fe`** 部署至 `teaching-platform-web`（frontend-only；backend／ENV／Domain／SMTP／production 資料皆未動），並經 production 實測確認**新文案已在線上**。完整紀錄見 §1.6.0-A。**下方為原始問題陳述與升級理由，保留不刪：**（原 Status：`OPEN — SAFE / INDEPENDENT · `P1`（2026-09-10 由 `P3` 升級）`）（非缺陷修復，屬已知 Free-tier 特性 ＋ 一個文案缺口）。**升級理由（三項並存，不是「感覺變嚴重了」）：** (1) 它位於**核心認證路徑**，使用者第一次接觸產品就會踩到；(2) **2026-09-10 實測推翻了「只有 backend 休眠」**，前端冷啟動 58.07 秒使暴露窗更大（見 Evidence 欄的更正）；(3) 依 Owner 2026-09-10 重新定義的 Launch Critical Path，Legal／Domain 已排除，**本項成為少數直接影響 technical launch readiness 且無外部依賴的項目**。**核心問題未變，且已於 2026-09-10 讀碼複核仍然成立：** `frontend/apps/web/lib/auth.ts:14` 的 `mapStatusMessage` 只有 400／401／403／404／409／500 分支，**沒有 502／503／504**，冷啟動 502 因此落到 default 文案「操作失敗，請稍後再試。」**本輪未修改任何 code。** Legal / Domain dependency：**none**。排序見 §2（CURRENT FOCUS #2） | (1) **不要**把文件直接改寫成「22–252 秒」——**單次量測不構成保證範圍**；應記載為「實測已超出文件預期，已知最大值 252 秒」，並讓封閉測試者知悉首次請求可能需要數分鐘；(2) `mapStatusMessage` 增加 502／503／504 分支，文案需誠實表達「服務喚醒中／暫時無法使用」而**不得**暗示帳密錯誤；(3) 一併檢視 `/api/auth/register/route.ts`（同一形狀）。**本輪不實作** |
 | `SCHEMA-04` | `P3` | Schema / Time handling · Consumer disclosure | **instant 型欄位存放在 naive PostgreSQL `TIMESTAMP` 欄位，正確性依賴 backend process／pg 解析／DB session 三者的 UTC 對齊，而非由 schema 本身編碼** —— **production 現況已實測正確**，但該不變條件是**隱含的、未被強制的** | `payment_due_at` 是**對買家揭露過的付款期限**（消保法 §18 I(2)），其正確性有法遵意義。若同一個欄位在不同讀取路徑得到**不同的 instant**，則「買家看到的期限」與「系統據以 enforce 的期限」可能不是同一個時點。**2026-09-02 的調查已結案：current production ＝ NO DEFECT**（證據見右）。剩下的風險**不是現行缺陷，而是架構韌性** —— 由於 offset 在寫入 naive 欄位時被丟棄，「存進去的牆鐘值」取決於**寫入端 process 的時區**，而「讀出來的 instant」取決於**讀取端 process 的時區**，`< NOW()` 的 enforcement 則取決於 **DB session 時區**。三者今天剛好都是 UTC／GMT，所以系統自洽；但那是**環境碰巧對齊**的結果，`render.yaml` 並未釘住 `TZ`。因此下列任一情況發生時會無聲地產生不一致，且**不會有任何錯誤**：backend process 時區改變、DB session 時區改變、多個寫入端使用不同時區、或**本機工具以不同 TZ 直接寫 production** | 2026-09-02（`STEP 6` Phase 4 事件處理期間發現，非該事件造成）：schema 為 **`payment_due_at TIMESTAMP`（without time zone）**（`db/db_schema.sql:303`、`Backend/models/bootstrapModel.js:698`、`Backend/migrations/20260826_payment_timing_foundation.sql:50`）。同一筆訂單 `ord_mtjjmo1vmtakaw` 的兩次回報表示法為 **`2026-09-09T15:59:59.999Z`**（＝台北 23:59:59.999，符合 `paymentTimingPolicy` 的「末日終了」）與 **`Wed Sep 09 2026 15:59:59 GMT+0800`**（＝ 07:59:59.999Z）——**字面解讀為相差 8 小時的兩個 instant**。 **【2026-09-02 調查完成 —— 9 步追蹤全數執行，結論：current production ＝ NO DEFECT】** **(a) production 唯讀實測**（`BEGIN READ ONLY`，只讀該筆訂單）：`payment_due_at::text = 2026-09-09 15:59:59.999`；`current_setting('TimeZone') = GMT`；`AT TIME ZONE 'UTC' = 2026-09-09 15:59:59.999+00`；`AT TIME ZONE 'Asia/Taipei' = 2026-09-09 07:59:59.999+00`；**`AT TIME ZONE current_setting('TimeZone')` 與 `AT TIME ZONE 'UTC'` 逐字元相同**（＝ session 對 naive 值的 coercion 行為**實測**等同 UTC，不是從 `GMT` 這個名稱推論）；`payment_due_at < now() = false`。 **(b) 與意圖比對：** 目標期限 `2026-09-09 23:59:59.999 Asia/Taipei` ＝ `2026-09-09T15:59:59.999Z`，**與 enforcement 實際採用的 instant 完全相同** → DB 端把關的是正確時點。 **(c) 寫入端時區的獨立佐證：** `created_at::text = 2026-09-02 03:35:25.50369`，與 `order_created` 稽核列的 `2026-09-02T03:35:25.669Z` 為**同一個 UTC 牆鐘**；若寫入 process 在台北時區，該欄會是 `11:35`。**證明 production backend 以 UTC 寫入。** **(d) 機制以本機雙時區 probe 實證**（用 `Backend/node_modules` 內的同一份 `pg`／`pg-types`，未連任何資料庫）：`endOfTaiwanDay()` 在兩種 TZ 下**產生相同且正確的 instant**（host 無關）；但 `pg` 的 `prepareValue()` 在 `TZ=UTC` 送出 `...15:59:59.999+00:00`、在 `TZ=Asia/Taipei` 送出 `...23:59:59.999+08:00` —— **naive 欄位會丟棄 offset**，因此**存進去的牆鐘值取決於寫入端時區**；讀取端 OID 1114 parser 同樣把 naive 字串當**本地時間**解析（`TZ=UTC` 還原正確 instant，`TZ=Asia/Taipei` 早 8 小時）。 **(e) 原始的 8 小時落差已定性為 diagnostic artifact，不是產品問題** —— 它由本輪事件處理用的一次性腳本 `incident-step0-readonly.js` 在**台北時區**的 process 上以 `Date.toString()` 印出 naive 欄位所產生；**API 輸出、買家畫面、DB enforcement 三者皆正確**。`formatPaymentDue()` 明確指定 `timeZone: "Asia/Taipei"`，且期限恆為「台灣某日終了」，**−8 小時位移不會跨越台灣日界**（已對 2026-09-09／2026-12-31／2027-01-01／2026-02-28 計算驗證，顯示日期皆不變） | **OPEN — ARCHITECTURAL ROBUSTNESS ONLY（current production 已實測正確）** | 這不是 bug fix，是一個**明示的架構決策**，三選一，**且不得預設 C 就是對的**：**A.** 接受 naive `TIMESTAMP` 儲存，但把「所有相關 process 與 DB session 一律 UTC」**寫成明文不變條件**並納入上線檢查表（成本最低，但仍靠紀律）；**B.** 以防禦性設定**明確釘住** process 時區（例如 `render.yaml` 加 `TZ=UTC`），讓現在的正確性由設定保證而非環境預設（成本低，可與 A 併行）；**C.** 有計畫地把 instant 型欄位遷移到 `TIMESTAMPTZ`（唯一由 schema 本身編碼語意的方案，但影響面最大）。 **若考慮 C，必須先做全面盤點，不得只改 `payment_due_at`。** 2026-09-02 已查證的 schema 事實：`db/db_schema.sql` 內**共 79 個 naive `TIMESTAMP` 欄位**，其中 `created_at`×23、`updated_at`×7、`reviewed_at`×4；`orders` 一張表就有 8 個（`paid_at`／`payment_due_at`／`payment_info_submitted_at`／`review_due_at`／`payment_received_at`／`cancelled_at`／`created_at`／`updated_at`）。**同一份 schema 已經混用兩種型別** —— `review`／`reports`／`report_events` 三張表使用 `TIMESTAMPTZ`（5 欄），代表專案對該型別並無原則性排斥，**但也代表現況本身就不一致**。遷移範圍必須以**實際 schema 逐欄查證**後決定，不得沿用本列的清單當作最終範圍。**本項不授權任何實作** —— 不得 migrate、不得改 `TIMESTAMPTZ`、不得加 `TZ=UTC`、不得改 `paymentDueAt()`／`formatPaymentDue()`／pg parser，未經另行授權不得變更 `render.yaml` |
 | `IA-09` | `P3` | Admin / UI · Payment review | **Admin 憑證審核頁把「不能補件」一律說成「付款期限已過」，即使期限根本還沒到** —— 業務規則正確，**顯示的理由是假的** | `PAYMENT_SUBMISSION_ALLOWED_SQL` 的第一個條件是 `o.status = 'pending_payment'`，因此訂單一旦核准，該值就**正確地**變成 false（已核准的訂單本來就不該再收憑證）。但 Admin 前端把「任何 false」都渲染成期限逾期的那一句，於是**至少兩種完全不同的狀態被混為一談**：(1) 因訂單已不是 `pending_payment` 而不能補件；(2) 因付款期限真的已過而不能補件。Admin 可能據此告訴買家「你的付款期限已過」——**而事實上沒有**。這會影響客服判斷，儘管底層業務狀態是對的。**前端其實拿得到區分所需的資料**（同一個 payload 另有 `order_payment_deadline_expired`，且 else 分支已經在用它），因此這是渲染分支的疏漏，不是缺資料 | 2026-09-02（`PRE-07` STEP 6 Phase 4 Admin 核准後於真實 production 畫面觀察到）：同一個畫面上並存三個互相矛盾的事實 —— 付款期限顯示 **2026-09-09 23:59（尚未到期）**、憑證上傳時間 **2026-09-02 23:03（期限內）**、卻同時顯示「**買家可否補件：否 —— 付款期限已過且未曾於期限內提交**」。程式碼定位：`Backend/utils/paymentTimingPolicy.js:157` 的 `PAYMENT_SUBMISSION_ALLOWED_SQL` 以 `o.status = 'pending_payment'` 起首；`frontend/apps/web/app/admin/payment-proofs/page.tsx:630` 對 `order_payment_submission_allowed === false` 無條件輸出該句，而**同檔案的 else 分支已使用 `order_payment_deadline_expired`**。**屬既有缺陷，非本次 E2E 造成** —— 任何已核准訂單都會出現。**business rule／authorization／憑證提交 gate 三者皆正確，只有文案錯誤** | **OPEN — SAFE / INDEPENDENT**（**non-blocking**：Admin-only、發生在決策之後、無資料或授權影響） | (1) 區分「訂單已非 pending（已核准／已取消）」與「付款期限真的已過」兩種原因，各自給正確文案；(2) **除非實際的 `order_payment_deadline_expired` 為 true，否則畫面不得出現「付款期限已過」字樣**；(3) **不得變更** `PAYMENT_SUBMISSION_ALLOWED_SQL`、`paymentTimingPolicy` 或任何提交授權邏輯 —— 這是純顯示層修正，後端判準是對的；(4) 至少涵蓋四種狀態：`pending` ＋ 期限內／`pending` ＋ 已逾期／`approved`／`rejected` 或 `cancelled`（若適用）；(5) 補一條 regression test 專門釘住「**已核准且期限尚未到期**」這個本次實際踩到的組合 |
 | ~~`DX-23`~~ | `P2` ✅ | Testing / Infra · 驗收路徑 | **canonical 驗收指令下 `api-proxy.spec.ts` 4 條穩定失敗** —— production 的 loopback guard 與 E2E harness 注入的 `API_BASE_URL` 直接衝突 | `PRE-12`／`PRE-09` 的 guard（`lib/server-api-base-url.ts:62-68`，commit `736f622`）在 `NODE_ENV=production` 時對 loopback host **throw**，這是**正確且刻意**的產品行為。但 `playwright.config.ts` 的 frontend webServer 注入 `API_BASE_URL=http://127.0.0.1:3000`（`DX-19` 為了修 IPv6 `ECONNREFUSED ::1:3000` 而加），而 `E2E_SERVER=production` 走 `next start` ＝ `NODE_ENV=production`。兩者都對，**衝突在 harness 的組態**：凡經過 `/api/backend/*` 或 `/api/auth/*` proxy 的 server 端呼叫一律 500。**紅燈的回歸套件會掩蓋真正的 regression** —— 與 `DX-15`／`DX-18` 同一類危害 | **2026-09-04 實測**（backend 有起，非「backend 未啟動」）：`E2E_SERVER=production npx playwright test tests/e2e/api-proxy.spec.ts --project=chromium-desktop` → **4 failed / 2 passed**。global-setup 明確印出 `✓ E2E backend prerequisite OK — http://127.0.0.1:3000, database pinned to teaching_platform_security_test`，故**不是** §1 blockquote 舊註記的「backend :3000 未啟動所致」。WebServer log 反覆出現 `Error: API_BASE_URL points at a loopback host ("127.0.0.1")`，並伴隨 `proxy /api/auth/login failed`／`proxy /api/auth/register failed`；斷言錯誤為 `Expected 200 / Received 500`、`Expected 401 / Received 500`、`SyntaxError: Unexpected end of JSON input`。**dev server 模式不受影響**（guard 只在 `NODE_ENV=production` 武裝）。同一輪 `support-entry.spec.ts` 44/44、`critical-acceptance` 18/18 全綠，可見影響面**僅限真的打 proxy 的 spec** | **OPEN — 未修**（2026-09-04 立案；發現於 `PRE-14` 完成後的狀態複驗，**不在該輪 scope**，依 CLAUDE.md §10.3 記錄後停手） | **不得**用放寬 guard 的方式修 —— 那是 `PRE-12` 的 production 保護，**必須維持 fail-closed**。可行方向擇一並記錄理由：(1) harness 改用**非 loopback** 的本機主機名（例如 `127.0.0.1.nip.io` 或 hosts 別名）餵 `API_BASE_URL`，同時保留 `DX-19` 的 IPv6 修正；(2) 只在 E2E 情境下以一個**明確命名**的 escape hatch 放行 loopback（需同時釘住它在真 production 不可能被開啟）；(3) 判定「production-mode E2E 不涵蓋 proxy 路徑」並把該 spec 改為 dev-only project。**完成條件：** `E2E_SERVER=production npx playwright test` 全綠，且 `server-api-base-url.ts` 對真 production loopback 仍 throw（需有測試同時釘住兩者）  ✅ **DONE（2026-09-04）—— 採方向 (2)，並額外修掉一個更危險的同源問題。** **根因（實測確認，非推論）：** `E2E_SERVER=production` ＝ `next start` ＝ `NODE_ENV=production`；`playwright.config.ts` 為修 `DX-19` 的 IPv6 `ECONNREFUSED ::1:3000` 而注入 `API_BASE_URL=http://127.0.0.1:3000`；`PRE-12` 的 loopback guard 因此 throw，凡經 `/api/backend/*`、`/api/auth/*` 的 server 端呼叫一律 500。**兩邊都正確，衝突在 harness 組態。** **⚠️ 本輪另發現一個更嚴重、且會掩蓋 `DX-23` 本身的缺陷：** frontend webServer 原本 `reuseExistingServer: true`，因此只要 3010 上有**任何**一台 server（例如另一個 session 的 `npm run dev:web:3010`），`E2E_SERVER=production` 就**不會**真的執行 `next start`，整輪根本沒跑在 production 底下卻**全綠**。**實測**：3010 被佔用時同一支指令 **12/12 假通過**；改用空的 port 後立即紅 **8 failed / 4 passed**（＝原始回報的 4 failed / 2 passed × 2 個 project）。這與 `DX-19` 對 backend 修過的是同一類危害。 **修法（三處，全部限於 harness 與其專用旗標）：**(a) `lib/server-api-base-url.ts` 新增 `isE2EHarnessLoopbackSanctioned()` —— **只**在`E2E_ALLOW_LOOPBACK_API_BASE_URL === "1"`（精確值比對）時鬆綁 **loopback 這一項**；未設定／非絕對 URL／非 http(s) 一律照舊 throw。(b) `playwright.config.ts` 的 production webServer 注入該旗標，並改為 `reuseExistingServer: !isProductionServer`。(c) `helpers/base-url.ts` 讓 production 模式預設用 **3011** —— 同時解決「假綠重用」與「撞到 dev server」：production 驗收永遠起自己的 server 且真的跑在 production 底下，又完全不碰 3010，維持 `DX-05` 的前提。 **為什麼沒有放寬 guard：** 例外有三道限制使它在真實部署不可能生效 —— 只認精確值 `"1"`／只鬆綁 loopback 一項／**`render.yaml` 不宣告該變數**（由 source-scan 測試釘住，部署環境無從繼承）。方向 (1) 被否決：`nip.io` 需要網路、hosts 別名需要特權且不可攜，且形同繞過 `PRE-12` 的本意；方向 (3) 被否決：那會讓 production 路徑永遠不被端到端驗證，屬掩蓋而非解決。 **驗證：** 原始指令 `E2E_SERVER=production npx playwright test tests/e2e/api-proxy.spec.ts` 由 **8 failed / 4 passed → 12/12 全過**（6/6 × 2 project）；新增 `tests/e2e/production-url-guard.spec.ts` **14/14**，其中負向釋放閘門逐項釘住：真 production 下 `127.0.0.1`／`localhost`／`::1`／`0.0.0.0`／`*.localhost`／`127.x` **全部仍 throw**，旗標近似真值字串（`true`／`yes`／`0`／`" 1"` 等）**一律不生效**，dev／test 回退行為未變，且 `render.yaml` 與 production 環境變數契約皆不得宣告任何 `E2E_` 變數。`PRE-12` 焦點測試 **27/27**、`verify:web` exit 0。 **完整套件結果：** production 模式 `E2E_SERVER=production npx playwright test` **703 passed / 2 failed / 43 skipped**（11.3 分）——兩支失敗（`admin-operations.spec.ts:870` deep-link、`critical-acceptance.spec.ts:67` login redirect）**單獨重跑 2/2 全過**，判定為 **FLAKY，非 `DX-23` 相關**（兩者皆不觸及 proxy 或 URL guard）。dev 模式完整套件為 **632 passed / 51 failed / 43 skipped**（56.5 分），其中 **30/51 是 `page.goto` 逾時** —— `next dev` 首次編譯在 4 worker 長時間負載下的環境性失敗；`api-proxy` 與 `support-entry` 的失敗單獨重跑皆全過（12/12、2/2）。**本檔既有 baseline 即為 `605 / 39 / 0` 與 `611 / 39 / 0`（passed/failed/skipped），亦即完整 dev 套件在本輪之前就已經是紅的**，且本輪改動在 dev 模式下**結構上不可能生效**（`getTestBaseUrl()` 仍回 3010、`reuseExistingServer` 仍為 `true`、`getServerApiBaseUrl()` 對非 production 提前 return，根本不會走到 loopback 檢查）。**dev 套件的紅燈屬既有問題，未在本輪擴大 scope 處理。** **3010／3011 隔離的 runtime 證據（非推論）：** 另起一台可拋棄 dev server 於 3010（PID 5992），跑 production 模式指令後該 PID **仍存活且 3010 仍回 200**；同一時刻實測 port map 為3011＝production `next start`（PID 20520）／3010＝dev（PID 5992）／3000＝harness backend（PID 12212），三者並存。**production 驗收因此可與 dev server 共存，且不可能再假綠。** **未改動任何 production 行為或部署設定**（`assertProductionUrl`／`productionUrlContract`／`PRE-12` 啟動語意皆未動；`render.yaml` 未改）。 |
@@ -1792,6 +1793,144 @@ backend / DB 不需 deployment / migration PASS
 
 ---
 
+### 1.6.0-A `REL-04` 執行紀錄（2026-09-10）—— ✅ **DONE**
+
+**Scope：** (A) gateway 狀態碼的使用者文案收斂；(B) 在正式 production build 上重新驗證
+authentication ＋ role authorization matrix。**未開始 `PRE-15`、未清 production fixture、
+未動 Legal／Domain／backend／DB／ENV。**
+
+**修復（commit `94c38fe`，3 個 runtime 檔 ＋1 支新 spec，+54 −2）**
+
+```text
+lib/auth.ts          新增 GATEWAY_STATUSES ＋ isGatewayStatus()；mapStatusMessage
+                     新增 case 502/503/504 →「服務正在啟動或暫時無法連線，請稍候幾分鐘再試一次。」
+lib/api-client.ts    parseApiErrorMessage 對 gateway 狀態碼短路，不採用 server message
+app/register/page.tsx  parseRegisterError 同上
+tests/e2e/gateway-error-copy.spec.ts   新增（6 case × 2 project）
+```
+
+> **同輪發現並修掉的第二個缺陷（同一條路徑，屬 `REL-04` completion criteria (3) 的範圍）：**
+> 兩個 auth proxy route 在 upstream body 非 JSON 時（gateway 錯誤頁正是如此）會合成
+> `{ message: "invalid response payload" }`，而 `parseRegisterError` 與 `parseApiErrorMessage`
+> **優先顯示 server message** —— 因此冷啟動時使用者會看到那串**內部字串**，比通用文案更糟。
+> 現在 gateway 狀態碼一律用自家文案；**4xx 維持原行為**（那些 message 是後端刻意寫給使用者看的）。
+
+**本機驗收（全綠）**
+
+```text
+npm run verify:web                       exit 0（lint → typecheck → build）
+gateway-error-copy.spec.ts               12 / 12 passed（production mode）
+targeted auth／security 套件               112 passed / 0 failed / 4 skipped
+  （gateway-error-copy・public・session-expiry・api-proxy・
+    legal-publication-security・payment-proof-security・material-media-security）
+```
+
+> **如實記錄：** targeted 套件**第一次執行有 2 個 failure，兩個都在本輪新寫的 register 測試** ——
+> 漏勾 `#terms`，`registerSchema` 因此停在「請同意服務條款」而**根本沒送出請求**。
+> 那是**測試端缺陷，不是產品缺陷**（consent gate 行為正確）。修正後重跑全綠。
+
+**Production build identity（部署後實測）**
+
+```text
+⚠️ 先前釘的四個 pinned asset 判準**部分錯誤，錯在判準不在部署**：
+   Next.js 的 *page* chunk hash **不跨 build 重現**（內含 build 專屬的模組排序），
+   *shared* chunk 則可以。上一輪 CSS 可重現，本輪據此過度推論到 page chunk。
+
+   chunks/3481-0630a2c3a7d8b6d7.js              預期 200 → 實測 200  ✅
+   chunks/app/register/page-8c742161ff74752c.js 預期 200 → 實測 404  ❌（判準錯）
+   chunks/app/login/page-536ae90a6ca5ce8e.js    預期 200 → 實測 404  ❌（判準錯）
+   chunks/app/login/page-b5b07c494b47c18a.js    預期 404 → 實測 404  ✅
+
+identity 改由三項更強的證據成立：
+  1. 舊 build 的 login chunk 404 **且首頁不再引用** → 已不是 30a6543
+  2. 承載 mapStatusMessage 的 shared chunk 與本機 94c38fe build **SHA-256 相同**
+     a9d10180d3862206a916e73b783753b2e12505a229f75a3d4a036264bd8ca4b8（6,915 B）
+  3. 功能性確認：live shared chunk 與 live register chunk 各含新文案 ×1；
+     部署前該處為 0，且舊 login chunk 只有舊 fallback
+```
+
+**Gateway 文案的兩種證據（刻意分開，不得混為一談）**
+
+```text
+production build presence   已在 production 量測 —— 新文案確實在線上 JS 中
+simulated gateway behavior  由 gateway-error-copy.spec.ts 12/12 提供
+                            **未在 production 製造任何 gateway failure**，也不應該
+```
+
+**Anonymous matrix（production，唯讀，未建立或修改任何資料）＝ PASS**
+
+```text
+公開頁            /、/materials、/materials/:id、/login、/register、/support   全部 200
+需登入前綴        /cart /dashboard /orders /me/orders /downloads /favorites
+                 /explore /creator/materials /admin /admin/materials
+                 全部 307 → /login?redirect=<原路徑>
+legacy 正規化     /teacher/materials → 308 → /creator/materials
+後端受保護端點     /orders/my・/auth/me・/creator/cases・/teacher/cases・/me/complaints・
+                 /orders/:id・/orders/:id/payment-proofs・/admin/orders・
+                 /admin/report-cases・/admin/privacy-requests・/cart・
+                 /download/:id・/payment/bank-info    全部 401
+legal public     四條全部 404 且無 draft 外洩（`TEST-01` 不變條件在 production 成立）
+proxy 傳輸守衛     /api/backend/notallowed/x 與 /api/backend/creatorx/y 皆 403
+                 {"message":"not allowed"} → 整段相等比對正確（creatorx 未被放行）
+```
+
+> **四個 404 已逐一對照 routing table，不是 auth 缺口：** `GET /orders`／`/me`／
+> `/creator/materials`／`/teacher/sales` **本來就不存在**（真正的端點是 `/orders/my`、
+> `/creator/cases` 等，且全部回 401）。
+> **另注意：** `/materials/mat_mtit5cea9qiuim` 匿名now回 **200**，而 §6.2（2026-09-02）記載 403 ——
+> 正確，因為該教材期間由 `pending_review` 轉為 `published`。
+
+**Authenticated matrix（由 Owner 以 operator 身分執行並回報；本檔未取得、未要求、未記錄任何密碼／token／cookie）**
+
+```text
+BUYER    login → /dashboard PASS；/cart /orders /me/orders /downloads /favorites
+         /my-reviews /explore 全部 PASS；/creator/materials → /403 PASS；/admin → /403 PASS
+         api  orders/my 200 ／ cart 200 ／ admin/materials 403 ／ creator/cases 403
+CREATOR  login → /creator/materials PASS；/teacher/materials → /creator/materials PASS
+         /cart → /403 ／ /dashboard → /403 ／ /admin → /403 PASS；/explore → /materials PASS
+         api  creator/cases 200 ／ admin/materials 403 ／ orders/my 200
+ADMIN    login → /admin PASS；/admin/materials /admin/orders /admin/payment-proofs
+         /admin/reports 全部 PASS；/cart → /403 ／ /dashboard → /403 PASS
+         api  admin/materials 200 ／ creator/cases 403 ／ cart 200
+```
+
+**401 / 403 語意 ＝ PASS（兩個方向都取得證據）**
+
+```text
+未認證           401（匿名實測 13 個端點）      ← Backend/middlewares/auth.js requireAuth
+已認證但角色不符   403（buyer 與 creator 打 admin/materials；buyer 打 creator/cases；
+                      admin 打 creator/cases）  ← requireRole 的 403 分支
+by design 非限制  /cart 只有 requireAuth、無角色守衛 → 三個角色皆 200，**不是 leak**；
+                 真正的 requireParent 在 POST /orders
+key 反直覺項      admin 打 /creator/cases ＝ 403（admin 不是 teacher）—— 已由 operator 證實
+```
+
+**⚠️ 未取得的 1 項（34 項中的 1 項，不影響本項判定）**
+
+```text
+ADMIN → /creator/materials 的前端實際呈現：operator 回報為未填的佔位字串，
+        因此**本檔不記載任何結果，也不推測**。
+```
+
+該項**不是授權項目** —— 同一條路徑的授權邊界已由 `api /creator/cases = 403` 證實。
+middleware 刻意讓 admin 通過 `/creator/*` 的 UX 守衛（`middleware.ts:118`），
+真正的邊界一律在 Backend。**因此它不能改變 `REL-04` 的結論。**
+
+> **由讀碼得到、但尚未經 production 觀察證實的一項後續觀察（不開新 ID，待 Owner 裁示）：**
+> `/creator/materials` 實際 re-export `app/teacher/materials/page.tsx`，其資料來源是
+> `apiFetch("materials")`，而 `GET /materials` 是 `optionalAuth` 且 **`canSeeAll = role === "admin"`**
+> （`Backend/routes/materials.js:216-227`）。因此 admin 打開該頁**應會看到全部教材**
+> （含未上架），而不是 `middleware.ts` 註解所描述的「空殼」。
+> **這在 API 層是刻意設計**（admin 本來就要看全部以進行審核），**不是越權**；
+> 但頁面同時會呈現創作者專屬動作，而 `POST /materials` 需要 `requireRole("teacher")`
+> → admin 按下去會 403，屬 `BUY-03`／`-04`／`-05` 那類 dead-affordance。
+> **本輪不擴大範圍、不開 ID**；要立案的話請指示，屆時應附上上面那項缺的 production 觀察。
+
+**未做（刻意）：** 未在 production 製造 gateway failure、未建立帳號／訂單／付款憑證、
+未執行退款、未變更 entitlement、未清除 fixture、未動 Legal／Domain／backend／DB／ENV。
+
+---
+
 ### 1.6.1 BLOCKED — LEGAL
 
 > **只引用既有 ID，本節不作任何法律判斷、不預設任何結論。**
@@ -1863,19 +2002,19 @@ AA 缺口、`UI-CONS-21`（auth CTA 漸層）、`UI-CONS-15`（raw hex）一律�
 > | 順序 | ID | Priority | 一句話原因 |
 > | --- | --- | --- | --- |
 > | ~~**1**~~ | ~~**`REL-05`**~~ | ✅ **DONE**（2026-09-10） | production 已部署至 `30a6543` 並以 byte-identity 驗收；**`production` ＝ `HEAD`**。見 §1.6.0，已移出待辦 |
-> | **1** | **`REL-04`** | `P1` | 唯一一條使用者第一次接觸就會踩到、且會被誤讀成產品壞掉的核心認證路徑缺陷；完成後隨即做 production auth ／ role matrix revalidation。**`REL-05` 完成後現在可以在正確的 build 上驗** |
-> | **2** | **`PRE-15`** | `P1` | production 公開目錄正在販售 NT$1 合成測試教材，不能帶著上線 |
-> | **3** | **`SEC-03` (a)** | `P2`（工程面） | version-scoped 刪除能力 —— `PRE-15` 清除憑證時的實際前置。**(b) 保存期限政策仍 BLOCKED — LEGAL** |
+> | ~~**1**~~ | ~~**`REL-04`**~~ | ✅ **DONE**（2026-09-10） | gateway 文案已修並部署（`94c38fe`），production auth ／ role matrix 已在正確 build 上重驗完畢。見 §1.6.0-A，已移出待辦 |
+> | **1** | **`PRE-15`** | `P1` | production 公開目錄正在販售 NT$1 合成測試教材，不能帶著上線 |
+> | **2** | **`SEC-03` (a)** | `P2`（工程面） | version-scoped 刪除能力 —— `PRE-15` 清除憑證時的實際前置。**(b) 保存期限政策仍 BLOCKED — LEGAL** |
+> | **3** | **`OPS-07`** | `P1` | 目前服務壞掉沒有任何人會知道 |
 >
 > **NEXT UP**
 >
 > | 順序 | ID | Priority | 一句話原因 |
 > | --- | --- | --- | --- |
-> | **4** | **`OPS-07`** | `P1` | 目前服務壞掉沒有任何人會知道 |
-> | **5** | **`PRE-06`** | `P3` | production 是 bootstrap 新庫，8 個熱路徑索引只存在於既有 dev／test 庫 |
-> | **6** | **`PRE-08`（後續工作）** | — | 一次性還原演練 ≠ 排程備份；Neon Free 無 automated backup、PITR 僅 6 小時。應在 `PRE-15` 之後重做 |
-> | **7** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
-> | **8** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
+> | **4** | **`PRE-06`** | `P3` | production 是 bootstrap 新庫，8 個熱路徑索引只存在於既有 dev／test 庫 |
+> | **5** | **`PRE-08`（後續工作）** | — | 一次性還原演練 ≠ 排程備份；Neon Free 無 automated backup、PITR 僅 6 小時。應在 `PRE-15` 之後重做 |
+> | **6** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
+> | **7** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
 >
 > **不在本排序內（External Dependency）：** `PRE-03`／`PRE-04`／`P1-09`／`L-*`／`T-*`／`LEGAL-01`／
 > `RM-15`／`PROD-01`／`SCHEMA-02`／`H-4`／`SEC-03` (b)／`OPS-06` 發布部分／`O-20` 法律部分
@@ -6727,6 +6866,7 @@ UI 沿用「教學回饋」的稱呼，但資料模型是 review。**討論範�
 
 | 日期 | 說明 |
 |------|------|
+| **2026-09-10（`REL-04` ＋ Production Auth／Role Revalidation —— ✅ DONE）** | **`REL-04` ✅ DONE。** (A) **文案修復**：`mapStatusMessage` 新增 502／503／504 分支（三碼共用一句，對使用者無法區分；文案不揭露任何基礎設施細節）。**同輪發現並修掉第二個同路徑缺陷**：兩個 auth proxy 在 upstream body 非 JSON 時合成 `{ message: "invalid response payload" }`，而 `parseRegisterError`／`parseApiErrorMessage` 優先顯示 server message，冷啟動時會把**內部字串**顯示給使用者；gateway 狀態碼現一律用自家文案，**4xx 行為未變**。3 個 runtime 檔 ＋1 支新 spec（+54 −2），**未動 401／403 語意、auth 架構、API 契約、backend、登入頁版面**。(B) **驗收**：`verify:web` exit 0；`gateway-error-copy.spec.ts` **12/12**；targeted auth／security 套件 **112 passed／0 failed／4 skipped**（**如實記錄：首次執行有 2 個 failure，兩個都是本輪新測試漏勾 `#terms`，屬測試端缺陷，非產品缺陷**）。commit `94c38fe` 已 push 並由 Owner 手動部署 `teaching-platform-web`（frontend-only）。**build identity**：先前釘的 4 個 pinned asset **判準部分錯誤**（Next.js *page* chunk hash 不跨 build 重現，*shared* chunk 才可以）——改由三項更強證據成立：舊 login chunk 404 且不再被引用、承載 `mapStatusMessage` 的 shared chunk 與本機 build **SHA-256 相同**、live JS **實測含新文案**（部署前為 0）。**anonymous matrix PASS**（公開頁 200／需登入前綴全部 307→`/login?redirect=`／13 個後端端點全部 401／四條 legal route 404 無 draft 外洩／proxy `creatorx` 正確 403）；四個 404 已逐一對照 routing table，**非 auth 缺口**。**authenticated matrix PASS**（Owner 以 operator 身分執行；本檔**未取得、未要求、未記錄任何密碼／token／cookie**）：BUYER／CREATOR／ADMIN 三組 frontend 與 API 期望值全部相符，含反直覺項 **admin 打 `/creator/cases` ＝ 403**。**401／403 語意 PASS**（未認證 401、已認證但角色不符 403，兩個方向皆有證據；`/cart` 僅 `requireAuth` 故三角色皆 200 **屬設計、非 leak**）。**34 項中有 1 項未取得**（ADMIN → `/creator/materials` 的前端呈現，operator 回報為未填佔位字串）——**本檔不推測、不記載結果**；該項非授權項目，同路徑的授權邊界已由 `creator/cases = 403` 證實，**不影響判定**。另記一項讀碼所得、尚待 production 觀察的後續觀察（admin 開該頁會看到全部教材＋創作者專屬動作按下去會 403 的 dead-affordance），**未開新 ID，待 Owner 裁示**。Current Focus 推進為 `PRE-15` → `SEC-03` (a) → `OPS-07`；Next Up 為 `PRE-06` → `PRE-08` 後續 → `IA-10` → `PRE-16`。**未開始 `PRE-15`、未清 fixture、未動 Legal／Domain／backend／DB／ENV、未在 production 製造任何 gateway failure。** 詳見 §1.6.0-A |
 | **2026-09-10（`REL-05` POST-DEPLOY 驗收 —— ✅ DONE）** | **0 行 production code 改動；`git diff` 只含本檔。** Owner 於 Render dashboard 手動部署 `teaching-platform-web` 至 **`30a6543`**（Deploy succeeded／Live；backend 未部署；ENV／Domain／SMTP／production 資料皆未修改）。**本輪只做 read-only 驗收，未建立或修改任何 production business data。** **BUILD IDENTITY ＝ PASS，且強於原判準：** HEAD-only 的 `0a9c67271044c83e.css` **404 → 200**、舊 build 的 `40b61ea3025c1ea0.css` **200 → 404** 且首頁 HTML 命中 0 次；再加 **SHA-256 byte-identity** —— production 服務的三個 CSS chunk 與本機 HEAD build **逐一相同**（`ab54e1cd…`／`1013ab40…`／`5c90adac…`），因此結論由「線上是某個較新 build」提升為「**線上就是 `30a6543` 的這一份 build 產物**」。**AVAILABILITY ＝ PASS：** 7 條路由 cold／warm 兩輪皆 **200**、**0 個 5xx**、content-type 正確、`/health` 回 `{"status":"ok"}`、`/materials` `items=1` 且 `storage_key`／`checksum`／`file_key`／`approved_file_id`／`uploaded_by` **全部不存在**（私有欄位不外洩的不變條件部署後仍成立）、`/support` mailto 命中 1 且「尚未設定」命中 0。**RECONCILIATION：** repo HEAD ＝ origin/main ＝ deployed source ＝ `30a6543`（0 ahead／0 behind）；`Backend/`／`db/`／`migrations/` 皆 0 檔 → **NO BACKEND MIGRATION REQUIRED**。**`production` ≠ `HEAD` 的問題已解除**，§0 該列已改寫並保留部署前的問題陳述供稽核。**`REL-05` → ✅ DONE**；Current Focus 推進為 `REL-04` → `PRE-15` → `SEC-03` (a)，Next Up 維持 `OPS-07` → `PRE-06` → `PRE-08` 後續 → `IA-10` → `PRE-16`。**未做：** authenticated smoke（屬 `REL-04`）、fixture 清除（屬 `PRE-15`）、Legal／Domain／backend／DB 任何變更、§13／§14 重建。`backend /health` 冷啟動 22.41 s 僅記錄，屬 `REL-04`。詳見 §1.6.0〈POST-DEPLOY 驗收〉 |
 | **2026-09-10（`REL-05` 執行輪次 —— PRE-DEPLOY GATE PASSED ／ DEPLOY NOT PERFORMED）** | **0 行 production code 改動；`git diff` 只含本檔。** PHASE 0～1 完成且**全綠**：HEAD `30a6543` **已在 origin/main**（0 ahead／0 behind，本輪不需 push）；delta 精確為 137 `frontend/apps/web` ＋ 4 `frontend/packages` ＋ 9 `docs` ＋ 1 `render.yaml`（**comment-only**）；`Backend/`／`db/`／`migrations/` 皆 **0 檔 → NO BACKEND MIGRATION REQUIRED**，本次為 **frontend-only 部署**；secrets 掃描 clean；**`npm run verify:web` exit 0**（lint→typecheck→build）；**`E2E_SERVER=production npx playwright test` exit 0，832 passed／0 failed／43 skipped**。**PHASE 2 未執行** —— Render 的 `autoDeployTrigger: "off"`，而 render CLI／`~/.render`／`RENDER_API_KEY`／deploy hook／`.github` CI **全部不存在**，部署須由 Owner 在 Render dashboard 執行（與 §6.1 前一次部署相同）。**⛔ 這是 operator access boundary，不是技術失敗，也不是 Legal／Domain 阻擋。** 因此 PHASE 3～5 只取得**唯讀的 pre-deploy baseline**（7 條路由全 200；冷啟動 web `/` 31.55 s、api `/health` 22.42 s —— **僅記錄，屬 `REL-04`，本輪不修**）。**建立了可直接用於部署後驗收的 build-identity 判準**：`0a9c67271044c83e.css`（HEAD-only，含 `#EA000D`／`#DE1313`）部署前實測 **404**，`40b61ea3025c1ea0.css`（舊 build）**200**；另兩個 chunk 兩版 hash 相同，證明 content hash 跨機器可重現。**另如實記錄一項未對齊的驗證帳目**：本輪 832 passed vs §1.5 記載的 855 passed（skip 同為 43，耗時 11.4 vs 48.7 分鐘），且 `--list` 為 954 —— **`0 failed` 確定、gate 成立，但不得宣稱已重現 855 baseline**；是否另立 `DX` ID 待 Owner 決定。**另更正本檔自身的兩處 evidence**：原寫 delta「全數落在 `frontend/` 與 `docs/`」**漏列 `render.yaml`**，已補正並註明其為 comment-only、不需重新套用 blueprint。**`REL-05` 維持 `OPEN`，Current Focus 不推進。** 詳見 §1.6.0 |
 | **2026-09-10（`Launch Critical Path` tracker reconciliation）** | **TRACKER-ONLY —— 0 行 production code／frontend／backend／DB schema／migration／legal 文件／domain 設定改動；`git diff` 只含本檔。** 起因：Owner 重新定義前提（**Legal 與 Domain 皆為 External Dependency／BLOCKED**；**UI SYSTEM 已通過 release gate**，UI 一致性與一般 polish 不再是 launch blocker）。**新增 5 個 ID（立案前逐一確認無 collision，本檔與 `docs/` 全域皆 0 命中）：** `REL-05`（production 部署落後 HEAD，release gate 證據不描述 production）／`PRE-15`（production 公開目錄仍販售 E2E 合成教材，需建立 launch data baseline）／`OPS-07`（完全沒有 monitoring ／ error visibility）／`IA-10`（退款補救案件無 Admin UI，判 `P2`，依 `OPS-02`／`OPS-06` 先例）／`PRE-16`（Technical Go/No-Go gate，須與正式 Launch Go 分離）。**更新 6 項既有條目：** `REL-04`（`P3` → `P1`，並**更正**「只有 backend 休眠」的舊事實）／`SEC-03`（拆為 **(a)** engineering deletion capability ＝ EXECUTABLE NOW、**(b)** retention policy ＝ BLOCKED — LEGAL）／`PRE-11`（`NOT STARTED` → `PARTIAL`，technical criteria 可續、criterion (6) 維持 external）／`OPS-01`（依 `DEC-15` 同步主表為 NOT APPLICABLE ／ CLOSED，歷史全數保留）／`PRE-08`（保留全部 PASS evidence，加註「一次性還原演練 ≠ 排程備份」並把 scheduled backup ／ recovery readiness 留作後續工作）／Current Focus 與 Next Up 重排。**新增 §1.6**（5 個新 ID ＋ `BLOCKED — LEGAL`／`BLOCKED — DOMAIN` 兩張分類表 ＋ P0 判定框 ＋ UI 立場）。**§13／§14 標註為過期**並指向現行排序（**未重編**）；**§17 加註**現行 External Dependency 分類改以 §1.6 為準（**內容未刪改**）。**未刪除任何既有 ID、未重編任何 ID、未修改與本輪無關的段落。** 本輪 production 唯讀量測皆直接取得：frontend `/` 58.07 s／`/support` 2.94 s／backend `/health` 22.69 s／`GET /materials` `items` = 1／CSS token 比對。**本輪未執行任何 execution task**（未部署、未修 `REL-04`、未清 production 資料、未實作 UI）。**判定：Technical Go/No-Go ＝ NO-GO；正式 Launch Go ＝ BLOCKED（External）；無 P0。** |
