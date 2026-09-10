@@ -1,0 +1,354 @@
+# OPS-07 —— production synthetic external monitoring
+#
+# ## 這個 workflow 存在的理由
+#
+# Render 的 native notification 只在**它自己產生的事件**觸發（deploy 失敗、service 崩潰
+# 或不健康）。而 Free plan 的 service **閒置 15 分鐘就會 spin down，那是正常行為、不是
+# failure**，因此不會觸發任何通知。結果是「站台已經連不上兩小時」目前沒有任何人會知道。
+# 這個 workflow 就是補這個洞（`OPS-07` Layer A）。
+#
+# ## 兩種 failure detection 並存，缺一不可
+#
+#   A. probe 明確失敗        → 主動送 `/fail` → Healthchecks 立即 DOWN → 立即告警
+#   B. workflow 根本沒有跑    → 兩個 check 都收不到 ping → 超過 Period(1h) + Grace(45m)
+#                              後自行 DOWN
+#
+# A 給我們**快速**且**可重現**的告警；B 是 A 涵蓋不到的那一層 —— GitHub 中斷、cron 被
+# 停用、repo 60 天無活動導致 scheduled workflow 被自動停用、或監控路徑自己壞掉。
+# **只靠 B 太慢，只靠 A 則偵測不到監控自己死掉。**
+#
+# ## 絕對不變條件
+#
+# **probe 失敗時永遠不得送 success ping。** success ping 只會出現在
+# 「`test_mode=none` 且 probe 通過」這一條路徑上。
+#
+# ## Secret 處理
+#
+# 兩個 Healthchecks.io ping URL 具有 capability 性質 —— 拿到的人可以偽造 "up" 而
+# 把真實告警壓掉。**本 repo 是 public，因此 workflow log 也是公開的**：
+#
+#   * ping URL 只能來自 GitHub Actions secrets，**永遠不得寫進本檔**
+#   * 透過 `env:` 傳入 step，run 區塊裡只出現 `"$HC_PING_URL"`，值不會進入 log
+#   * ping 的 stdout/stderr 一律丟棄 —— curl 的錯誤訊息會包含 URL
+#   * `/fail` 一律由 `"$HC_PING_URL"` **動態組合**，不得 hardcode 任何 UUID 或 ping URL
+#   * 全程不得 `set -x`；response body 一律不 dump
+#
+# probe 目標網址（`*.onrender.com` 主機名與 `/health` 路徑）**不是 secret** ——
+# 已公開於 `render.yaml` 與 `docs/production-environment-contract.md`，
+# 因此刻意寫成字面值，讓本檔本身就是可稽核的 canonical 監控目標。
+
+name: synthetic-monitor
+
+on:
+  # 每小時第 17 分鐘 —— 刻意避開整點，那是 GitHub scheduler 負載最高、延遲最嚴重的時段。
+  # scheduled workflow 是 best-effort，可能誤點；那是 Healthchecks 的 45 分鐘 grace
+  # 要吸收的東西，**不要靠縮短 probe timeout 來補**。
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: "Forced-failure test. Leave 'none' for a normal probe."
+        type: choice
+        required: false
+        default: "none"
+        options:
+          - "none"
+          - "fail-frontend"
+          - "fail-backend"
+
+permissions: {}
+
+concurrency:
+  group: synthetic-monitor
+  # 刻意**不**取消進行中的 run —— 取消會讓該輪既沒 ping 成功也沒送 /fail，
+  # 產生一個純粹由我們自己造成的模糊狀態。
+  cancel-in-progress: false
+
+env:
+  # **schedule 永遠是 none。** 這個表達式讓 forced-failure 在結構上只可能來自
+  # workflow_dispatch —— 不是靠慣例或註解約束，而是 schedule 事件根本取不到 inputs。
+  TEST_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_mode || 'none' }}
+
+jobs:
+  # frontend 與 backend 是**互相獨立的 job**：一邊失敗不得阻止另一邊 probe 與 ping，
+  # 否則單一 service 故障會讓兩個 check 一起變 DOWN，分不出到底哪一邊壞了。
+  # 這也是 `test_mode=fail-frontend` 不會影響 backend 的原因。
+  monitor-frontend:
+    name: Frontend availability
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_URL: https://teaching-platform-web.onrender.com/
+      SERVICE_NAME: teaching-platform-web
+    steps:
+      # ---- forced failure（僅 workflow_dispatch）------------------------------
+      # 這一條路徑**完全不碰 production** —— 不發任何請求到 TARGET_URL。
+      - name: Forced failure signal (test mode)
+        if: env.TEST_MODE == 'fail-frontend'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_FRONTEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_FRONTEND_URL secret is not set"
+            exit 1
+          fi
+          # 去掉可能存在的結尾斜線，避免組出 `//fail`。
+          base="${HC_PING_URL%/}"
+          echo "TEST MODE: sending a deliberate failure signal for $SERVICE_NAME"
+          echo "TEST MODE: production was NOT contacted"
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "${base}/fail" > /dev/null 2>&1; then
+            echo "Failure signal sent (frontend) — check should go DOWN"
+          else
+            echo "::error::Failure signal could not be sent for frontend (URL redacted)"
+            exit 1
+          fi
+
+      # ---- normal probe -------------------------------------------------------
+      - name: Probe production frontend
+        id: probe
+        if: env.TEST_MODE != 'fail-frontend'
+        run: |
+          set -uo pipefail
+
+          # 冷啟動實測：31.55 s / 58.07 s。60 s max-time 容納絕大多數情況；
+          # 極端值由 retry 吸收 —— **第一次請求本身就會把 service 叫醒**，
+          # 所以 60 秒後的第二次幾乎必然打在已喚醒的實例上。
+          probe() {
+            curl --silent --show-error --location \
+                 --connect-timeout 15 --max-time 60 \
+                 --output /dev/null --write-out '%{http_code}' \
+                 "$TARGET_URL"
+          }
+
+          classify() {
+            case "$1" in
+              0)  echo "http-status" ;;
+              6)  echo "dns" ;;
+              7)  echo "connect" ;;
+              28) echo "timeout" ;;
+              35|60) echo "tls" ;;
+              *)  echo "curl-exit-$1" ;;
+            esac
+          }
+
+          attempt=1
+          while [ "$attempt" -le 2 ]; do
+            code="$(probe)" || true
+            rc=$?
+            code="${code:-000}"
+
+            # 前端接受 2xx 與 3xx（帶 -L 之後正常應為 2xx，3xx 仍代表服務有回應）。
+            if [ "$rc" -eq 0 ] && [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+              echo "PASS  service=$SERVICE_NAME  http_status=$code  attempt=$attempt"
+              exit 0
+            fi
+
+            echo "FAIL  service=$SERVICE_NAME  http_status=$code  error_class=$(classify "$rc")  attempt=$attempt"
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 2 ]; then
+              echo "retrying in 60s"
+              sleep 60
+            fi
+          done
+
+          echo "::error::$SERVICE_NAME probe failed on both attempts"
+          exit 1
+
+      # 只有「正常模式 ＋ probe 通過」才會送 success ping。
+      - name: Ping Healthchecks.io success (frontend)
+        if: env.TEST_MODE != 'fail-frontend' && steps.probe.outcome == 'success'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_FRONTEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_FRONTEND_URL secret is not set"
+            exit 1
+          fi
+          # 輸出全部丟棄 —— curl 的錯誤訊息含完整 URL，而本 repo 的 log 是公開的。
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "$HC_PING_URL" > /dev/null 2>&1; then
+            echo "Success ping sent (frontend)"
+          else
+            echo "::error::Healthchecks ping failed for frontend (URL redacted)"
+            exit 1
+          fi
+
+      # 條件刻意綁在 `steps.probe.outcome`，**不是** `failure()`：
+      # 若失敗的是上面的 success-ping step（服務其實健康、只是監控路徑壞了），
+      # 送 /fail 會把健康的服務誤報成 DOWN。那種情況交給 Period + Grace 處理。
+      - name: Signal probe failure to Healthchecks.io (frontend)
+        if: always() && env.TEST_MODE != 'fail-frontend' && steps.probe.outcome == 'failure'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_FRONTEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_FRONTEND_URL secret is not set"
+            exit 1
+          fi
+          base="${HC_PING_URL%/}"
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "${base}/fail" > /dev/null 2>&1; then
+            echo "Failure signal sent (frontend) — check should go DOWN"
+          else
+            echo "::error::Failure signal could not be sent for frontend (URL redacted)"
+          fi
+          # 不論 /fail 是否送達，這個 job 都必須是紅的 —— probe 真的失敗了。
+          exit 1
+
+  monitor-backend:
+    name: Backend availability
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_URL: https://teaching-platform-backend.onrender.com/health
+      SERVICE_NAME: teaching-platform-backend
+    steps:
+      - name: Forced failure signal (test mode)
+        if: env.TEST_MODE == 'fail-backend'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_BACKEND_URL secret is not set"
+            exit 1
+          fi
+          base="${HC_PING_URL%/}"
+          echo "TEST MODE: sending a deliberate failure signal for $SERVICE_NAME"
+          echo "TEST MODE: production was NOT contacted"
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "${base}/fail" > /dev/null 2>&1; then
+            echo "Failure signal sent (backend) — check should go DOWN"
+          else
+            echo "::error::Failure signal could not be sent for backend (URL redacted)"
+            exit 1
+          fi
+
+      - name: Probe production backend /health
+        id: probe
+        if: env.TEST_MODE != 'fail-backend'
+        run: |
+          set -uo pipefail
+
+          BODY_FILE="$(mktemp)"
+
+          # backend 冷啟動實測：22.4–22.7 s，另有一次 252.6 s 的極端值。
+          probe() {
+            curl --silent --show-error \
+                 --connect-timeout 15 --max-time 60 \
+                 --output "$BODY_FILE" --write-out '%{http_code}' \
+                 "$TARGET_URL"
+          }
+
+          classify() {
+            case "$1" in
+              0)  echo "http-status" ;;
+              6)  echo "dns" ;;
+              7)  echo "connect" ;;
+              28) echo "timeout" ;;
+              35|60) echo "tls" ;;
+              *)  echo "curl-exit-$1" ;;
+            esac
+          }
+
+          attempt=1
+          while [ "$attempt" -le 2 ]; do
+            : > "$BODY_FILE"
+            code="$(probe)" || true
+            rc=$?
+            code="${code:-000}"
+
+            # backend 只接受 2xx —— /health 不該重導向。
+            if [ "$rc" -eq 0 ] && [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+              # 健康判定必須是**精確的 health semantics**，不是「body 裡有 ok 這兩個字」。
+              #
+              #   通過： {"status":"ok"}      {"status": "ok"}      { "status" : "ok" }
+              #   擋下： {"status":"not_ok"}  {"message":"ok"}      {"status":"error","note":"ok"}
+              #
+              # 先把換行去掉再比對，這樣 pretty-printed JSON（key 與 value 分行）也能過，
+              # 而 grep 仍是逐行運作的。
+              #
+              # **刻意不用 `jq`。** 本機實測發現 `jq` 不存在時 `jq -e .` 會失敗，
+              # 於是健康的 production 被判成 invalid JSON → 送出 /fail → 假告警。
+              # `ubuntu-latest` 目前內建 jq，但**讓健康判定依賴隱性的 runner 工具**
+              # 正是日後 image 變動時會安靜壞掉的那種相依。
+              #
+              # **body 全程不 dump**（目前內容不敏感，但不建立會 dump body 的先例）。
+              normalized="$(tr -d '\r\n' < "$BODY_FILE")"
+              first_char="$(printf '%s' "$normalized" | tr -d '[:space:]' | cut -c1)"
+
+              if [ "$first_char" != "{" ]; then
+                echo "FAIL  service=$SERVICE_NAME  http_status=$code  error_class=non-json-body  attempt=$attempt"
+              elif ! printf '%s' "$normalized" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
+                echo "FAIL  service=$SERVICE_NAME  http_status=$code  error_class=unhealthy-payload  attempt=$attempt"
+              else
+                echo "PASS  service=$SERVICE_NAME  http_status=$code  attempt=$attempt"
+                exit 0
+              fi
+            else
+              echo "FAIL  service=$SERVICE_NAME  http_status=$code  error_class=$(classify "$rc")  attempt=$attempt"
+            fi
+
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le 2 ]; then
+              echo "retrying in 60s"
+              sleep 60
+            fi
+          done
+
+          echo "::error::$SERVICE_NAME probe failed on both attempts"
+          exit 1
+
+      - name: Ping Healthchecks.io success (backend)
+        if: env.TEST_MODE != 'fail-backend' && steps.probe.outcome == 'success'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_BACKEND_URL secret is not set"
+            exit 1
+          fi
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "$HC_PING_URL" > /dev/null 2>&1; then
+            echo "Success ping sent (backend)"
+          else
+            echo "::error::Healthchecks ping failed for backend (URL redacted)"
+            exit 1
+          fi
+
+      - name: Signal probe failure to Healthchecks.io (backend)
+        if: always() && env.TEST_MODE != 'fail-backend' && steps.probe.outcome == 'failure'
+        env:
+          HC_PING_URL: ${{ secrets.HEALTHCHECKS_BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC_PING_URL}" ]; then
+            echo "::error::HEALTHCHECKS_BACKEND_URL secret is not set"
+            exit 1
+          fi
+          base="${HC_PING_URL%/}"
+          if curl --silent --show-error --fail \
+                  --max-time 20 --retry 3 --retry-delay 5 \
+                  --output /dev/null \
+                  "${base}/fail" > /dev/null 2>&1; then
+            echo "Failure signal sent (backend) — check should go DOWN"
+          else
+            echo "::error::Failure signal could not be sent for backend (URL redacted)"
+          fi
+          exit 1
