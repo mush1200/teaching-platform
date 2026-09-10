@@ -31,6 +31,42 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 /**
+ * E2E harness 專用的 loopback 例外（`DX-23`）—— **只鬆綁 loopback 這一項**。
+ *
+ * ## 為什麼需要它
+ *
+ * `E2E_SERVER=production` 走 `next start`，而 `next start` 就是 `NODE_ENV=production`。
+ * 同時 `playwright.config.ts` 為了修 IPv6 `ECONNREFUSED ::1:3000`（`DX-19`）而注入
+ * `API_BASE_URL=http://127.0.0.1:3000`。兩者**各自都正確**，但湊在一起必然衝突：
+ * 凡經過 `/api/backend/*`、`/api/auth/*` 的 server 端呼叫一律 500。
+ *
+ * 這是 **harness 組態的衝突，不是產品缺陷**。正確的處置是讓 harness 明示地宣告
+ * 「我是隔離測試，不是部署」，而**不是**放寬 production 的判準。
+ *
+ * ## 為什麼不是把 guard 改弱
+ *
+ * `PRE-12` 的 loopback 拒絕是安全需求：真實部署若指向自己，整站 server 端呼叫會
+ * 全數失敗，而且是**安靜地**失敗。那個不變條件必須原樣保留 —— 見下方三道限制。
+ *
+ * ## 三道限制，使它無法在真實 production 生效
+ *
+ * 1. **只認 `"1"` 這個精確值**，其餘（含 `"true"`／`"yes"`／空字串）一律不生效。
+ * 2. **只鬆綁 loopback 一項**。未設定、非絕對 URL、非 http(s) 仍然照樣 throw ——
+ *    它不是「跳過驗證」，是「這一台 loopback backend 是被認可的」。
+ * 3. **`render.yaml` 不宣告這個變數**，由 `production-url-guard.spec.ts` 的
+ *    source-scan 測試釘住；部署環境因此無從繼承它。
+ *
+ * 變數名刻意冗長且以 `E2E_` 起頭（與 `E2E_SERVER`／`E2E_REUSE_BACKEND`／
+ * `E2E_TARGET_DB` 同一套慣例），且**由 `playwright.config.ts` 自己注入**，
+ * 開發者不需要、也不應該手動設定它。
+ *
+ * **不得**把它一般化為 `ALLOW_LOOPBACK` 之類的廣義開關。
+ */
+function isE2EHarnessLoopbackSanctioned(): boolean {
+  return process.env.E2E_ALLOW_LOOPBACK_API_BASE_URL === "1";
+}
+
+/**
  * 取得 Backend base URL（不含結尾斜線）。
  *
  * production 下缺漏或不合法即 **throw** —— 靜默回退 localhost 會讓整站看起來
@@ -60,7 +96,7 @@ export function getServerApiBaseUrl(): string {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error(`API_BASE_URL must use http: or https: (got ${JSON.stringify(parsed.protocol)}).`);
   }
-  if (isLoopbackHost(parsed.hostname)) {
+  if (isLoopbackHost(parsed.hostname) && !isE2EHarnessLoopbackSanctioned()) {
     throw new Error(
       `API_BASE_URL points at a loopback host (${JSON.stringify(parsed.hostname)}). ` +
         "In production the backend is a separate service, so localhost can never be correct."

@@ -113,7 +113,25 @@ export default defineConfig({
       // production 需要先 `npm run build`；`next start` 不會自己編譯。
       command: isProductionServer ? `npm run start -- --port ${port}` : `npm run dev -- --port ${port}`,
       url: baseURL,
-      reuseExistingServer: true,
+      /*
+       * `DX-23`：**production 模式不得重用既有 server。**
+       *
+       * 先前一律 `true`。後果是：只要 3010 上已經有**任何**一台 server（例如
+       * 另一個 session 的 `npm run dev:web:3010`），`E2E_SERVER=production` 就
+       * **不會**真的執行 `next start`，於是整輪根本沒有跑在 `NODE_ENV=production`
+       * 底下 —— 套件會**全綠**，卻沒有驗到任何 production 行為。
+       *
+       * 這是 `DX-19` 對 backend 修過的同一類危害（當時的理由逐字適用：
+       * 「若預設 reuseExistingServer: true，整套 E2E 會安靜地打在開發資料庫上」）。
+       * 實測：3010 被佔用時 12/12 假綠；改用空的 port 後立刻紅 8 條，
+       * 正是 `DX-23` 要修的那 4 條 × 2 個 project。
+       *
+       * dev 模式維持 `true`（`DX-05` 的前提：驗收不需要停掉 dev server）。
+       * production 模式下若 port 被佔用，Playwright 會**明確報錯**而不是假綠；
+       * 要在 dev server 仍在跑的情況下驗收，指定另一個 port 即可：
+       *   `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3011 E2E_SERVER=production npx playwright test`
+       */
+      reuseExistingServer: !isProductionServer,
       timeout: 180 * 1000,
       /*
        * 前端的 server-side fetch（`/materials/:id`、四條 legal route）要打到
@@ -135,6 +153,18 @@ export default defineConfig({
          * 恰好出現一個」，兩種環境都成立；env 的分支正確性另由純函式測試涵蓋。
          */
         NEXT_PUBLIC_SUPPORT_EMAIL: "support@teaching-platform.test",
+        /*
+         * `DX-23` —— 向 production build 宣告「這一台是隔離的 E2E harness，
+         * 不是部署」。`next start` ＝ `NODE_ENV=production`，而上面注入的
+         * `API_BASE_URL` 是 loopback（`DX-19` 為修 IPv6 ECONNREFUSED 而必需），
+         * 兩者相衝突會讓所有 proxy 呼叫 500。
+         *
+         * **只鬆綁 loopback 一項**：未設定／非絕對 URL／非 http(s) 仍照樣拒絕。
+         * 由本檔注入，開發者不需手動設定；`render.yaml` **不宣告**此變數，
+         * 由 `production-url-guard.spec.ts` 的 source-scan 測試釘住。
+         * 詳見 `lib/server-api-base-url.ts` 的 `isE2EHarnessLoopbackSanctioned()`。
+         */
+        E2E_ALLOW_LOOPBACK_API_BASE_URL: "1",
       },
     },
   ],
