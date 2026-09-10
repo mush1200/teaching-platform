@@ -17,7 +17,7 @@ import { z } from "zod";
 import { IconFacebook, IconGoogle } from "../../components/ui/icons";
 import type { UserRole } from "../../lib/api-types";
 import type { LoginResponse } from "../../lib/auth";
-import { mapStatusMessage } from "../../lib/auth";
+import { isGatewayStatus, mapStatusMessage } from "../../lib/auth";
 
 const registerSchema = z
   .object({
@@ -361,6 +361,15 @@ export default function RegisterPage() {
 }
 
 async function parseRegisterError(response: Response): Promise<string> {
+  /*
+   * `REL-04`：與 `parseApiErrorMessage` 同一個理由 —— gateway 狀態碼一律用自家文案。
+   * `/api/auth/register/route.ts` 與 login route 是同一個形狀，body 非 JSON 時會合成
+   * `{ message: "invalid response payload" }`，不排除就會把它顯示給使用者。
+   */
+  if (isGatewayStatus(response.status)) {
+    return mapStatusMessage(response.status);
+  }
+
   try {
     const data = (await response.json()) as { message?: string };
     if (data.message) return data.message;

@@ -1,5 +1,5 @@
 import type { UserRole } from "./api-types";
-import { mapStatusMessage } from "./auth";
+import { isGatewayStatus, mapStatusMessage } from "./auth";
 import { recoverFromExpiredSession } from "./session";
 
 const STORAGE_TOKEN = "tp_token";
@@ -107,6 +107,18 @@ export async function apiFetch(
 }
 
 export async function parseApiErrorMessage(response: Response): Promise<string> {
+  /*
+   * `REL-04`：gateway 狀態碼一律用自家文案，**不看** server message。
+   *
+   * 502／503／504 的 body 不是應用程式產生的，而 auth proxy 在 body 非 JSON 時會合成
+   * `{ message: "invalid response payload" }` —— 若照既有的「優先顯示 server message」
+   * 邏輯，使用者會看到那串內部字串。這裡是唯一需要的例外；4xx 維持原行為
+   * （那些 message 是後端刻意寫給使用者看的）。
+   */
+  if (isGatewayStatus(response.status)) {
+    return mapStatusMessage(response.status);
+  }
+
   try {
     const data = (await response.json()) as { message?: string };
     if (data.message && typeof data.message === "string") {
