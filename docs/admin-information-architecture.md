@@ -29,6 +29,7 @@
 | 付款審核 `/admin/payment-proofs` | 核帳並核准／退回付款 | Review Workspace / Queue | 核准／退回 | **付款決定** | **Keep** |
 | 訂單管理 `/admin/orders` | 查某張訂單卡在哪 | Reference / Investigation | 無（查詢） | **訂單狀態查詢** | **Keep + Refocus** |
 | 檢舉管理 `/admin/reports` | 跑完檢舉案件流程並處置 | Review Workspace / Investigation | 判定與處置 | **檢舉案件** | **Keep** |
+| 退款／補救案件 `/admin/remedy-cases` | 處置消費者救濟案件，並記錄行外已完成的退款 | Review Workspace / Queue | 狀態轉移／建立案件／記錄退款執行 | **`refund_remedy_cases`**（狀態機在 `Backend/services/refundRemedy.service.js`） | ✅ **已完成**（2026-09-12，`IA-10`；見 §12） |
 | 教學回饋 `/admin/reviews-hub` | 無明確 JTBD | Reference | 無 | 資料層在 reviews API | **Contextualize / Remove from Sidebar** |
 | 活動紀錄 `/admin/activity-logs` | 稽核、追責、客訴調查 | Audit / Investigation | 收斂到正確紀錄 | **稽核軌跡** | **Keep + Refocus** |
 | 用戶管理 `/admin/users` | 無法達成（無 API／無欄位） | Reference | 無 | — | **Remove from Sidebar** |
@@ -320,3 +321,77 @@ terminal            = resolved + dismissed + reviewed(legacy)
 8. **不做假的能力**：沒有資料模型支撐的按鈕、表格、狀態一律不做；能力邊界要在 UI 上誠實說明。
 9. **同一個狀態可以有兩份文案**（Admin 視角 vs Creator 視角），但只能有一份狀態定義。
 10. **mutation 成功不自動把畫面跳走** —— 先顯示結果，讓使用者確認自己做了什麼。
+
+---
+
+## 12. 退款／補救案件（`IA-10`，2026-09-12）
+
+`/admin/remedy-cases`。backend 能力自 Gate 14 起就完整，但前台沒有入口 ——
+上線後若依法或依契約必須退款，維運者只能直打 API。這一頁把那條路徑變成產品內可操作、
+可稽核的流程。
+
+### 12.1 為什麼它自成一個一級入口，不併進「檢舉管理」
+
+「信任與安全」這一組現在有四件事，它們的**結論**各自不同：
+
+| 入口 | 法律／規則基礎 | 結論是什麼 |
+| --- | --- | --- |
+| 檢舉管理 `/admin/reports` | 平台內容政策 | 教材下架／警告 |
+| 消費申訴 `/admin/complaints` | 消保法 §43 | 申訴處理與回覆期限 |
+| 個資權利請求 `/admin/privacy-requests` | 個人資料保護法 | 個資權利的實現 |
+| **退款／補救案件** `/admin/remedy-cases` | 契約／`mvp_rules.md` §12.8 | **退多少錢、何時退、由誰執行** |
+
+把任何兩者合併，都會讓「已處理」同時代表兩種不同的事實。四者刻意並列。
+
+**刻意不帶 `status` query** —— 其餘三個的預設過濾是「待辦」，但補救案件的常見需求包含
+查已完成案件的退款紀錄（對帳），預設看全部才合理。
+
+### 12.2 這一頁有五項能力，少一項都走不完一個案件
+
+1. 瀏覽佇列（`GET /admin/remedy-cases`）
+2. 開啟詳情與稽核歷程（`GET /admin/remedy-cases/:id`）
+3. 狀態轉移（`POST /admin/remedy-cases/:id/transition`）
+4. **建立案件**（`POST /orders/:orderId/remedy-cases`）
+5. **記錄退款執行**（`POST /admin/remedy-cases/:id/execute-refund`）
+
+(5) 是 `remedy_pending → completed` 的**唯一**路徑 —— `refundRemedy.service.js` 明文禁止
+用一般 transition 把有核准金額的案件標成 completed，因為那會產生一段
+「宣稱已退款但拿不出憑據」的期間。少了 (5)，案件會永遠卡在「待執行補救」。
+
+(4) 與 §9 的「沒有 Admin 代開檢舉案件的端點」**不衝突**：那條規則講的是內容檢舉。
+補救案件的來路包含電話與 email 申訴，`Backend/routes/order.js` 本來就允許 admin
+代訂單擁有者開案；`buyer_id` 由 backend 從訂單推得，**不是**前端指定的。
+
+### 12.3 前端沒有狀態機
+
+狀態轉移的合法性一律由 backend 裁決。被拒絕時 backend 回 409 ＋ `from` ＋ `allowed`，
+UI **照實把 `allowed` 列出來**。好處不只是少寫一份 enum ——
+而是前端永遠不可能與 backend 的狀態機不一致，因為它根本沒有自己的版本。
+代價是使用者可能先選到一個非法轉移，但錯誤訊息會直接告訴他此刻允許哪些，
+比灰掉一個沒有解釋的選項更有用。這條對應 §11 原則 7。
+
+同理，金額上限（`amount_exceeds_approved`）、金錢／非金錢（`non_cash_remedy`）、
+重複執行（`already_executed`）、案件類型 allowlist（`invalid_case_type`）
+也都不在前端複製一份。前端只擋「必填欄位空白」。
+
+### 12.4 文案必須守住三段式語意
+
+```text
+approved（已核准）  ≠  completed（案件完成）  ≠  退款已實際執行
+```
+
+平台沒有串接金流。execute-refund 表單記錄的是**已經在行外完成**的一筆匯款，
+因此該區塊必須明講「平台不會轉帳，送出這張表單不會把錢匯給任何人」。
+誤解這一點的人會在錢還沒匯出時就把案件結掉。這條對應 §11 原則 8。
+
+### 12.5 動作結果不得被 refetch 洗掉（§11 原則 10 的具體實作）
+
+詳情面板在**還沒有該案件的資料**時才整塊換成 loading；
+動作成功後的 refetch 期間保留現有內容、原地更新。
+最初的實作在 refetch 時把整個詳情換成 loading，導致
+「狀態已更新」／「已記錄退款執行」在同一瞬間消失 ——
+做完一個涉及金錢的動作卻沒有任何回饋留在畫面上。由 E2E 回歸鎖住。
+
+切換案件時詳情整棵重新掛載（`key` ＝ case id）：少了它，
+處置理由／退款金額／交易參考會跨案件殘留，
+等於「在 A 案打的字可能被送到 B 案」。

@@ -82,6 +82,18 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
        * 三者刻意並列而不合併：合併會讓「這件事受哪一套規則管」消失。
        */
       { href: "/admin/privacy-requests", label: "個資權利請求", icon: "🔐" },
+      /*
+       * `IA-10` —— 退款／補救案件是**第四件事**，而且是唯一結論涉及**金錢**的那一條。
+       *
+       * 它與上面三者的分界不是風格問題：`reports` 的結論是下架／警告，
+       * `complaints` 的結論是消保法 §43 的申訴處理，`privacy-requests` 的結論是個資權利，
+       * 而這裡的結論是**退多少錢、何時退、由誰執行**（`refund_remedy_cases`）。
+       * 把它併進任何一個，都會讓「已處理」同時代表兩種不同的事實。
+       *
+       * 刻意**不帶 status query** —— 其餘三個的預設過濾是「待辦」，
+       * 但補救案件的常見需求包含查已完成案件的退款紀錄（對帳），預設看全部才合理。
+       */
+      { href: "/admin/remedy-cases", label: "退款補救", icon: "💸" },
     ],
   },
   {
