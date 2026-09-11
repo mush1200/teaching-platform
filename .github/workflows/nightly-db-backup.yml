@@ -78,7 +78,30 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+
+          # ⚠️ 安裝成功 ≠ 被選用。
+          #
+          # runner image 自帶 postgresql-client-16，`/usr/bin/pg_dump` 因此仍解析到 16.15，
+          # 即使 postgresql-client-17 已正確安裝（2026-09-11 實測：
+          # `Setting up postgresql-client-17 (17.11-…)` 成功，但
+          # `pg_dump (PostgreSQL) 16.15` 被選中，pre-flight 因而正確拒絕備份）。
+          #
+          # 非對稱之處在於：**psql 16 連得上 PG17 server**（所以版本偵測一直正常），
+          # 但 **pg_dump 比 server 舊時會拒絕執行** —— 只有 dump 這條路徑受影響。
+          #
+          # 因此把 v17 的 bin 目錄放到後續所有 step 的 PATH 最前面。
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+          # 就地驗證這一步真的生效（$GITHUB_PATH 要下一個 step 才套用，
+          # 所以這裡用絕對路徑前綴模擬後續 step 會看到的解析結果）。
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "resolved pg_dump: $(command -v pg_dump)"
           echo "pg_dump: $(pg_dump --version)"
+          case "$(pg_dump --version)" in
+            *"PostgreSQL) 17."*) echo "pg_dump major 17 selected — OK" ;;
+            *) echo "::error::expected pg_dump 17.x on PATH after install, got: $(pg_dump --version)"
+               exit 1 ;;
+          esac
 
       # ---------------------------------------------------------------------
       # 前置斷言：client 主版本不得低於 server（§8.3 既有規則）。
