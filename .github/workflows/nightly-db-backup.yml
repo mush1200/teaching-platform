@@ -246,7 +246,7 @@ jobs:
               | sort -u | sed 's/^/  error class: /' || true
             exit 1
           fi
-          echo "uploaded: db/${BACKUP_FILE}"
+          echo "uploaded: production/db/${BACKUP_FILE}"
 
       # ---------------------------------------------------------------------
       # 上傳成功的 exit code 不等於「物件真的在那裡而且大小正確」。

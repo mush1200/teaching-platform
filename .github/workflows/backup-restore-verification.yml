@@ -1,0 +1,312 @@
+# PRE-08 (i) —— 已存放備份的還原驗證（disposable restore drill）
+#
+# canonical 契約：`docs/db-backup-and-migration.md` §8.3.1 第 9／10／11 條。
+#
+# ## 為什麼這件事必須存在
+#
+# **一份從未被還原過的備份不算備份。** `nightly-db-backup.yml` 只證明「檔案被寫進 B2
+# 且大小相符」；它**不證明**那些位元組能變回一個可用的資料庫。這個 workflow 補上那一步。
+#
+# ## 為什麼在 CI 而不是本機
+#
+# B2 憑證只存在於 GitHub Secrets，不在任何人的機器上（刻意如此）。因此能取得那個物件
+# 的地方就只有這裡。runner 是 ephemeral，restore 目標是 service container，
+# 兩者都隨 job 結束消失 —— 這同時就是 §7 要求的 cleanup。
+#
+# ## 順序上的一個關鍵限制（不可調換）
+#
+# **結構與資料驗證必須在啟動 backend 之前完成。**
+# `Backend/index.js:193` 開機會跑 `ensureCoreTables()`，那會把缺少的表與索引**補建起來** ——
+# 若先啟動 app 再驗結構，一個缺表的壞備份會被 bootstrap 修好，驗證就變成永遠會過的空話。
+#
+# ## 安全邊界
+#
+#   * **不碰 production**：只讀 B2 物件；不連 production DB；不改 production 任何東西
+#   * **不刪除、不覆寫** B2 上的備份（CI 金鑰本來就沒有 deleteFiles）
+#   * **不產生 artifact**：dump 內含全部個資，而本 repo 是 PUBLIC
+#   * **不輸出個資**：驗證只印彙總數字與**已經公開**的識別碼；
+#     email、姓名、storage_key、checksum_sha256、token 一律不印
+
+name: backup-restore-verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      object_key:
+        description: "Exact object key under the bucket (no wildcard, no 'latest')"
+        required: true
+        type: string
+      expected_sha256:
+        description: "Expected SHA-256 of the stored object"
+        required: true
+        type: string
+      expected_bytes:
+        description: "Expected exact size in bytes"
+        required: true
+        type: string
+
+# checkout 是 app smoke 需要的；除此之外不需要任何權限。
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-restore-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Restore the stored backup into an isolated database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # 隔離的還原目標。**PG17**：§8.3.1 第 11 條要求還原目標不得低於來源版本 ——
+    # 用 PG13 會在 `transaction_timeout` 上噴錯並 exit 非零，**即使資料其實完整**，
+    # 於是一份好的備份會被誤判成損毀。
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: disposable_restore_target_not_production
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: disposable_restore_target_not_production
+      RESTORE_DB: restore_drill
+
+    steps:
+      - name: Checkout (needed only for the application smoke)
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          # 與備份 workflow 同一個教訓：安裝成功 ≠ 被選用（runner 自帶 client 16）。
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "resolved pg_restore: $(command -v pg_restore)"
+          pg_restore --version
+          case "$(pg_restore --version)" in
+            *"PostgreSQL) 17."*) echo "pg_restore major 17 — OK" ;;
+            *) echo "::error::expected pg_restore 17.x, got: $(pg_restore --version)"; exit 1 ;;
+          esac
+
+      # ---------------------------------------------------------------------
+      # STEP 1 —— 下載**指定的那一個**物件。無萬用字元、無 latest。
+      # ---------------------------------------------------------------------
+      - name: Download the exact stored object
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_B2_REGION }}
+          B2_BUCKET: ${{ secrets.BACKUP_B2_BUCKET }}
+          B2_ENDPOINT: ${{ secrets.BACKUP_B2_ENDPOINT }}
+          OBJECT_KEY: ${{ inputs.object_key }}
+        run: |
+          set -uo pipefail
+          for v in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION B2_BUCKET B2_ENDPOINT; do
+            if [ -z "${!v}" ]; then echo "::error::$v secret is not set"; exit 1; fi
+          done
+          echo "requested key: ${OBJECT_KEY}"
+          if ! aws s3api get-object \
+                 --bucket "$B2_BUCKET" --key "$OBJECT_KEY" \
+                 --endpoint-url "$B2_ENDPOINT" \
+                 ./restore.dump > /dev/null 2>/tmp/dl.err; then
+            echo "::error::download failed"
+            grep -oiE 'NoSuchKey|AccessDenied|InvalidAccessKeyId|SignatureDoesNotMatch|timeout' \
+              /tmp/dl.err | sort -u | sed 's/^/  error class: /' || true
+            exit 1
+          fi
+          echo "downloaded"
+
+      - name: Verify size and checksum against the recorded values
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha256 }}
+          EXPECTED_BYTES: ${{ inputs.expected_bytes }}
+        run: |
+          set -uo pipefail
+          actual_bytes="$(wc -c < ./restore.dump)"
+          actual_sha="$(sha256sum ./restore.dump | cut -d' ' -f1)"
+          echo "expected bytes: ${EXPECTED_BYTES}"
+          echo "actual   bytes: ${actual_bytes}"
+          echo "expected sha256: ${EXPECTED_SHA}"
+          echo "actual   sha256: ${actual_sha}"
+          fail=0
+          [ "$actual_bytes" = "${EXPECTED_BYTES}" ] || { echo "::error::size mismatch"; fail=1; }
+          [ "$actual_sha" = "${EXPECTED_SHA}" ]     || { echo "::error::checksum mismatch"; fail=1; }
+          [ "$fail" -eq 0 ] || exit 1
+          echo "size and checksum both match the values recorded at backup time"
+
+      # ---------------------------------------------------------------------
+      # STEP 2 —— 隔離的空資料庫
+      # ---------------------------------------------------------------------
+      - name: Create the disposable restore target
+        run: |
+          set -euo pipefail
+          echo "target server version:"
+          psql -Atqc 'SELECT version();' | sed 's/^/  /'
+          psql -Atqc "SELECT 'server_version_num='||current_setting('server_version_num');" | sed 's/^/  /'
+          psql -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_DB};"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_DB};"
+          echo "target database: ${RESTORE_DB} (disposable, NOT production)"
+          echo "tables before restore: $(psql -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" -d ${RESTORE_DB})"
+
+      # ---------------------------------------------------------------------
+      # STEP 3 —— 還原
+      # ---------------------------------------------------------------------
+      - name: pg_restore into the disposable database
+        run: |
+          set -uo pipefail
+          start=$(date +%s)
+          pg_restore --no-owner --no-privileges --dbname="${RESTORE_DB}" ./restore.dump 2>/tmp/restore.err
+          rc=$?
+          end=$(date +%s)
+          echo "pg_restore exit code: $rc"
+          echo "duration: $((end - start))s"
+          echo "stderr line count: $(wc -l < /tmp/restore.err)"
+          if [ -s /tmp/restore.err ]; then
+            # 還原訊息可能提到物件名稱，但不含個資；仍只印前幾行以免洗版。
+            echo "--- first stderr lines ---"
+            head -20 /tmp/restore.err | sed 's/^/  /'
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::pg_restore exited non-zero ($rc)"
+            exit 1
+          fi
+          echo "pg_restore completed with exit code 0"
+
+      # ---------------------------------------------------------------------
+      # STEP 4 —— 結構驗證。**必須在啟動 app 之前**（見檔頭說明）。
+      # ---------------------------------------------------------------------
+      - name: Structural verification (must run before any app boot)
+        run: |
+          set -uo pipefail
+          q() { psql -Atqc "$1" -d "${RESTORE_DB}"; }
+          tables="$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
+          pk="$(q "SELECT count(*) FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='public' AND c.contype='p';")"
+          fk="$(q "SELECT count(*) FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='public' AND c.contype='f';")"
+          uq="$(q "SELECT count(*) FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='public' AND c.contype='u';")"
+          ck="$(q "SELECT count(*) FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='public' AND c.contype='c';")"
+          idx="$(q "SELECT count(*) FROM pg_indexes WHERE schemaname='public';")"
+          al_id="$(q "SELECT data_type FROM information_schema.columns WHERE table_name='activity_logs' AND column_name='id';")"
+          echo "tables            : $tables"
+          echo "primary keys      : $pk"
+          echo "foreign keys      : $fk"
+          echo "unique constraints: $uq"
+          echo "check constraints : $ck"
+          echo "indexes           : $idx"
+          echo "activity_logs.id  : $al_id"
+
+          fail=0
+          [ "$tables" -eq 26 ] || { echo "::error::expected 26 base tables, got $tables"; fail=1; }
+          [ "$al_id" = "text" ] || { echo "::error::activity_logs.id must be text (CLAUDE.md 4.4), got $al_id"; fail=1; }
+          for n in "$pk" "$fk" "$uq" "$ck" "$idx"; do
+            [ "$n" -gt 0 ] || { echo "::error::a constraint/index class came back empty"; fail=1; }
+          done
+
+          echo "--- core tables present? ---"
+          for t in users materials orders order_items manual_payment_proofs activity_logs \
+                   material_files material_download_tokens cart_items reviews_placeholder; do
+            present="$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$t';")"
+            [ "$t" = "reviews_placeholder" ] && continue
+            printf '  %-26s %s\n' "$t" "$([ "$present" = "1" ] && echo present || echo 'MISSING')"
+            [ "$present" = "1" ] || fail=1
+          done
+          [ "$fail" -eq 0 ] || exit 1
+          echo "structural verification PASS"
+
+      # ---------------------------------------------------------------------
+      # STEP 5 —— 資料驗證。同樣在啟動 app 之前。
+      # **只印彙總數字與已公開的識別碼；不印 email／姓名／storage_key／checksum／token。**
+      # ---------------------------------------------------------------------
+      - name: Data verification (aggregates and public identifiers only)
+        run: |
+          set -uo pipefail
+          q() { psql -Atqc "$1" -d "${RESTORE_DB}"; }
+          echo "--- representative row counts ---"
+          for t in users materials orders order_items manual_payment_proofs activity_logs; do
+            printf '  %-24s %s\n' "$t" "$(q "SELECT count(*) FROM $t;")"
+          done
+
+          echo "--- representative row is readable (public identifiers only) ---"
+          # `mat_mtit5cea9qiuim` 與其 status 早已由匿名的 GET /materials 公開，
+          # 因此印出來不揭露任何非公開資訊。**不查詢也不印任何 users 欄位。**
+          mat="$(q "SELECT id||' | status='||status||' | price='||price FROM materials ORDER BY created_at LIMIT 1;")"
+          echo "  materials[0]: ${mat:-<none>}"
+          ord="$(q "SELECT 'order_exists='||count(*) FROM orders;")"
+          echo "  $ord"
+          # 證明付款憑證列可讀，但**只確認欄位非空**，不輸出其內容。
+          proof="$(q "SELECT 'proof_rows='||count(*)||' storage_key_nonnull='||count(storage_key) FROM manual_payment_proofs;")"
+          echo "  $proof"
+          echo "data verification complete (exact source-time counts are asserted in the job summary by the operator)"
+
+      # ---------------------------------------------------------------------
+      # STEP 6 —— application smoke。**刻意排在結構／資料驗證之後**：
+      # 啟動 backend 會跑 ensureCoreTables()，可能補建缺少的物件。
+      # ---------------------------------------------------------------------
+      - name: Application smoke against the restored database only
+        env:
+          PGDATABASE: restore_drill
+          PORT: "3000"
+          JWT_SECRET: disposable-ci-restore-drill-secret-not-a-real-secret-000000
+        run: |
+          set -uo pipefail
+          npm ci --prefix Backend --silent
+          node Backend/index.js > /tmp/be.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -fsS -o /dev/null --max-time 3 http://127.0.0.1:3000/health && break
+            sleep 2
+          done
+          code() { curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$1"; }
+          h="$(code http://127.0.0.1:3000/health)"
+          m="$(code http://127.0.0.1:3000/materials)"
+          o="$(code http://127.0.0.1:3000/orders/my)"
+          a="$(code http://127.0.0.1:3000/admin/orders)"
+          echo "  GET /health      -> $h  (expect 200)"
+          echo "  GET /materials   -> $m  (expect 200)"
+          echo "  GET /orders/my   -> $o  (expect 401 anonymous)"
+          echo "  GET /admin/orders-> $a  (expect 401 anonymous)"
+          fail=0
+          [ "$h" = "200" ] || fail=1
+          [ "$m" = "200" ] || fail=1
+          [ "$o" = "401" ] || fail=1
+          [ "$a" = "401" ] || fail=1
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::application smoke failed against the restored database"
+            # backend log 可能含連線資訊，只印錯誤類別。
+            grep -oiE 'ECONNREFUSED|relation .* does not exist|password|JWT_SECRET|listen EADDRINUSE' /tmp/be.log \
+              | sort -u | head -5 | sed 's/^/  error class: /' || true
+            exit 1
+          fi
+          echo "application smoke PASS"
+
+      # ---------------------------------------------------------------------
+      # STEP 7 —— cleanup。runner 與 service container 本來就會消失，
+      # 但明確刪除仍然值得：dump 內含全部個資。
+      # ---------------------------------------------------------------------
+      - name: Cleanup
+        if: always()
+        run: |
+          set -uo pipefail
+          pkill -f "node Backend/index.js" 2>/dev/null || true
+          psql -c "DROP DATABASE IF EXISTS ${RESTORE_DB};" 2>/dev/null || true
+          shred -u ./restore.dump 2>/dev/null || rm -f ./restore.dump
+          ls ./restore.dump 2>/dev/null && echo "::error::dump still present" || echo "local dump removed"
+          echo "B2 object untouched (the CI key has no deleteFiles capability)"
