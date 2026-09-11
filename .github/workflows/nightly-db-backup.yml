@@ -111,9 +111,15 @@ jobs:
           if [ "$psql_rc" -ne 0 ] || [ -z "$server_raw" ]; then
             echo "::error::could not reach the database (psql exit ${psql_rc}; connection string redacted)"
             # **只輸出 allowlist 命中的字面片段**（`grep -o`，不含上下文）。
-            # psql 的原始訊息可能包含主機名、使用者名或資料庫名，因此**原文一律不外流**；
-            # 這裡輸出的永遠只會是下列固定字串之一。
-            matches="$(grep -oiE 'SSL|authentication|password|pg_hba|does not exist|could not translate host|timeout|Connection refused|no such host' \
+            # psql 的原始訊息可能包含主機名、使用者名、資料庫名或 query string，
+            # 因此**原文一律不外流**；這裡輸出的永遠只會是下列固定字串之一。
+            #
+            # 第二組（parse-level）為 2026-09-11 新增：前五次失敗中有兩次落在
+            # 「連線字串根本解析不過」這一類，psql 在開 socket 之前就拒絕（實測 40–54 ms），
+            # 而原本的 allowlist 沒有任何字詞描述它，只能回報 `unrecognised`。
+            # 那讓診斷停滯了兩個 operator 循環。這些新增項同樣是**固定字面片段**，
+            # 不含任何會被插值的部分，因此 `grep -o` 仍然只會印出片語本身。
+            matches="$(grep -oiE 'SSL|authentication|password|pg_hba|does not exist|could not translate host|timeout|Connection refused|no such host|invalid port number|invalid connection option|invalid URI|missing "=" after|unexpected character|end of string reached|could not parse|invalid integer value' \
               "$ERR_FILE" | tr '[:upper:]' '[:lower:]' | sort -u)"
             if [ -n "$matches" ]; then
               printf '%s\n' "$matches" | sed 's/^/  error class: /'
