@@ -94,13 +94,47 @@ jobs:
             exit 1
           fi
 
-          # 只取主版本號；連線字串本身永不輸出。
-          server_major="$(psql "$DB_URL" -Atqc 'SHOW server_version_num;' 2>/dev/null | cut -c1-2)"
-          if [ -z "$server_major" ]; then
-            echo "::error::could not read server version (connection failed; URL redacted)"
+          # ⚠️ GitHub 以 `bash -e {0}` 執行 run 區塊，而 `set -uo pipefail` **不會取消它**。
+          #
+          # 先前這裡是一行裸的指令替換（`x="$(psql ... | cut ...)"`）。psql 失敗時
+          # pipefail 把非零狀態往外傳，errexit 就在**我們自己的檢查跑到之前**中止整個 step，
+          # 於是下面所有的錯誤分類全部變成死碼。
+          # 2026-09-11 首次執行實證：只留下 `exit code 2`，沒有任何一行我們寫的訊息。
+          #
+          # 因此這裡明確關掉 errexit 並自行接管 psql 的結束碼；**nounset 與 pipefail 保留**。
+          set +e
+
+          ERR_FILE="$(mktemp)"
+          server_raw="$(psql "$DB_URL" -Atqc 'SHOW server_version_num;' 2>"$ERR_FILE")"
+          psql_rc=$?
+
+          if [ "$psql_rc" -ne 0 ] || [ -z "$server_raw" ]; then
+            echo "::error::could not reach the database (psql exit ${psql_rc}; connection string redacted)"
+            # **只輸出 allowlist 命中的字面片段**（`grep -o`，不含上下文）。
+            # psql 的原始訊息可能包含主機名、使用者名或資料庫名，因此**原文一律不外流**；
+            # 這裡輸出的永遠只會是下列固定字串之一。
+            matches="$(grep -oiE 'SSL|authentication|password|pg_hba|does not exist|could not translate host|timeout|Connection refused|no such host' \
+              "$ERR_FILE" | tr '[:upper:]' '[:lower:]' | sort -u)"
+            if [ -n "$matches" ]; then
+              printf '%s\n' "$matches" | sed 's/^/  error class: /'
+            elif [ -s "$ERR_FILE" ]; then
+              # 有 stderr 但不在 allowlist 內 —— 仍然不輸出原文。
+              echo "  error class: unrecognised (stderr withheld)"
+            else
+              echo "  error class: (psql produced no stderr)"
+            fi
+            rm -f "$ERR_FILE"
             exit 1
           fi
+          rm -f "$ERR_FILE"
+
+          # 只取主版本號；連線字串本身永不輸出。
+          server_major="$(printf '%s' "$server_raw" | cut -c1-2)"
           client_major="$(pg_dump --version | grep -oE '[0-9]+' | head -1)"
+          if [ -z "$server_major" ] || [ -z "$client_major" ]; then
+            echo "::error::could not determine server or client major version"
+            exit 1
+          fi
 
           echo "server major: $server_major"
           echo "client major: $client_major"
