@@ -105,12 +105,15 @@
 >   ✅ REL-04 ＋ production auth／role revalidation    REL-04   DONE（2026-09-10）
 >   ✅ monitoring／error visibility                    OPS-07   DONE（2026-09-10，6/6）
 >   ✅ production schema／index parity                 PRE-06   DONE（2026-09-10）
->   1  backup／recovery follow-up (i)                  PRE-08   🟡 PARTIAL（2026-09-10）
->        Owner decision ＝ **(B) GO SCHEDULED（nightly）**，canonical 已同步；
->        restore verification PASS。**待 Owner 選定 backup destination 後才實作**，
->        剩 7 項 operator gates，見 §1.6.0-D
->   2  Admin remedy-cases operational UI              IA-10    OPEN  P2
->   3  Technical Go/No-Go gate                        PRE-16   OPEN  P1
+>   ✅ backup／recovery follow-up (i)                  PRE-08   DONE（2026-09-12）
+>        nightly 排程備份上線並實證：首次成功備份 113,015 bytes、checksum 相符，
+>        **已存放的 B2 物件成功還原進隔離的 PG17.11 並通過結構／資料／app smoke**。
+>        production 全程未被觸碰。見 §1.6.0-D
+>   1  Admin remedy-cases operational UI              IA-10    OPEN  P2
+>   2  Technical Go/No-Go gate                        PRE-16   OPEN  P1
+>
+>   （`PRE-08` **(ii)** launch-baseline re-drill 維持 `OWNER-DEFERRED`，隨 `PRE-15`
+>     —— (i) 完成**不**解除 (ii)）
 >
 > NEXT UP（完整理由見 §2）
 >   （Current Focus 之後即為 technical path 尾端；`PRE-16` 已上移為 Focus #3）
@@ -2648,18 +2651,70 @@ permissions     {}（不 checkout、不呼叫 GitHub API）
 > **處置待 Owner 指示**：保留在本機待 STEP 1／2 完成後再 push，或撤回該 commit 重做。
 > **本檔不把它記為已完成的 operator gate。**
 
-**PHASE 8 — 判定：`PRE-08` (i) ＝ 🟡 PARTIAL（決策已定，實作未開始）**
+**PHASE 8 — 判定：`PRE-08` (i) ＝ ✅ DONE（2026-09-12，八項全數成立）**
 
 ```text
-1 scheduled backup mechanism active   ✗ 未建立（**方向已由 Owner 定為 (B)**，待目的地選定後實作）
-2 schedule 明確                        ✅ **nightly（每日一次）** —— 由 Owner decision 定案
-3 backup destination 明確              ✗ 待 Owner（目前為 Owner 本機，§8.6 自承無異地備援）
-4 failure notification 明確            ✗ 待 Owner
-5 secret handling 安全                 ✅ 設計已定（見下）；本輪未經手任何 production 憑證
-6 restore runbook 完整                 ✅ §8.5 既有 ＋ 本輪新增版本相容性警告
-7 disposable restore verification PASS ✅ **本輪完成**（見 PHASE 7）
-8 recovery path 不覆寫 production       ✅ 全程只還原到隔離庫；runbook 明訂 cutover 需另行核准
+1 scheduled backup mechanism active   ✅ .github/workflows/nightly-db-backup.yml，nightly 02:37 Asia/Taipei
+2 schedule 明確                        ✅ nightly（每日一次）
+3 backup destination 明確              ✅ B2 專用私有 bucket，production/db/ 前綴，SSE 啟用
+4 failure notification 明確            ✅ Healthchecks（成功 ping／失敗 /fail／漏跑由 period+grace）
+5 secret handling 安全                 ✅ 7 個 GitHub Secrets；八次執行 0 次洩漏
+6 restore runbook 完整                 ✅ §8.5 ＋ 版本相容性警告，並已由實際演練走過一遍
+7 disposable restore verification PASS ✅ **2026-09-12 以實際存放的 B2 物件完成**（見下）
+8 recovery path 不覆寫 production       ✅ 只還原到隔離庫；cutover 需另行核准
 ```
+
+#### `PRE-08` (i) 最終驗收證據（2026-09-12）
+
+**首次成功備份**（run `34619565381`）
+
+```text
+object      production/db/teaching-platform-20260911T160149Z.dump
+size        113,015 bytes（local 與 remote HeadObject 一致）
+sha256      a42d61dc535bfcae4b68f2b26e06852629ca430be5cabef3e5c177fee76c213a
+Healthchecks teaching-platform-db-backup = UP
+```
+
+**已存放備份的還原演練**（run `34620739718`，`.github/workflows/backup-restore-verification.yml`）
+
+```text
+下載        指定的**那一個** key（無 wildcard、無 latest）
+size        expected 113015 ／ actual 113015            MATCH
+sha256      expected a42d61dc… ／ actual a42d61dc…      MATCH
+還原目標     PostgreSQL 17.11（server_version_num=170011），restore_drill，還原前 0 tables
+pg_restore  exit 0 ／ stderr 0 行
+結構        tables 26 ／ PK 26 ／ FK 66 ／ UNIQUE 12 ／ CHECK 72 ／ indexes 93
+            activity_logs.id = text（CLAUDE.md §4.4 不變條件成立）
+            9 個核心表全部 present
+資料        users 3 ／ materials 1 ／ orders 1 ／ order_items 1 ／
+            manual_payment_proofs 1 ／ activity_logs 40
+            materials[0] = mat_mtit5cea9qiuim | status=published | price=1
+            proof_rows=1 storage_key_nonnull=1（**只計數，不輸出值**）
+app smoke   /health 200 ／ /materials 200 ／ /orders/my 401 ／ /admin/orders 401
+cleanup     local dump 已 shred；B2 物件未被動（CI 金鑰無 deleteFiles）
+production  全程未連線、未修改
+```
+
+> **兩個數字獨立佐證了別處的結論，值得記下：**
+>
+> **(a) indexes = 93** 與 `PRE-08` Track 2 演練紀錄的「93/93 indexes」一致。
+>
+> **(b) FK = 66，而 `PRE-06` 在全新 bootstrap 庫量到 67。** 差恰好 1 ——
+> 因為 production 建立於 2026-09-01，早於 `PRE-06` 把 `materials.reviewed_by` 的 FK
+> 補進 bootstrap（`dc0fcae`）。**還原出來的庫忠實保留了 production 當時的樣子**，
+> 這既證明還原沒有被 bootstrap 污染，也反向確認了 `PRE-06` 的分析正確。
+>
+> **順序上的關鍵限制（已寫進 workflow 檔頭）：結構與資料驗證必須早於 app 啟動** ——
+> `Backend/index.js:193` 開機會跑 `ensureCoreTables()`，會把缺少的表與索引補建起來；
+> 若順序顛倒，一個缺表的壞備份會被 bootstrap 修好，驗證就變成永遠會過的空話。
+
+> **達成過程如實記錄：首次成功之前失敗了七次**，分別是
+> (1)–(3) 連線字串缺密碼、(4)–(6) 連線字串 parse-level 錯誤、(7) `pg_dump` 16 對 server 17。
+> 其中 **(7) 是版本守門員發揮作用**：它拒絕產生一份版本不符的 dump，
+> 而不是讓它上傳到 B2、等到還原時才爆。**每一次失敗都正確送出 `/fail` 並觸發告警**，
+> 因此 backup 失敗告警鏈路是被真實失敗驗證過的，不是模擬出來的。
+> 另外有兩次是**我自己的缺陷**：GitHub 的 `bash -e` 讓錯誤分類變成死碼、
+> 以及安裝 `postgresql-client-17` 後未把它放上 PATH。兩者都已修復並留下註解。
 
 **secret / public-repo 安全設計（若日後採 (B) 排程方案）**
 
@@ -2770,9 +2825,9 @@ AA 缺口、`UI-CONS-21`（auth CTA 漸層）、`UI-CONS-15`（raw hex）一律�
 > | ~~**1**~~ | ~~**`REL-04`**~~ | ✅ **DONE**（2026-09-10） | gateway 文案已修並部署（`94c38fe`），production auth ／ role matrix 已在正確 build 上重驗完畢。見 §1.6.0-A，已移出待辦 |
 > | ~~**1**~~ | ~~**`OPS-07`**~~ | ✅ **DONE**（2026-09-10） | Scheme C 上線並完成 6/6 operator evidence：正常 run PASS、兩個 Healthchecks check UP、`fail-backend` 觸發 DOWN 與告警、後續 run 恢復 UP 並收到 recovery 通知。**未停 production、未誘發 outage、未改 production data。** 見 §1.6.0-B，已移出待辦 |
 > | ~~**1**~~ | ~~**`PRE-06`**~~ | ✅ **DONE**（2026-09-10） | bootstrap 已對齊 canonical（`review_status` DEFAULT ＋ `materials.reviewed_by` FK ＋ 移除 2 個 bootstrap-only 索引）；8 個 hot-path 索引經 Owner 判為 historical artifacts。可拋棄庫實測：canonical 索引缺席 0、真正多餘索引 0。**未動任何既有資料庫、未動 production。** 見 §1.6.0-C1，已移出待辦 |
-> | **1** | **`PRE-08`（後續工作 (i)）** | — | 一次性還原演練 ≠ 排程備份；Neon Free 無 automated backup、PITR 僅 6 小時。**本項限 scheduled backup／recovery operational readiness，不依賴 `PRE-15`**；依 launch data baseline 重做的還原演練屬 (ii)，隨 `PRE-15` 一併延後 |
-> | **2** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
-> | **3** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
+> | ~~**1**~~ | ~~**`PRE-08`（後續工作 (i)）**~~ | ✅ **DONE**（2026-09-12） | nightly 排程備份上線；首次備份 113,015 bytes ／ checksum 相符 ／ HeadObject PASS，且**該物件已成功還原進隔離 PG17.11**（結構 26 tables・93 indexes、資料列數相符、app smoke 全過）。**(ii) 的 launch-baseline re-drill 仍隨 `PRE-15` OWNER-DEFERRED。** 見 §1.6.0-D，已移出待辦 |
+> | **1** | **`IA-10`** | `P2` | 退款目前是 API-only，產品內做不到 |
+> | **2** | **`PRE-16`** | `P1` | 收斂為可判定的 Technical Go/No-Go；**與正式 Launch Go 分離** |
 >
 > **NEXT UP**
 >
@@ -7642,6 +7697,7 @@ UI 沿用「教學回饋」的稱呼，但資料模型是 review。**討論範�
 
 | 日期 | 說明 |
 |------|------|
+| **2026-09-12（`PRE-08` (i) —— ✅ DONE，stored-backup restore verification PASS）** | **未連線 production、未修改 production、未刪除或覆寫 B2 物件、未擴大金鑰權限、未開始 `IA-10`。** **首次成功備份**（run `34619565381`）：`production/db/teaching-platform-20260911T160149Z.dump`，**113,015 bytes**，sha256 `a42d61dc…`，HeadObject 本地與遠端大小一致，Healthchecks `teaching-platform-db-backup` = **UP**。**已存放備份的還原演練**（run `34620739718`，新增 `.github/workflows/backup-restore-verification.yml`）：下載**指定的那一個 key**（無 wildcard、無 latest），**size 與 sha256 皆與備份當時記錄相符**；還原目標為隔離的 **PostgreSQL 17.11**（`server_version_num=170011`，還原前 0 tables）；`pg_restore` **exit 0、stderr 0 行**；結構 **26 tables／PK 26／FK 66／UNIQUE 12／CHECK 72／indexes 93**，`activity_logs.id = text`，9 個核心表全部 present；資料 **users 3／materials 1／orders 1／order_items 1／manual_payment_proofs 1／activity_logs 40**，`materials[0] = mat_mtit5cea9qiuim | status=published | price=1`，付款憑證列的 `storage_key` **只計數不輸出**；app smoke `/health` 200、`/materials` 200、匿名 `/orders/my` 401、匿名 `/admin/orders` 401；cleanup 已 shred 本地 dump，**B2 物件未被動**（CI 金鑰無 `deleteFiles`）。**兩個數字獨立佐證別處的結論：** indexes **93** 與 `PRE-08` Track 2 演練的 93 一致；FK **66** 比 `PRE-06` 在全新 bootstrap 庫量到的 **67 少 1**，恰因 production 建於 2026-09-01、早於 `PRE-06`（`dc0fcae`）把 `materials.reviewed_by` 的 FK 補進 bootstrap —— **還原忠實保留了 production 當時的樣貌**，同時反向確認 `PRE-06` 的分析正確。**關鍵順序限制已寫入 workflow 檔頭：結構與資料驗證必須早於 app 啟動**，否則 `ensureCoreTables()` 會把缺少的物件補建起來，讓驗證變成永遠會過的空話。**如實記錄達成過程：首次成功之前失敗了七次** —— (1)–(3) 連線字串缺密碼、(4)–(6) parse-level 錯誤、(7) `pg_dump` 16 對 server 17（**版本守門員正確拒絕**，避免版本不符的 dump 上傳後才在還原時爆）；**每一次失敗都正確送出 `/fail` 並觸發告警**，因此 backup 失敗告警鏈路是被真實失敗驗證過的，不是模擬的。其中**兩次是本人的缺陷**：GitHub 的 `bash -e` 讓錯誤分類變成死碼、以及裝完 `postgresql-client-17` 後未置於 PATH；兩者皆已修復並留下註解。另修正 backup workflow 一行誤導性 log（`db/` → `production/db/`，**純 logging，無行為改動**）。**`PRE-08` (i) → ✅ DONE**；**(ii) launch-baseline re-drill 維持 `OWNER-DEFERRED`，隨 `PRE-15`，不因 (i) 完成而解除**。Current Focus 推進為 `IA-10` → `PRE-16`。**本檔未記載任何憑證、連線字串、bucket 名稱或 ping URL。** 詳見 §1.6.0-D |
 | **2026-09-10（`PRE-08` (i) Owner decision —— (B) GO SCHEDULED，canonical 同步）** | **DOCS-ONLY：0 行 code、未建立 scheduler／secret／storage、未連 production DB、未 dump／restore production、未開始 `IA-10`；`git diff` 只含 `docs/db-backup-and-migration.md` 與本檔。** **Owner 選定 (B) 排程備份** —— manual-only 不再足以構成 production launch operational readiness；理由是手動程序**已驗證可行**，未解決的風險是**備份不會自動發生**，而 Neon Free 的 provider-native history 僅屬短期保護，**上線就緒不得依賴操作者記得執行 `pg_dump`**。**canonical 已於同一 commit 同步**（避免只改 tracker 而讓兩份文件互相矛盾）：`docs/db-backup-and-migration.md` 新增 **§8.3.1 production launch minimum 十二條**（排程為必要／provider-native 僅補充／`pg_dump --format=custom --no-owner --no-privileges`／**nightly**／必須離開 Neon failure domain／目的地 private＋encrypted 且**不得為本 PUBLIC repo 的 Actions artifact**／憑證永不進版控或 log／失敗須有 operator 可見通知／還原一律先進隔離庫／production cutover 需另行核准／**還原目標版本不得低於來源**／follow-up (ii) 維持 OWNER-DEFERRED），新增 **§8.3.2** 把原「不需要排程器」降為歷史紀錄（**標明其在封閉測試階段為真、並非判斷錯誤，而是適用範圍改變**），並更新 **§8.6** 前兩列為已被取代並註明現行狀態（後兩列「連續資料保護」「帳號層級災難」**仍然成立**，nightly 只把最大遺失窗縮到約 24 小時、不消除它）。**第 11 條的依據是實測**：`pg_restore` 17.11 → PG13 會 exit 非零卻資料完整，operator 可能誤判備份損毀。**保存期限與銷毀方式未在 canonical 中定義**，維持 `O-20`／`L-21`／`RM-15` **BLOCKED — LEGAL**。**`PRE-08` (i) 維持 🟡 PARTIAL**（方向已定、實作未開始），剩 **7 項 operator gates**：backup destination／storage credentials／production read-only `DATABASE_URL` secret／scheduled workflow active／failure notification path／first scheduled backup observed／stored backup disposable-restore verification。**`PRE-08` (ii) 維持 `OWNER-DEFERRED`，隨 `PRE-15`。** Current Focus 不變（`PRE-08` (i) → `IA-10` → `PRE-16`）。詳見 §1.6.0-D |
 | **2026-09-10（`PRE-08` follow-up (i) —— 🟡 PARTIAL）** | **0 行 code 改動、未連 production DB、未 restore production、未改 production 資料、未建立任何 backup job、未開始 `IA-10`／`PRE-16`；`git diff` 只含本檔。** **⚠️ 本輪最重要的發現：本項的前提與 canonical ops doc 直接衝突。** `docs/db-backup-and-migration.md` §8.3 明文「**不需要排程器；這個規模下手動執行比維護一個 cron 更不容易出錯**」，§8.6 明文「**✗ 自動化 —— 全部手動。10 人規模下這是刻意的取捨，不是疏漏**」；而 tracker 把 (i) 定義為 **scheduled** backup readiness，等於要求建立那份 canonical doc 刻意否決過的東西。**本輪不自行選邊、不建立排程器** —— 逕自實作等於用一個工作項推翻一份有明確理由的 canonical 決策。**需 Owner 裁決 (A) 維持手動**（則應把已驗證的手動流程＋節奏＋責任人記為 launch minimum，並移除 tracker 中「scheduled」措辭）**或 (B) 改採排程**（則必須同步更新 `db-backup-and-migration.md` §8.3／§8.6，不能只改 tracker）。**裁決前 (i) 不可能 DONE**，因為「schedule 明確」的正確答案尚未確定。**provider 能力重新查證（未引用舊紀錄）：** Neon Free history／PITR **6 小時**、上限 1 GB、**無 automated backup**；Launch 7 天／Scale 30 天皆付費；Neon 官方對長期保存的建議正是 `pg_dump` 或 **nightly export to S3 via GitHub Actions** —— 結論不變：**provider-native 不足以構成 launch minimum**。**PHASE 7 可安全驗證的部分全數完成：** 以 `teaching_platform_security_test` 為來源（**唯讀取用**）`pg_dump --format=custom --no-owner --no-privileges` → 789,279 bytes／2 s／SHA-256 已記錄（驗證後刪除）→ 還原至隔離可拋棄庫 `tp_pre08_restore_check`（事後已 DROP）→ **完整性逐項相等**（tables 26／indexes 101／FK 73／CHECK 77；users 1063・materials 539・orders 418・order_items 420・proofs 466・activity_logs 6902 六項全等；`activity_logs.id = text` 不變條件成立）→ **application smoke against restored DB**（`/health` 200、`/materials` 200 items=344、`/orders/my` 401、`/admin/orders` 401）⇒ 還原庫不只結構正確，**應用程式能實際連上並正確授權**。**⚠️ 實測發現一個會影響 runbook 的版本細節：** `pg_restore` 17.11 對 **PG13** server 還原會噴 `unrecognized configuration parameter "transaction_timeout"`（exit 1、1 error ignored），**已證實為 cosmetic**（所有比對與 smoke 全過），production 路徑（PG17 client → Neon PG17）不受影響；但 runbook 必須寫明**還原驗證的目標 server 版本不得低於來源**，否則 operator 會把 exit 1 誤判為備份損毀。**判定：8 項 completion 條件中 3 項 ✅（secret handling 設計、restore runbook、disposable restore verification）、5 項 ✗（皆待 Owner 裁決或 provisioning）→ 🟡 PARTIAL，Current Focus 不推進。** **`PRE-08` follow-up (ii) 維持 `OWNER-DEFERRED`，隨 `PRE-15` 一併延後，不因 (i) 的進度而改變。** technical operational minimum 與 legal retention policy 已明確拆開（後者屬 O-20／`L-21`／`RM-15`，**BLOCKED — LEGAL**，不在本項範圍）。詳見 §1.6.0-D |
 | **2026-09-10（`PRE-06` implementation —— ✅ DONE）** | **只改 1 個檔案 `Backend/models/bootstrapModel.js`（+24 −6）；未 ALTER production／dev／security_test 任一資料庫、未建立或刪除任何 production 索引、未跑 production migration、未改 production 資料、全程未使用 production 連線。** **Owner decision：** 8 個 hot-path 索引判為 **historical artifacts**（不進 canonical、不進 bootstrap、不在 production 建立、缺席**不是** launch blocker；planner 實測支持 —— dev 庫 103 筆 orders 且索引俱在，planner 仍選 Seq Scan，production 僅 1 筆 order）；2 個 bootstrap-only 索引（`idx_materials_status`／`idx_materials_status_updated_at`，**本輪新發現的反向 drift**，tracker 先前未記載）**從 bootstrap 移除**以恢復 canonical 為單一真相來源。**實作三處：** `review_status` 補 `DEFAULT 'pending'`（對齊 `db_schema.sql:398`）／`materials.reviewed_by` 補 `REFERENCES users(id) ON DELETE SET NULL`（對齊 `:86`，走 `ADD COLUMN IF NOT EXISTS` 路徑，欄位已存在時整段跳過故既有庫不受影響）／移除兩行 `CREATE INDEX`。**稽核初期一處自我更正：** `bootstrapModel.js:177` 實為 `manual_payment_proofs.reviewed_by` 而非 `materials`，更正後才施作。**可拋棄庫驗證**（`tp_pre06_parity_check`，從零 → bootstrap → 比對 → 已 DROP）：Owner 指定六項 required checks **全數 PASS**；canonical 53 個 CREATE INDEX 名稱**缺席 0**；新庫 91 個索引物件中 38 個非 CREATE INDEX 者**全部**為 26 PRIMARY KEY ＋ 12 UNIQUE，**真正多餘的 standalone 索引 0**；26 canonical CREATE TABLE ↔ 26 base tables；`activity_logs.id = text`。**驗收基準刻意不用既有 dev／security_test 庫** —— 本輪實測到那兩庫**彼此不一致**（`teaching_platform` 缺 `materials.reviewed_by` FK、`teaching_platform_security_test` 有），以它們當基準會把歷史 drift 當成正確答案。**⚠️ 比對過程一次自我更正：** 首版 `comm` 同時把同一批索引報成「缺席」與「多餘」（不可能同時成立），root cause 為 psql 在 Windows 輸出帶 `\r`；去除 CR 後重跑才得結論，**未採信矛盾輸出**。**既有資料庫未被改動（實測非推論）：** security_test 庫在完整 `ensureCoreTables()` 前後 indexes 101 → 101、`review_status` default 不變、`idx_materials_status*` **仍存在**（從 bootstrap 移除宣告不會 DROP 既有索引）。**測試：** unit **338/338**、db **470/470**、smoke **All smoke checks passed**（皆指向 `teaching_platform_security_test`，啟動前已做 PGDATABASE assertion）；**無任何測試依賴被移除的索引名稱**。**兩項留給 Owner 知悉、本輪未處置：** (1) 那兩個索引源自 `migrations/20260823_material_review_workflow.sql:83-84`，該 migration 為已套用的歷史紀錄故未修改 —— 若有人改用 migrations 而非 bootstrap 建新庫，索引會再度出現；(2) 既有兩庫彼此不一致，tracker 先前視為等價的一對。**production DB census 仍未實測**（無 read-only 憑證），依 Owner 指示記為 **unverified evidence，不是 failed gate** —— `PRE-06` 的 completion criteria 全為 repo 端，且 (3) 明文禁止 ALTER 既有資料庫。**四項 completion criteria 全數滿足 → `PRE-06` ✅ DONE。** Current Focus 推進為 `PRE-08`（後續工作 (i)）→ `IA-10` → `PRE-16`。`PRE-15`／`SEC-03` (a) 維持 OWNER-DEFERRED；`SEC-03` (b) 維持 BLOCKED — LEGAL；test accounts 維持 OWNER-PRESERVE。詳見 §1.6.0-C1 |
