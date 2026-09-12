@@ -274,6 +274,7 @@ Backend **3000**（`npm run dev`，專案根目錄）／Frontend **3010**（`npm
 | `docs/ui-design-system.md` | **Web UI 入口**：canonical stack、component 狀態、UI 工作規則、Visual QA / DoD |
 | `docs/frontend-ui-architecture.md` | 元件分層、token 選用（細節文件） |
 | `docs/design-tokens-v1.1.md` | Token 數值 |
+| `docs/technical-go-no-go-gate.md` | **Technical Go/No-Go gate**（`PRE-16`）：判準、可重跑的證據來源、證據強度分級、blocker 定義，以及「Technical GO ≠ Launch GO」的分界。**狀態仍只在 tracker 維護** |
 | `docs/db-backup-and-migration.md` | 備份／還原步驟 |
 | `docs/postman/README.md` | Postman / Newman 與 fixtures |
 
