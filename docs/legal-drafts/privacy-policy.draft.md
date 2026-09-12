@@ -224,8 +224,13 @@ Draft.
 >
 > **付款憑證（含買家姓名、帳號末碼、匯款截圖）存放於 Backblaze B2；
 > 依本 repo canonical 紀錄，該儲存位於美國，且 Backblaze 無亞太 region。**
-> 另有一項**非受託處理者**之個資存放位置：Owner 自行保管之 `pg_dump` 備份副本
-> （Neon Free 無 automated backup，PITR 僅 6 小時，故備份由 Owner 手動執行並保存於自有設備）。
+> ~~另有一項**非受託處理者**之個資存放位置：Owner 自行保管之 `pg_dump` 備份副本
+> （Neon Free 無 automated backup，PITR 僅 6 小時，故備份由 Owner 手動執行並保存於自有設備）。~~
+>
+> **⚠️ 上一句自 2026-09-11 起不再成立（`PRE-08 (i)`），於本次以事實更正；條文本文與法律判斷皆未更動。**
+> 現行安排為：**每日自動**以 GitHub Actions 排程執行 `pg_dump`，產出 **production 資料庫的完整邏輯副本**（無 `--table`／`--schema` 篩選），上傳至 **Backblaze B2**（物件前綴 `production/db/`，`--sse AES256`），**保存 365 天**；產製過程在 GitHub 託管的臨時 runner 上執行，該 runner 上的暫存檔於同一 job 內刪除。
+> **這使 B2 上的個資範圍由「付款憑證檔案」擴大為「平台持有之全部個人資料的副本」，並使 GitHub 成為一個原「四家」表中未列的處理環節。**
+> 由此衍生的六個問題（受託處理者認定、跨境傳輸、保存期間、**刪除權與備份副本之關係**、條文表述、與 `SEC-03 (b)` 之關係）列於 `review-handoff-addendum-2026-09-12.md` §2.4（`AD-01`～`AD-06`），**本 repo 一律不作答**。
 >
 > **仍未齊備：** production 網域與主機名稱（`PENDING`）；上列四家供應商之
 > **法人名稱、DPA 條款、分包商清單、資料所在地文件**（除 Resend 已於 `O-19` 蒐集

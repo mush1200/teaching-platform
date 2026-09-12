@@ -51,8 +51,13 @@ Production consent wiring     : NONE
 | 09 | `docs/pre-03-validation-evidence-appendix-2026-08-26.md` | 律師 ＋ 會計師 | 證據附錄 `INV-*`／`EVD-*`、問題→Gate 矩陣、複驗指令 |
 | 10 | `docs/pre-03-platform-seller-model-verification-2026-08-26.md` | 律師 ＋ 會計師 | 第二輪獨立排查：`N1`～`N5` 風險、§6 封版所需之 6 項最小條件 |
 
+| 11 | `docs/legal-drafts/review-handoff-addendum-2026-09-12.md` | **律師**（會計師僅 §3 參考） | **2026-09-05 以後的事實變動**：資料庫備份已改為每日自動、存放於美國 B2、保存 365 天、內容為全量資料庫副本 —— 隱私權政策草稿原記載之「Owner 自持副本」已不成立。新增問題 `AD-01`～`AD-06` |
+
 > **07～10 四份的完整說明見 §4.1 的文件表**（含行數與內容摘要）。
 > 本節只負責「送出時不要漏掉」，**不重複** §4.1 的內容。
+>
+> **⚠️ 2026-09-12 補列第 11 份。** 前 10 份的事實基礎停在 **2026-09-04**；第 11 份記錄其後的事實變動。**請先讀 01、再讀 11，最後才讀草稿** ——
+> 否則會對著已過期的備份敘述形成判斷。第 11 份**不修改**任何既有結論，也**不取代** 01～10 任何一份。
 
 **Draft Identifier：** `draft-2026-08`（**不是** production document version；
 正式 `version` 由 `legal_documents` registry 於核可後指派）。
