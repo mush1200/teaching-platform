@@ -4,9 +4,44 @@ import { signInAs } from "./helpers/auth";
 import { installShellBootstrapMocks } from "./helpers/shell-bootstrap";
 import { ADMIN_ROUTES } from "./helpers/routes";
 
-/** KPI / 待處理卡都是 `<article>`，以標籤定位單一張卡。 */
+/**
+ * 以可見標籤定位單一張卡（KPI 數值卡或待處理工作卡）。
+ *
+ * `TEST-02`：這裡原本只寫 `page.locator("article")`，因為合併前兩種卡都是 `<article>`。
+ * `UI-CONS-11`（commit `30a6543`）把 `AdminKpiCard` ＋ `reporting/StatCard` 合併為
+ * `ds/KpiCard`，後者渲染 `SurfaceCard` → **`<div>`**，於是一批 dashboard 測試
+ * 從那時起長期紅燈。**產品端沒有缺陷**，是這個 helper 的 DOM 契約過期了。
+ *
+ * 兩種卡刻意用**不同**的定位依據，因為它們的穩定契約本來就不同：
+ *
+ *   待處理工作卡 `AdminTaskCard`  仍是 `<article>`（自成一體、含標題與 CTA，語意正確）
+ *   KPI 數值卡   `ds/KpiCard`      泛型 `<div>` ＋ `data-testid="kpi-card"`
+ *
+ * KPI 卡沒有 role、沒有 accessible name、沒有語意標籤可用，因此 `data-testid`
+ * 是它唯一穩定的契約。**不改用**「第一個子 `<p>` 是標籤」或 Tailwind class ——
+ * 那只是把標籤名耦合換成結構耦合，會再次以同樣的方式過期。
+ *
+ * `hasText` 的子字串語意與過濾行為完全維持原狀，只有 root 元素集合從
+ * `article` 擴為 `article | [data-testid="kpi-card"]`。
+ */
 function kpi(page: Page, label: string) {
-  return page.locator("article").filter({ hasText: label });
+  return page.locator('article, [data-testid="kpi-card"]').filter({ hasText: label });
+}
+
+/**
+ * 「需要注意的訂單」表格。
+ *
+ * `TEST-02` 的第二個 selector drift：原本三處寫 `page.getByRole("table")`，
+ * 當時 Dashboard 上只有這一張表。`UI-CONS-11`（同一個 commit `30a6543`）為兩張趨勢圖
+ * 各補了一份 `sr-only` 的等價資料表（`components/reporting/TrendChart.tsx:201`），
+ * 作為 `role="img"` 圖表的文字替代 —— 這是**可及性的改善，不是缺陷**，
+ * 但 `getByRole("table")` 從此解析到 3 個元素而觸發 strict mode violation。
+ *
+ * 改以 accessible name 定位（`<caption>` 提供），這是這張表最穩定的契約，
+ * 而且**不需要**把新增的無障礙表格藏起來或排除掉。
+ */
+function attentionOrdersTable(page: Page) {
+  return page.getByRole("table", { name: /需要注意的訂單/ });
 }
 
 /**
@@ -820,7 +855,7 @@ test.describe("Admin Pages", () => {
       await expect(kpi(page, "訂單總數")).toContainText("34");
       await expect(kpi(page, "用戶總數")).toContainText("21");
       await expect(kpi(page, "待審核付款憑證")).toContainText("3");
-      await expect(page.getByRole("table")).toContainText("ord_attention_review");
+      await expect(attentionOrdersTable(page)).toContainText("ord_attention_review");
     });
 
     await test.step("切期間不重新載入與期間無關的端點", async () => {
@@ -1055,7 +1090,7 @@ test.describe("Admin Pages", () => {
 
     await test.step("其他端點成功的區塊仍正常顯示", async () => {
       await expect(kpi(page, "已發布教材")).toContainText("1");
-      await expect(page.getByRole("table")).toContainText("ord_attention_review");
+      await expect(attentionOrdersTable(page)).toContainText("ord_attention_review");
     });
   });
 
@@ -1099,7 +1134,14 @@ test.describe("Admin Pages", () => {
     });
 
     await test.step("比較基準期出現在 title 中", async () => {
-      await expect(kpi(page, "營收").locator("p[title]")).toHaveAttribute(
+      /*
+        `TEST-02`：原本寫 `locator("p[title]")`，當時卡片裡只有比較列帶 `title`。
+        `UI-CONS-11` 合併後的 `ds/KpiCard` 沿用了 `StatCard` 的長值處理，
+        數值 `<p>` 也帶上 `title={value}`（截斷時仍看得到完整金額），
+        於是同一張卡出現兩個 `p[title]`，strict mode 判定 ambiguous。
+        改為以比較列自己的可見文字定位，不再假設「卡片裡只有一個 title」。
+      */
+      await expect(kpi(page, "營收").locator("p").filter({ hasText: "較前 30 天" })).toHaveAttribute(
         "title",
         "比較基準期：2026/06/22 – 2026/07/21",
       );
@@ -1252,7 +1294,7 @@ test.describe("Admin Pages", () => {
       await expect(kpi(page, "訂單總數")).toContainText("34");
       await expect(kpi(page, "用戶總數")).toContainText("21");
       await expect(kpi(page, "待審核付款憑證")).toContainText("3");
-      await expect(page.getByRole("table")).toContainText("ord_attention_review");
+      await expect(attentionOrdersTable(page)).toContainText("ord_attention_review");
     });
 
     await expect(kpi(page, "營收")).toContainText("NT$ 5,000");

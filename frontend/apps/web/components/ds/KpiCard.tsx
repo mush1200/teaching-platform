@@ -117,7 +117,23 @@ export function KpiCard({ label, value, subtext, loading = false, comparison = n
   const valueSize = (value?.length ?? 0) > LONG_VALUE_CHARS ? "text-lg" : "text-xl";
 
   return (
-    <SurfaceCard elevation="flat" className="px-4 py-2.5">
+    /*
+      `data-testid` 是這張卡**唯一**穩定的測試契約（`TEST-02`）。
+      它沒有 role、沒有 accessible name、也沒有語意標籤可定位 ——
+      `SurfaceCard` 渲染的是一個泛型 `<div>`。
+
+      合併前 `AdminKpiCard` 是 `<article>`，`admin.spec.ts` 就以標籤名定位，
+      於是本元件一改 DOM 就有 35 個測試長期紅燈（desktop ＋ mobile 兩個 project）。
+      **改回 `<article>` 不是解法**：
+      那個 `<article>` 從來沒有 accessible name，對輔助技術只是一個無名區塊，
+      而「KPI 數值」本來就不是 article 的語意（自成一體的內容）。
+      同理，改成依賴「第一個子 `<p>` 是標籤」或依賴 Tailwind class
+      只是把標籤名耦合換成結構耦合 —— 同一個失效模式，重新計時而已。
+
+      `SurfaceCard` 早已把 `...rest` 轉發到 div，且 `admin-order-row`／`/support`
+      兩處已在用同一個做法，因此這不是為了測試新發明的 hook。
+    */
+    <SurfaceCard elevation="flat" className="px-4 py-2.5" data-testid="kpi-card">
       <p className="text-meta text-ds-textMuted">{label}</p>
       {/* skeleton 與數值共用同一個 `<p>` 的字級行高，載入完成不會產生位移。 */}
       <p
