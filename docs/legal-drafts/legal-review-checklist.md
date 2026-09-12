@@ -110,13 +110,13 @@
 | 10 | **購買者使用範圍** | Terms §14.2 | 再散布／改作／商業利用是否允許（法律表述另需 `L-04`） |
 | 11 | **授權是否專屬；平台行銷使用範圍** | Creator §4.3 | 是否得使用封面與試看素材推廣 |
 | 12 | **創作者資格條件** | Creator §2.2 | 是否設年齡或其他門檻（平台目前未蒐集出生日期、無年齡驗證） |
-| 13 | **平台服務費比例、折扣承擔、結算週期** | Creator §9.2 | 撥款系統尚不存在 |
+| 13 | **平台服務費比例、折扣承擔、結算週期** | Creator §9.2 | **⚠️ 2026-09-13 Owner 決定 `DEC-19`：創作者撥款／分潤納入 MVP launch scope。** 原記載「撥款系統尚不存在」**在事實上仍然成立**（repo 實測：schema 與 Backend 原始碼中 `payout`／`settlement`／`earning`／`commission` **命中 0**；`/teacher/sales` 只顯示 **折扣前 gross sales**，不計算淨額或抽成），但它**不再是「不做」的理由** —— 該能力已成為 launch 必要項（tracker `PRE-18`）。**比例、折扣承擔、結算週期三項參數仍未決，本輪未填入任何數字。** ⚠️ 一個已知的模型難題：`orders.discount_amount` 與 `promo_code` 是**訂單層級**欄位，而 `order_items.seller_id` 是**品項層級**歸屬 —— 一張訂單含多位創作者的教材時，折扣如何分攤到各創作者**沒有現成規則**，屬 Owner 決定 ＋ 會計師確認 |
 | 14 | **退款時創作者是否負擔、比例為何** | Creator §10.1 | 需併同 `T-08` |
 | 15 | ~~**退款收款帳戶之蒐集方式**~~ | Refund §6.2 | **✅ DECIDED `DEC-LEGAL-12`（2026-08-28, Round 3）** —— Option A：MVP **不在平台內保存**，維持個案式站外取得；不新增 DB 欄位、不預先蒐集。待 `L-21`/`L-22` 完成後再評估 in-platform per-case collection（屆時需 lawyer validation） |
 | 16 | **退款案件之審核與執行處理時限** | Refund §7.1 | **草稿刻意未填天數** |
 | 17 | **帳號凍結後之申訴／解除流程** | Terms §2.5 | **部分決定。** 平台**內部** operating model ✅ `DEC-LEGAL-10`（2026-08-27, Round 2）：single-admin ＋ mandatory reason ＋ standardized taxonomy ＋ audit ＋ Admin UI，不採 two-admin（實作未開始，tracker `OPS-02`；canonical 見 `mvp_rules.md` §12.2a）。**對外申訴期限／法定回覆日數仍未決 —— Owner ＋ Lawyer** |
 | 18 | **平台停止營運計畫** | Terms §13.3 | Gate 10，四組處置皆未訂定 |
-| 19 | **郵件服務供應商揭露** | Privacy §5.3 | **FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED**（2026-08-27, Round 2）。repo 佐證：`.env.example` 之 SMTP 值全為空白、transporter 為通用 nodemailer 設定、repo 內無任何部署／CI 設定檔。Owner 表示尚未決定 —— **不得猜測，不得填入 §5.3** |
+| 19 | ~~**郵件服務供應商揭露**~~ | Privacy §5.3 | ✅ **FACT KNOWN — 本列原記載已過期，於 2026-09-13 更正。** ~~原記載「FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED（2026-08-27, Round 2）…Owner 表示尚未決定」~~ —— 該敘述**與同一份 packet 的 §2.2 `O-19` 自相矛盾**：`O-19` 早已記為 `FACT KNOWN — OWNER DECISION LOCKED 2026-08-31 (DEC-14)`，並附完整供應商事實表（法人名稱 **Plus Five Five, Inc.**、DPA／分包商／隱私政策連結、資料所在地美國 ＋ SCCs）。`Backend/.env.example:201-207` 亦已載明 production 值（`smtp.resend.com`／`SMTP_USER=resend`；API key 永不進版控）。**供應商 ＝ Resend（`DEC-14`）。** **⚠️ 2026-09-13 Owner 決定 `DEC-18`：交易郵件於 MVP launch 即啟用**，**取代** `DEC-17` 中「MVP 初期不啟用郵件」之營運決定（`DEC-17` 的其餘部分不受影響）。**事實變動**：Resend 由「已選定但未寄送」變為「實際處理個人資料」（收件者 Email 位址與信件內容）。**法律側仍為外部事項**：是否須揭露、如何表述、跨境與 DPA 充分性，維持 §A 之 Lawyer marker 與 `O-20`／`AD-02` |
 | 20 | **部署環境委外處理者揭露** | Privacy §5.4 | `PRE-01`／`PRE-02` 尚未決定 |
 | 21 | **當事人權利之受理作業流程** | Privacy §8.3 | **部分決定。** 管道 ✅ `DEC-LEGAL-07`；**內部受理模型** ✅ **DECIDED `DEC-LEGAL-13`（2026-08-28, Round 3）** —— 重用既有 case-management 基礎設施，但**必須建立獨立的 privacy-request 分類**，不得與 consumer complaint 混為同一概念（實作未開始，tracker `OPS-04`）。**法定回覆期限與身分驗證標準仍未決 —— 維持 §A 之 Lawyer marker** |
 

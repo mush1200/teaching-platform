@@ -8,7 +8,8 @@
 > 不作任何法律判斷、不預設答案、不修改任何草稿條文、不發布任何文件。
 > 所有既有結論（`DEC-LEGAL-*`、§A～§E marker、`LEGAL SUFFICIENCY: PENDING`）**一律不變**。
 
-**適用範圍：** 僅 2026-09-05 ～ 2026-09-12 之間的變動。此前的事實以原 packet 為準。
+**適用範圍：** 2026-09-05 起的變動。此前的事實以原 packet 為準。
+§1～§6 為 **2026-09-12**（備份安排）；**§7 為 2026-09-13 追加**（Owner 擴大 MVP launch scope：`DEC-18` 交易郵件啟用、`DEC-19` 創作者撥款納入）。
 
 ---
 
@@ -77,7 +78,7 @@
 | §D # | 議題 | 原記載 | 現行事實 |
 | --- | --- | --- | --- |
 | 20 | 部署環境委外處理者揭露 | 「`PRE-01`／`PRE-02` 尚未決定」 | 兩者皆已由 `DEC-13`／`DEC-16` 拍板並由 `PRE-13` 實作；production 現行 `PRIVATE_FILE_STORAGE_DRIVER=s3`。**供應商組合已可確定列舉**（Render／Neon／Backblaze B2／Resend ＋ 本文件 §2 新增之 GitHub）。**尚缺者仍為**各供應商之法人名稱、DPA、分包商清單、資料所在地文件 |
-| 19 | 郵件服務供應商揭露 | 「FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED」 | `DEC-17` 明示 **MVP 初期不啟用郵件**，且 `REL-03` 已將 SMTP 設為**條件式**啟動契約（五個 `SMTP_*` 全缺時仍可啟動）。**「上線時不寄送交易郵件」本身是一個可以陳述的事實**，惟是否如此表述、以及 Resend 是否仍應列入揭露，仍待 Owner 確認後由律師認定 |
+| 19 | 郵件服務供應商揭露 | 「FACT UNKNOWN — OWNER / DEPLOYMENT INPUT REQUIRED」 | **原記載即已過期** —— 同一份 packet 的 §2.2 `O-19` 早已記為 `FACT KNOWN — OWNER DECISION LOCKED 2026-08-31 (DEC-14)`，供應商為 **Resend**，並附法人名稱、DPA／分包商／隱私政策連結與資料所在地。**⚠️ 本列於 2026-09-13 再度被 `DEC-18` 取代**：交易郵件**於 MVP launch 即啟用**，因此「上線時不寄送」已不再是可陳述的事實。**現行事實與新問題見 §7.1／`AD-07`。** |
 
 ---
 
@@ -110,3 +111,74 @@
 - **Formal Launch Go 維持 BLOCKED（Legal ＋ Domain）。**
 - 所有 `DEC-LEGAL-*` 既有決定、四份草稿的條文內容、`LEGAL SUFFICIENCY: PENDING LAWYER REVIEW`
   標記**一律未改動**。
+
+---
+
+## 7. 2026-09-13 追加 —— Owner 擴大 MVP launch scope（`DEC-18` / `DEC-19`）
+
+> **與本文件其餘部分相同：只陳述事實與提出問題，不作法律判斷、不預設答案。**
+
+Owner 於 2026-09-13 作成兩項決定，**兩者都改變本 packet 所依據的事實**：
+
+| ID | 決定 | 取代了什麼 |
+| --- | --- | --- |
+| **`DEC-18`** | **交易郵件於 MVP launch 即啟用** | **取代** `DEC-17` 中「MVP 初期不啟用郵件」之營運決定。`DEC-17` 的其餘部分（NT$0 目標、Domain 不得成為 blocker）**不受影響** |
+| **`DEC-19`** | **創作者撥款／分潤納入 MVP launch scope** | 原先「撥款系統尚不存在」只是現況陳述，現在該能力成為 launch 必要項 |
+
+### 7.1 `DEC-18` 的事實後果 —— Resend 由「未寄送」變為「實際處理個人資料」
+
+**先前的揭露前提是「已選定供應商，但 production 尚未啟用郵件」**
+（隱私權政策草稿受託處理者表：「**production 郵件尚未啟用**，見 `PRE-10`」）。
+**該前提自 `DEC-18` 起不再成立。**
+
+repo 實測到的現況（`Backend/services/emailService.js`）：
+
+| 事實 | 內容 |
+| --- | --- |
+| `F-7` | 郵件能力**早已實作並接線**，共 **6 種事件**：`order_created`／`proof_uploaded`／`payment_approved`／`payment_rejected`／`material_published`／`material_changes_requested` |
+| `F-8` | 啟用與否**純由環境變數決定**（`SMTP_HOST`／`SMTP_USER`／`SMTP_PASS`）。缺值時 `getTransporter()` 擲錯，由 `sendEmailWithLog()` 捕捉並記為 `order_email_failed`，**不中斷交易** |
+| `F-9` | 每次寄送成功或失敗都寫入 `activity_logs`（`order_email_sent`／`order_email_failed`），`meta` 含事件型別與**收件者位址** |
+| `F-10` | 信件內容包含**訂單資訊**（品項、金額、連結）與收件者 Email；寄件人取自 `SMTP_FROM`／`SMTP_USER` |
+
+**啟用後，Resend（Plus Five Five, Inc.，主要處理作業位於美國，SCCs）
+將實際接收上述個人資料。**
+
+### 7.2 `DEC-19` 的事實後果 —— 將出現一類**目前不存在**的個人資料
+
+repo 實測：schema 與 Backend 原始碼中 `payout`／`settlement`／`earning`／`commission`
+**命中 0**；**目前平台不持有任何創作者收款資料**。
+
+撥款能力一旦實作，**至少**會引入：
+
+- 創作者之**收款帳戶資訊**（銀行、戶名、帳號等，具體欄位未定）
+- **撥款金額與時程紀錄**（收入性質資料）
+- 可能之**稅務識別資料**（是否需要、需要什麼，屬會計師／律師題）
+
+> 注意其與 `DEC-LEGAL-12` 的對照：該決定針對**買家退款收款帳戶**，
+> 結論是 **MVP 不在平台內保存**、改採個案式站外取得。
+> **創作者撥款帳戶是另一件事**（常態性、非個案），
+> `DEC-LEGAL-12` 的結論**不自動適用**於它。
+
+### 7.3 因此產生的新問題（**本 repo 一律不作答**）
+
+| # | 問題 | 對象 | 影響 |
+| --- | --- | --- | --- |
+| `AD-07` | 交易郵件實際啟用後，Resend 之揭露、DPA 充分性與跨境傳輸要求為何？（原以「尚未啟用」為前提的表述是否仍適用） | **LAWYER** | Privacy §5.3；`O-20`；`AD-02` |
+| `AD-08` | 郵件內容含訂單明細與金額；寄送成功／失敗**連同收件者位址寫入稽核紀錄** —— 此等紀錄之保存期間與揭露要求為何？ | **LAWYER** | Privacy §9；`L-21`／`L-22` |
+| `AD-09` | 創作者**收款帳戶資料**之蒐集依據、告知事項、保存期間與刪除規則為何？（`DEC-LEGAL-12` 之結論不自動適用） | **LAWYER** | Privacy §2／§9；Creator Agreement |
+| `AD-10` | 撥款是否使 平台在法律上構成**代收轉付／金流中介**？與 `PRE-03` 之平台交易地位定性有何交互影響？ | **LAWYER ＋ ACCOUNTANT（會同）** | `PRE-03`；Terms；Creator Agreement |
+| `AD-11` | 撥款之**發票／憑證**義務、**扣繳**與創作者所得申報要求為何？ | **ACCOUNTANT** | `T-*`；Creator §9 |
+| `AD-12` | **已撥款後才發生退款**時之處理（向後扣抵／回沖／追償）於法與於稅務上應如何處理？ | **LAWYER ＋ ACCOUNTANT（會同）** | Creator §10；`T-08`；Refund |
+| `AD-13` | 訂單層級折扣（`orders.discount_amount`）分攤至多位創作者之品項時，其分攤方式是否影響發票金額與所得認定？ | **ACCOUNTANT** | `T-*`；Creator §9 |
+
+> `AD-07`～`AD-13` 為**新題**，不取代也不改寫既有的 `L-*`／`T-*`／`AD-01`～`AD-06` 任何一題。
+> 其中 `AD-10` 直接回到 `PRE-03` —— **撥款的加入可能使該題的答案更為關鍵，而非更簡單。**
+
+### 7.4 不變事項
+
+- **仍未發布任何法律文件**；`/terms`／`/privacy`／`/refund` 在 production 仍回 404。
+- **`SEC-03 (b)` 維持 BLOCKED — LEGAL。**
+- **Formal Launch Go 維持 BLOCKED**，且阻擋原因**增加一項**：
+  新納入 launch scope 的兩項能力尚未實作（tracker `PRE-17`／`PRE-18`）。
+- 四份草稿的條文本文、既有 `DEC-LEGAL-*` 決定、所有 `LEGAL SUFFICIENCY: PENDING` 標記
+  **一律未改動**。
