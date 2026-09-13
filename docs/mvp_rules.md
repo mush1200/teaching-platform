@@ -1595,6 +1595,26 @@ DB 層另有兩條 CHECK（`rrc_refund_execution_atomic`、
 3. **Creator 報酬不動** —— 無 clawback、無 negative balance、無 payout adjustment。
    ordinary post-settlement refund 原則仍為 Platform absorb；
    Creator fault adjustment 待 `P10` / `PRE-03`。
+
+   > **這一列描述的是現行實作的事實**：`P10` creator ledger 尚不存在，
+   > 退款執行不觸碰任何創作者報酬。以下 `DEC-21` 只鎖定其**商業原則**，
+   > **不改變**上述現況，也**未**新增任何 code / schema / migration。
+   >
+   > **`DEC-21`（Owner O1，2026-09-13）—— 採「窄例外」，不推翻本列原則：**
+   >
+   > * **一般／非創作者過失退款：維持 Platform absorb。**
+   >   已完成的撥款**不回沖**，**不**產生創作者負餘額。
+   >   此即本列原有原則，**未被取代**。
+   > * **創作者過失退款：允許** creator adjustment 與負餘額，
+   >   並得沖抵未來收益。這是**唯一**的例外。
+   > * 該例外的適用前提：案件必須有**明確的分類／理由**、必須**可稽核**，
+   >   **不得**僅憑 Admin 無記載依據的勾選。
+   > * **已撥款後向創作者追償的法律可執行性未決** —— 維持
+   >   **LAWYER REVIEW REQUIRED**（`AD-12`）。本項僅表述商業意圖，
+   >   **不構成**對其可執行性的任何認定。
+   >
+   > 實作仍待 `P10` / `PRE-18`；判定「是否為創作者過失」的分類來源
+   > 尚未定義（`refund_remedy_cases.case_type` 為候選，**本輪未決定**）。
 4. **稅務憑證不動**（見本節開頭）。
 
 #### 稽核
