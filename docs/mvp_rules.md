@@ -335,6 +335,16 @@ canonical source 是 `Backend/services/materialMedia.service.js` 與
 > （2026-08-30 `DOC-01` 依實作更正用詞，**未改變任何 API 行為**。）
 
 - 基本：`title`、`price`、`fileId`（也接受 alias: `file_id`）
+  - **`price` 必須是正整數 TWD 且 `>= 30`**（`DEC-34` ＋ `DEC-39`，2026-09-27 實作）。
+    canonical source 是 `Backend/utils/listingPricePolicy.js`，**不得**在他處重寫 `30`
+    或自行判斷整數性。**Fail-fast，禁止靜默正規化** —— 送出小數或低於下限一律 **400**，
+    **不得**靜默 floor／ceil／round／clamp；**儲存值必須等於使用者明確被接受的那個值**。
+    穩定 error code：`price_invalid`／`price_not_integer`／`price_below_minimum`。
+    `PUT`／`PATCH` 維持 partial-update 語意：**未提供價格時不驗、不寫**。
+    > ⚠️ **`orderService.js` 建單時的 `floorMoney(row.price)` 不是 pricing 政策**，
+    > 而是 legacy 小數資料的相容行為。依 tracker `COR-09` V8，**不得**在歷史價格
+    > census／對帳證明零違反之前移除 —— 先移除會讓未經對帳的 legacy 列直接結帳失敗。
+    > census 工具：`Backend/scripts/listing-price-census.js`（**read-only**）。
   - `fileId` 來自 `POST /teacher/uploads/material-file`。**legacy 的 `file_key` 已不再接受**
     （`PUT/PATCH` 帶任何檔案欄位一律 400 `file_not_updatable_here`）。
     教材本體的規則見 `docs/material-file-storage-and-delivery.md`。

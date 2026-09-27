@@ -215,6 +215,21 @@ async function createOrderFromCart(
       }
       const qty = Number(row.quantity);
       const quantity = Number.isInteger(qty) && qty > 0 ? qty : 1;
+      /*
+       * ⚠️ **不要移除這個 `floorMoney` —— 順序有依賴（`COR-09` V8）。**
+       *
+       * 新上架的價格自 2026-09-27 起已由 `utils/listingPricePolicy` 強制為
+       * **整數 TWD 且 >= 30**（`DEC-34` ＋ `DEC-39`），因此對新資料而言此處是不會觸發的防線。
+       *
+       * 但 **legacy 小數價格可能仍存在於 DB**（`materials.price` 為 `NUMERIC` 且無 CHECK），
+       * 而**這行是目前唯一讓那些教材仍能完成結帳的機制**。在歷史價格 census／對帳
+       * 證明零違反之前先移除它，會把一個資料一致性問題換成**結帳直接失敗**。
+       *
+       * 正確順序：census → 對帳 → 驗證零違反 → 移除／改為 assertion → 加 DB CHECK。
+       * census 工具：`Backend/scripts/listing-price-census.js`。
+       *
+       * **此行為屬歷史相容，不是 pricing 政策** —— 政策一律以 `listingPricePolicy` 為準。
+       */
       const unitPrice = floorMoney(row.price);
       const subtotal = unitPrice * quantity;
       lines.push({

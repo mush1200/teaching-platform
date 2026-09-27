@@ -11,6 +11,7 @@ const materialReviewService = require("../services/materialReview.service");
 const materialFileService = require("../services/materialFile.service");
 const materialMediaService = require("../services/materialMedia.service");
 const materialWorkflow = require("../utils/materialWorkflow");
+const { validateListingPrice } = require("../utils/listingPricePolicy");
 const { sendFileDownload } = require("../utils/fileDownloadResponse");
 
 const router = express.Router();
@@ -135,7 +136,12 @@ function normalizeDetailImages(value) {
 function validatePayload(body, { isCreate }) {
   const title = cleanText(body?.title);
   const fileId = cleanText(body?.fileId ?? body?.file_id);
-  const price = body?.price === undefined || body?.price === null ? null : Number(body.price);
+  /*
+   * 價格一律走 `utils/listingPricePolicy`（`DEC-34` 整數 TWD ＋ `DEC-39` 下限 NT$30）。
+   * 這裡**只判斷**，不轉換 —— 寫入端必須自行取用 `validateListingPrice().value`，
+   * **不得**沿用 request body 的原始值。`COR-09` 的既有缺陷正是「驗證一個值、寫入另一個值」。
+   */
+  const priceProvided = body?.price !== undefined && body?.price !== null;
   const teachingObjective = cleanText(body?.teachingObjective ?? body?.teaching_objective);
   const teachingMethods = normalizeTeachingMethods(body?.teachingMethods ?? body?.teaching_methods);
   const usageDuration = cleanText(body?.usageDuration ?? body?.usage_duration);
@@ -149,7 +155,10 @@ function validatePayload(body, { isCreate }) {
 
   if (isCreate) {
     if (!title) return "title is required";
-    if (!Number.isFinite(price) || price <= 0) return "price must be greater than 0";
+    if (!priceProvided) {
+      const r = validateListingPrice(body?.price);
+      return { message: r.message, error: r.code };
+    }
     if (!fileId) return "fileId is required (upload the material file first)";
     if (!teachingObjective) return "teaching_objective is required";
     if (!teachingMethods || teachingMethods.length < 1) return "teaching_methods must include at least one item";
@@ -161,8 +170,13 @@ function validatePayload(body, { isCreate }) {
     if (!materialFeatures || materialFeatures.length < 1) return "material_features must include at least one item";
   }
 
-  if (!isCreate && price !== null && (!Number.isFinite(price) || price <= 0)) {
-    return "price must be greater than 0";
+  /*
+   * create：價格必填，必合法。
+   * update：**維持 partial-update 語意** —— 未提供就不驗、不寫；一旦提供就必須完全合法。
+   */
+  if (priceProvided) {
+    const r = validateListingPrice(body.price);
+    if (!r.ok) return { message: r.message, error: r.code };
   }
   if (teachingMethods && teachingMethods.length > 4) return "teaching_methods cannot exceed 4 items";
   if (contents) {
@@ -498,9 +512,13 @@ router.get("/:id", optionalAuth, async (req, res) => {
 router.post("/", requireAuth, requireRole("teacher"), requireActiveAccount, async (req, res) => {
   try {
     const errMsg = validatePayload(req.body || {}, { isCreate: true });
-    if (errMsg) return res.status(400).json({ message: errMsg });
+    if (errMsg) return res.status(400).json(typeof errMsg === "string" ? { message: errMsg } : errMsg);
     const { title, description, category, ipDeclarationAccepted } = req.body || {};
-    const price = Number(req.body?.price);
+    /*
+     * **寫入的必須是驗證後的值**，不是 request body 的原始值。
+     * `validatePayload` 已擋下所有不合法輸入，故此處 `.value` 必然存在。
+     */
+    const price = validateListingPrice(req.body?.price).value;
     const ageRange = req.body?.ageRange ?? req.body?.age_range;
     const fileId = cleanText(req.body?.fileId ?? req.body?.file_id);
     const teachingObjective = req.body?.teachingObjective ?? req.body?.teaching_objective;
@@ -656,7 +674,17 @@ async function updateMaterialHandler(req, res) {
 
     const body = req.body || {};
     const errMsg = validatePayload(body, { isCreate: false });
-    if (errMsg) return res.status(400).json({ message: errMsg });
+    if (errMsg) return res.status(400).json(typeof errMsg === "string" ? { message: errMsg } : errMsg);
+
+    /*
+     * **`COR-09` 缺陷修正**：本端點原本把 `req.body?.price ?? null` 的**原始值**直接寫入
+     * `price = COALESCE($4, price)` —— 驗證過的值從未被使用，因此小數價格仍會進入 DB。
+     * 改為寫入 `validateListingPrice().value`。
+     *
+     * **partial-update 語意不變**：未提供價格時為 `null`，`COALESCE` 保留原值。
+     */
+    const priceSupplied = body?.price !== undefined && body?.price !== null;
+    const nextPrice = priceSupplied ? validateListingPrice(body.price).value : null;
     if (!isAdmin && Object.prototype.hasOwnProperty.call(body, "status")) {
       return res.status(403).json({ message: "only admin can change material status" });
     }
@@ -787,7 +815,7 @@ async function updateMaterialHandler(req, res) {
         id,
         req.body?.title ?? null,
         req.body?.description ?? null,
-        req.body?.price ?? null,
+        nextPrice,
         req.body?.category ?? null,
         req.body?.ageRange ?? req.body?.age_range ?? null,
         nextStatus,
