@@ -95,8 +95,8 @@
 > 以不同 `actor_id` 留痕。
 >
 > ⚠️ **這是 Owner 的營運選擇** —— 查證結果仍為**沒有任何規則要求兩者分離**（見 §1A.1）。
-> ⚠️ **前置條件**：夥伴必須先完成 onboarding 並擁有自己的 admin 帳號，
-> 否則無法履行此角色（見 clearance §3.2）。
+> ✅ **前置條件已於 2026-09-29 滿足**：夥伴已擁有自有 admin 帳號並完成 onboarding
+> （clearance §3.2，11 項全數完成 → `OPERATIONALLY READY`）。
 
 ### 1A.1 既有規則查證 —— 是否有任何規則**要求**這兩個角色由不同人擔任？
 
@@ -123,10 +123,16 @@
 
 ## 1B. Backup operator 的就緒要求
 
-**狀態：`ASSIGNED / NOT YET OPERATIONALLY READY`**
+**狀態：✅ `OPERATIONALLY READY`（Owner 於 2026-09-29 具結，clearance §3.2）**
 
-> ⚠️ **已指名 ≠ 已就緒。** 下列項目全部完成並由 Owner 明示確認之前，
-> Backup **不得**被視為可獨立承接職責，G2-O 也**不得**因為「六個角色都有名字」而 PASS。
+> ⚠️ **已指名 ≠ 已就緒** —— 本節的 11 項已全數完成，故狀態才由
+> `ASSIGNED / NOT YET OPERATIONALLY READY` 轉為 `OPERATIONALLY READY`。
+>
+> ⚠️ **兩項限制在就緒後仍然成立：**
+> 1. 「存取限縮於結算功能」一項**技術上不受支援**，為**已接受的限制 ＋ 補償控制**
+>    （clearance §3.3）—— 夥伴的帳號可存取**全部 72 個 admin endpoint**；
+> 2. 閱讀確認與未共用密碼等項目為 **Owner／夥伴的具結**，**非機械驗證** ——
+>    任何系統都證明不了人是否讀過文件。
 
 | # | 項目 | 完成 |
 | --- | --- | --- |

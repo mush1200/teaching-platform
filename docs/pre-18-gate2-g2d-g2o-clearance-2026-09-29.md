@@ -171,6 +171,75 @@ Invoke-RestMethod -Uri "https://teaching-platform-backend.onrender.com/admin/set
 > ⚠️ **空的 preview 不得被解讀為「歷史曝險為零」** ——
 > 歷史曝險在 A 的 `economics.totals` 裡，不在 preview 裡。
 
+### 2.2 🔒 實測結果（Owner 於 2026-09-29 執行指令 A ＋ B 後提供）
+
+**17 項全部取得實測值，無一項需要估算。**
+
+| # | 欄位 | **實測值** | 來源 |
+| --- | --- | --- | --- |
+| 1 | total orders | **1** | A `census.orders_total` |
+| 2 | approved orders | **1** | A `census.approved_total` |
+| 3 | approved ＋ `paid_at` | **1** | A `census.approved_with_paid_at` |
+| 4 | approved ＋ `paid_at` NULL | **0** | A `census.approved_without_paid_at` |
+| 5 | attributable paid items | **1** | A `census.attributable_paid_items` |
+| 6 | `seller_id` NULL paid items | **0** | A `census.items_without_seller` |
+| 7 | expected earning entries | **1** | A `economics.totals.expectedEarningEntries` |
+| 8 | expected payable slices | **0** | A `economics.totals.expectedPayableSlices` |
+| 9 | total expected `creator_net_sales` | **NT$1** | A `economics.totals.creatorNetSales` |
+| 10 | total expected Creator earnings | **NT$1** | A `economics.totals.creatorEarnings` |
+| 11 | total expected platform commission | **NT$0** | A `economics.totals.platformCommission` |
+| 12 | duplicate candidates | **0**（`[]`） | A `economics.duplicateEarningCandidates` |
+| 13 | suspense candidates | **0** | A `economics.totals.suspenseCandidates` |
+| 14 | unresolved dispositions | **0** | B `checks[dispositions_recorded]` ＝ `PASS` |
+| 15 | invariant violations | **0**（14 項檢查全過） | B `checks[no_invariant_violations]` ＝ `PASS` |
+| 16 | unexplained differences | **0**（`blocking: []`） | A `overall` ＝ `NO_UNEXPLAINED_DIFFERENCE` |
+| 17 | settlement readiness verdict | **`READY`** | B `verdict` |
+
+**結論：production 的既有創作者曝險總量為 NT$1，分布於 1 位創作者的 1 筆訂單。**
+
+### 2.2.1 內部一致性驗證（已以 canonical 程式碼重算，非人工推論）
+
+把這筆訂單（單一品項、小計 NT$1、無折扣）輸入
+`Backend/utils/settlementMoney.js` 的 `computeOrderSettlement`，輸出與實測值**逐項相符**：
+
+| 檢查 | 算式 | 結果 |
+| --- | --- | --- |
+| `creator_net_sales` | 品項淨額 ＝ 1 | **1** ＝ 欄位 9 ✅ |
+| Creator 分潤（`DEC-24` 80%、`DEC-31` round-half-up） | `round_half_up(1 × 4/5)` ＝ `round_half_up(0.8)` | **1** ＝ 欄位 10 ✅ |
+| 平台佣金（`DEC-31` §3 殘值法） | `1 − 1` | **0** ＝ 欄位 11 ✅ |
+| `DEC-31` 恆等式 | `1 ＋ 0 ＝ 1` | **成立** ✅ |
+| payable slice（`floor(1 × 4/5)` ＝ 0，`amount > 0` 過濾） | 0 個品項切片 | **0** ＝ 欄位 8 ✅ |
+| 殘差切片 | `1 − 0` | **1**（`expectedResidueSlices`）✅ |
+| Invariant 14（葉節點加總 ＝ 分錄金額） | `0 ＋ 1 ＝ 1` | **精確成立** ✅ |
+
+> ⚠️ **`expectedPayableSlices ＝ 0` 與 `expectedResidueSlices ＝ 1` 不是矛盾。**
+> 這正是 `DEC-31` 在極小金額下的預期行為：品項層切片用 `floor` 分配（`floor(0.8) ＝ 0`），
+> 分不掉的 NT$1 全額落入**殘差切片**。兩者相加仍等於 Creator 分潤總額，恆等式未破。
+>
+> ⚠️ **NT$1 ＋ NT$0 的結果不是恆等式失敗。**
+> 平台佣金為 0 是 `DEC-31` 殘值法在 round-half-up 之後的正確輸出，
+> **不是**「20% 抽成沒有生效」。
+
+### 2.2.2 兩項必須一併記錄的解讀限制（避免日後誤讀）
+
+**(1) 這筆訂單沒有持久化的 `refund_window_end`。**
+指令 A 同時回報 `census.approved_paid_without_refund_window ＝ 1` ——
+即這唯一一筆訂單是**上線前的 legacy 訂單**，沒有退款窗口紀錄。
+依 `DEC-27` §K1**禁止 backfill 歷史訂單期限**，因此它日後若要入帳，
+只能循對帳流程產生 `opening` 分錄（`settlementAgeing.isEligibleAtCutoff` 對 `opening` 豁免窗口要求），
+**不會**成為 `earning`。
+
+**(2) `expectedCycleMembership`（`2026-09`、expectedPayable 1）是假設性推算，不是預測。**
+`settlement-production-shadow.js:249` 由 `paid_at` **重算**窗口
+（`refundWindowEndAt(order.paid_at)`），**不讀**持久化欄位。
+因此該期間歸屬回答的是「若窗口存在會落在哪一期」，
+**不是**「開啟旗標後這筆會自動入帳」——
+唯一的自動寫入端（`settlementIntegration.service.js`）只在**付款核准當下**執行，
+**沒有回溯物化**。同理，由此推得的「最早撥款到期日 2026-10-15」
+**不構成任何已存在的付款義務**。
+
+---
+
 ---
 
 ## 3. 營運角色指派（G2-O）—— **已由 Owner 指派完成**
@@ -222,30 +291,35 @@ Primary settlement operator **維持 Owner**。
 | G2-O 通過條件 | 不變 —— 條件 5 只要求「已指派」 |
 | 前置需求 | ⚠️ **夥伴必須先完成 §3.2 onboarding 並擁有自己的 admin 帳號**，否則無法履行此角色 |
 
-### 3.2 Backup operator onboarding —— **ONBOARDING IN PROGRESS**
+### 3.2 Backup operator onboarding —— ✅ **OPERATIONALLY READY**（Owner 於 2026-09-29 具結）
 
-**狀態階梯：`ASSIGNED` → 【`ONBOARDING IN PROGRESS`】 → `OPERATIONALLY READY`**
+**狀態階梯：`ASSIGNED` → `ONBOARDING IN PROGRESS` → 【✅ `OPERATIONALLY READY`】**
 
-**目前狀態：`ONBOARDING IN PROGRESS`** ——
-Owner 已核准以現行存取模型 ＋ 補償控制完成 onboarding（2026-09-29），
-但下列實際動作**尚未發生**，因此 Backup **尚未** `OPERATIONALLY READY`。
+**11 項全數完成。**
 
-| # | 項目 | 狀態 | 需要的證據 | 誰執行 | 需改程式？ | 需 production 動作？ | 阻擋就緒？ |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 建立獨立 Admin 帳號 | ❌ **INCOMPLETE** | 帳號已建立且夥伴可自行登入（**不揭露密碼**） | Owner 執行 `npm run create-admin --prefix Backend` | 否 | ✅ **是** | ✅ 是 |
-| 2 | 存取限縮於結算功能 | ⚠️ **TECHNICALLY UNSUPPORTED — ACCEPTED LIMITATION WITH COMPENSATING CONTROLS** | 不適用 —— 見 §3.3 | — | 否 | 否 | ❌ **否**（已由 Owner 接受） |
-| 3 | 已閱讀結算營運 runbook | ❌ **INCOMPLETE** | 夥伴書面確認已讀 `controls` §2–§8 | 夥伴 | 否 | 否 | ✅ 是 |
-| 4 | 已閱讀緊急停用程序 | ❌ **INCOMPLETE** | 書面確認已讀 `controls` §7 | 夥伴 | 否 | 否 | ✅ 是 |
-| 5 | 已閱讀期間關閉檢查表 | ❌ **INCOMPLETE** | 書面確認已讀 `controls` §5 | 夥伴 | 否 | 否 | ✅ **是（此角色現為 approver，尤其重要）** |
-| 6 | 已閱讀撥款凍結規則 | ❌ **INCOMPLETE** | 書面確認已讀 `controls` §6 | 夥伴 | 否 | 否 | ✅ 是 |
-| 7 | 已閱讀事故升級程序 | ❌ **INCOMPLETE** | 書面確認已讀 `controls` §8 | 夥伴 | 否 | 否 | ✅ 是 |
-| 8 | 理解憑證處理規則 | ❌ **INCOMPLETE** | 書面確認 | 夥伴 | 否 | 否 | ✅ 是 |
-| 9 | **未共用密碼** | ❌ **INCOMPLETE** | 第 1 項完成後即滿足；Owner 確認未轉交自己的憑證 | Owner ＋ 夥伴 | 否 | 否 | ✅ **是（硬性）** |
-| 10 | **未將 production secret 寫入文件** | ✅ **COMPLETE（repo 側已機械驗證）** | 2026-09-29 掃描全部 69 份 tracked docs：**0 筆 production secret**。兩筆疑似命中經人工確認為 (a) `postgres://user:password@localhost` 佔位字串、(b) git commit SHA | 工程端已驗；Owner 另需確認未於 repo 外散佈 | 否 | 否 | ❌ 否 |
-| 11 | **明示接受 RBAC 限制與補償控制** | ✅ **COMPLETE** | Owner 於 2026-09-29 明示接受（§3.3） | Owner | 否 | 否 | ❌ 否 |
+| # | 項目 | 狀態 | 證據 |
+| --- | --- | --- | --- |
+| 1 | 建立獨立 Admin 帳號 | ✅ **COMPLETE** | Owner 具結：已以 `npm run create-admin --prefix Backend` 建立夥伴專屬帳號，夥伴已自行登入 production 且 `role ＝ admin`（**密碼未揭露**） |
+| 2 | 存取限縮於結算功能 | ⚠️ **TECHNICALLY UNSUPPORTED — ACCEPTED LIMITATION WITH COMPENSATING CONTROLS** | 見 §3.3；Owner 已明示接受 |
+| 3 | 已閱讀結算營運 runbook（`controls` §2–§8） | ✅ **COMPLETE** | 夥伴書面確認 |
+| 4 | 已閱讀緊急停用程序（`controls` §7） | ✅ **COMPLETE** | 夥伴書面確認 |
+| 5 | 已閱讀期間關閉檢查表（`controls` §5） | ✅ **COMPLETE** | 夥伴書面確認（**本人為 first-cycle-close approver**） |
+| 6 | 已閱讀撥款凍結規則（`controls` §6） | ✅ **COMPLETE** | 夥伴書面確認 |
+| 7 | 已閱讀事故升級程序（`controls` §8） | ✅ **COMPLETE** | 夥伴書面確認 |
+| 8 | 理解憑證處理規則 | ✅ **COMPLETE** | 夥伴書面確認 |
+| 9 | **未共用密碼** | ✅ **COMPLETE** | Owner 具結未轉交自身憑證；夥伴使用自有帳號登入 |
+| 10 | **未將 production secret 寫入文件** | ✅ **COMPLETE** | 2026-09-29 掃描全部 tracked docs：**0 筆 production secret**（兩筆疑似命中經人工確認為 `postgres://user:password@localhost` 佔位字串與 git commit SHA） |
+| 11 | **明示接受 RBAC 限制與補償控制** | ✅ **COMPLETE** | Owner 於 2026-09-29 明示接受（§3.3） |
 
-**尚待完成：第 1、3、4、5、6、7、8、9 項（共 8 項）。**
-其中**只有第 1 項需要 production 動作**；第 3～8 項為夥伴的書面確認；第 9 項隨第 1 項達成。
+> ⚠️ **本節記錄的是 Owner 的具結（attestation），不是系統自動驗證。**
+> 第 1 項的帳號存在與 `role` 值可事後由 production 查核；
+> 第 3～9 項本質上是人的行為，**任何系統都證明不了**，只能以具結為準。
+> 這是刻意的界線 —— 不把具結包裝成機械證據。
+
+> ⚠️ 第 2 項**仍然不是 COMPLETE**。標成 COMPLETE 會讓讀者誤以為
+> endpoint 層級的 RBAC 已經存在，而它並不存在
+> （`requireRole` 只做角色字串比對，詳見 `controls` §1B.1）。
+> 夥伴的帳號在技術上可存取**全部 72 個 admin endpoint**。
 
 ### 3.3 Backup 存取控制狀態（🔒 Owner 於 2026-09-29 明示接受）
 
@@ -373,7 +447,7 @@ Bundle A 的 cycle-close checklist 與 Bundle C 的 accidental cycle-close respo
 
 ---
 
-## 6. G2-O 轉為 PASS 的最低條件 —— **僅剩 Backup onboarding**
+## 6. G2-O 轉為 PASS 的最低條件 —— ✅ **已滿足**
 
 分三類，**不得**把「文件寫好了」當成「實際做到了」。
 
@@ -389,25 +463,64 @@ Bundle A 的 cycle-close checklist 與 Bundle C 的 accidental cycle-close respo
 | 11 | 交接程序已書面化 | ✅ **完成** |
 | 12 | RBAC 限制與補償控制已明示接受 | ✅ **完成** |
 
-### B. 仍需真實發生的事（文件證明不了）
+### B. 仍需真實發生的事（文件證明不了）—— **2026-09-29 由 Owner 具結完成**
 
-| # | 條件 | 狀態 | 需要什麼 |
+| # | 條件 | 狀態 | 證據 |
 | --- | --- | --- | --- |
-| 13 | **Backup 擁有獨立可歸屬的 Admin 帳號** | ❌ **未完成** | ⚠️ **production 動作** —— `npm run create-admin --prefix Backend` |
-| 14 | **Backup 已完成 6 項書面確認**（runbook／緊急停用／關閉檢查表／撥款凍結／事故升級／憑證規則） | ❌ **未完成** | 夥伴實際閱讀並確認 |
-| 15 | **未共用密碼** | ❌ **未完成** | 隨條件 13 達成 |
-| 16 | 撥款提醒流程**實際運作中** | ❌ **未啟動** | 首次期間關閉時建立日曆事項（尚無期間可關） |
+| 13 | **Backup 擁有獨立可歸屬的 Admin 帳號** | ✅ **完成** | Owner 具結：帳號已建立，夥伴已自行登入 production，`role ＝ admin`（見 §3.2 第 1 項） |
+| 14 | **Backup 已完成 6 項書面確認** | ✅ **完成** | 見 §3.2 第 3～8 項 |
+| 15 | **未共用密碼** | ✅ **完成** | 見 §3.2 第 9 項 |
+| 16 | 撥款提醒流程**實際運作中** | 🔁 **RECLASSIFIED —— 見 §6.1** | 已採用且已武裝；**在 Gate 2 之前無法被執行** |
+
+### 6.1 條件 16 的重新分類（⚠️ 這是工程端修正自己先前寫錯的判準）
+
+**先前把條件 16 寫成「撥款提醒流程**實際運作中**」。該寫法在 Gate 2 階段是
+結構上不可能滿足的，屬於判準本身的缺陷，不是營運端的缺口。**
+
+查證：
+
+| 事實 | 證據 |
+| --- | --- |
+| production 目前 `settlement_cycles` ＝ **0** | Owner 提供的指令 B 輸出 |
+| 期間只能由 `POST /admin/settlement/cycles/:id/close` 產生 | `Backend/routes/adminSettlement.js` |
+| 該端點受 `SETTLEMENT_WRITE_ENABLED` 閘控 | 同上（flag-gated） |
+| 撥款提醒的觸發時點是**期間關閉當下** | `controls` §5A(1) |
+
+**因此：要讓提醒流程「實際運作」必須先關閉一個期間；要關閉期間必須先開啟旗標；
+而是否開啟旗標正是 Gate 2 要決定的事。把條件 16 當成 Gate 2 的前置條件會使 Gate 2 自我循環。**
+
+**重新分類為：✅ ADOPTED AND ARMED —— 首次執行時點 ＝ 首次期間關閉。**
+
+強制機制（非僅承諾）：
+
+1. 提醒流程已隨 **BUNDLE B** 採用（§4.2）；
+2. **BUNDLE A 的 cycle-close checklist（`controls` §5）把「建立撥款期限日曆事項」列為
+   關閉前必須完成的項目** —— 首次期間關閉時若未建立，檢查表即不成立；
+3. 首次期間關閉另需**事業夥伴核准**（§3.1），該核准人亦已確認讀過 §5 檢查表（§3.2 第 5 項）。
+
+> ⚠️ **這項重新分類沒有放寬任何金流安全要求。**
+> 條件 16 的目的是「不要錯過撥款期限」。在 Gate 2 階段**尚無任何撥款期限存在**
+> （production 期間數 ＝ 0、ledger 分錄 ＝ 0、`payout_items` ＝ 0）。
+> 真正防止「Gate 3 未過就付錢」的是 **BUNDLE D 撥款凍結（條件 10）**，
+> 它**維持強制、未被放寬**。
+>
+> ⚠️ 同時保留既有的已知缺口記錄：**`payout_due_at` 在程式中沒有任何消費端** ——
+> 沒有排程、沒有告警、沒有提醒。條件 16 自始至終都是**純人工控制**，
+> 重新分類**不會**、也不得被讀成「系統會提醒」。
 
 ### C. 結論
 
-**G2-O ＝ 仍未 PASS。**
+**G2-O ＝ ✅ PASS。**
 
-> ⚠️ **明確記錄**：G2-O **不是**因為缺少細粒度 RBAC 而未通過 ——
-> 該限制已由 §3.3 的補償控制**正式接受**，且不列為通過條件。
-> 未通過的唯一原因是 **Backup 尚未實際就緒**（條件 13～15）
-> 與**提醒流程尚無可運作的對象**（條件 16，需先有期間可關閉）。
+達成路徑：條件 1～12 由文件與 Owner 決定完成；條件 13～15 由 Owner 於 2026-09-29 具結完成；
+條件 16 重新分類為「已採用且已武裝、首次期間關閉時執行」（§6.1）。
 
-**最小阻擋集合：條件 13（1 個 production 動作）＋ 條件 14（6 項書面確認）＋ 條件 15（隨 13 達成）。**
+> ⚠️ **明確記錄 G2-O 通過時仍然成立的限制**（通過**不等於**這些已解決）：
+>
+> 1. 夥伴的帳號在技術上可存取**全部 72 個 admin endpoint**；限縮僅靠補償控制，**無技術強制**；
+> 2. **BUNDLE D 撥款凍結無技術強制** —— 旗標開啟後任何 admin 皆可呼叫 `mark-paid`，系統不檢查 Gate 3；
+> 3. 四類事故更正路徑**沒有 HTTP 路由**，需一次性維運操作；誤 `mark-paid` **無系統回復機制**；
+> 4. 條件 13～15 為**人的具結**，非機械驗證。
 
 ---
 
@@ -433,45 +546,49 @@ Owner 明示接受下列認知：
 
 ---
 
-## 8. 剩餘的 Owner 輸入（**已縮減為 3 項**）
+## 8. 剩餘的 Owner 輸入 —— **僅剩 1 項**
 
-已於 2026-09-29 決定、**不再詢問**的事項：first-cycle approver（＝事業夥伴）、
-四個控制 bundle（全部 ADOPTED）、撥款凍結（ADOPTED）、G2-E（ACCEPTED）。
+已於 2026-09-29 完成、**不再詢問**的事項：first-cycle approver（＝事業夥伴）、
+四個控制 bundle（全部 ADOPTED）、撥款凍結（ADOPTED）、G2-E（ACCEPTED）、
+Backup onboarding（**OPERATIONALLY READY**）、production 曝險量測（**17 項全數實測**）。
 
 ```text
-OWNER ACTION 1 —— 完成 Backup onboarding（G2-O 的唯一阻擋）
-  (a) production 動作：建立夥伴的獨立 Admin 帳號
-      cd Backend && npm run create-admin
-      （ADMIN_EMAIL / ADMIN_PASSWORD 由 Backend/.env 提供；密碼下限 16 字元）
-      ⚠️ 不得把 Owner 自己的憑證交給夥伴
-  (b) 夥伴完成 6 項書面確認：
-      controls §2–§8 runbook／§7 緊急停用／§5 關閉檢查表／
-      §6 撥款凍結／§8 事故升級／憑證處理規則
-  → 完成後回報，G2-O 即可 PASS
-
-OWNER ACTION 2 —— production 量測（G2-D 的唯一阻擋）
-  執行指令 A ＋ B（見 §1），回傳兩份 JSON
-  ⚠️ 不要回傳任何憑證
-
-OWNER ACTION 3 —— 最終 Gate 2 決定
+OWNER ACTION（唯一剩餘）—— 最終 Gate 2 決定
   [ ] KEEP OFF   [ ] ENABLE
-  ⚠️ 需 G2-D 與 G2-O 皆 PASS 之後才提出（G2-T 與 G2-E 已 PASS）
+
+  前置條件狀態：G2-T ✅ / G2-D ✅ / G2-O ✅ / G2-E ✅  —— 四項皆已 PASS
+  已掌握的 production 曝險總量：NT$1（1 位創作者、1 筆 legacy 訂單、readiness = READY）
+
+  ⚠️ 本文件不代 Owner 作此決定，亦不建議任一選項。
 ```
 
 ---
 
 ## 9. Gate 2 子閘門現況
 
-| 子閘門 | 狀態 | 轉為 PASS 所需 |
+| 子閘門 | 狀態 | 依據 |
 | --- | --- | --- |
-| **G2-T** 技術 | ✅ **PASS** | — |
-| **G2-D** 曝險已掌握 | ⏸ **WAITING FOR AGGREGATE PRODUCTION MEASUREMENT** | Owner 執行 §1 的指令 A ＋ B 並貼回輸出，取得 §2.1 的 17 項 |
-| **G2-O** 營運控制 | ⏸ **WAITING FOR BACKUP ONBOARDING**（角色、四個 bundle、撥款凍結、補償控制**皆已完成**） | §6 條件 13～15：帳號 ＋ 6 項書面確認 |
+| **G2-T** 技術 | ✅ **PASS** | 既有技術就緒證據 |
+| **G2-D** 曝險已掌握 | ✅ **PASS** | §2.2 的 17 項**全部實測取得**，無一估算；§2.2.1 以 canonical 程式碼重算逐項相符 |
+| **G2-O** 營運控制 | ✅ **PASS** | §6 —— 條件 1～12 完成、13～15 Owner 具結完成、16 重新分類（§6.1） |
 | **G2-E** 外部後果認知 | ✅ **PASS** | §7 Owner 已於 2026-09-29 ACCEPT |
-| **G2-OWNER** | ⏸ **PENDING** | Owner 明示選擇 KEEP OFF 或 ENABLE |
+| **G2-OWNER** | ⏸ **PENDING** | **Owner 尚未明示選擇 KEEP OFF 或 ENABLE** |
 
-> **任一子閘門不得在無明示證據下升級。**
+**Gate 2 已可進入最終 Owner 決定。**
+
+> ⚠️ **四個子閘門 PASS 不是開啟旗標的授權，也不是開啟旗標的建議。**
+> `SETTLEMENT_WRITE_ENABLED` **維持 OFF**，直到 G2-OWNER 作成明示決定為止。
+>
+> **PASS 不代表下列已解決**（皆為通過時仍然成立的已記錄限制）：
+>
+> | 仍未解決 | 位置 |
+> | --- | --- |
+> | `AD-09` 與稅務／扣繳的外部意見 | 律師／會計師 packet 尚在外部審閱 |
+> | Gate 3 前的撥款凍結**無技術強制** | §6.C(2) |
+> | Backup 的 admin 存取**無 endpoint 層級限縮** | §3.3、§6.C(1) |
+> | `payout_due_at` **無程式消費端** | §6.1 |
+> | 四類事故更正路徑**無 HTTP 路由**；誤 `mark-paid` **無回復機制** | §6.C(3) |
 >
 > **G2-D 的範圍已由 Owner 於 2026-09-29 鎖定為「總量曝險」（option (a)，見 §0）** ——
-> 因此它**不會**因為逐創作者拆分不可得而 FAIL。
-> 那六個欄位為 **DEFERRED — GATE 3 / FIRST-CYCLE-CLOSE READINESS**。
+> 逐創作者拆分的六個欄位為 **DEFERRED — GATE 3 / FIRST-CYCLE-CLOSE READINESS**，
+> 其不可得**不影響** G2-D 的 PASS。
