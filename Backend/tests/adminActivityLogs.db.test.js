@@ -76,7 +76,7 @@ async function seed() {
   );
   await db.query(
     `INSERT INTO materials(id, title, price, status, teacher_id)
-     VALUES($1, $2, 0, 'published', $3)`,
+     VALUES($1, $2, 100, 'published', $3)`,
     [MATERIAL_ID, `${PREFIX}教材`, ADMIN_ID]
   );
   for (const row of FIXTURES) {

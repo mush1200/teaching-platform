@@ -50,7 +50,15 @@ CREATE TABLE IF NOT EXISTS materials (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  price NUMERIC NOT NULL DEFAULT 0,
+  -- `DEC-34`（整數 TWD）＋ `DEC-39`（最低 NT$30）的 DB 層保證（`COR-09`，2026-09-28）。
+  --
+  -- **型別是 `INTEGER` 而非 `NUMERIC`** —— 金額在本平台一律為整數 TWD；
+  -- `NUMERIC` 會讓小數價格在 DB 層可表達，而應用層的驗證擋不到既有資料。
+  --
+  -- **刻意不設 DEFAULT** —— 舊的 `DEFAULT 0` 會讓「忘記給價格」靜默變成 0 元教材，
+  -- 那是一個違反 `DEC-39` 卻沒有任何人看得見的狀態。`POST /materials` 一律明確帶入價格
+  -- （`routes/materials.js` 的 INSERT 明列 price），故 production 路徑不需要預設值。
+  price INTEGER NOT NULL,
   category TEXT,
   age_range TEXT,
   teaching_objective TEXT,
@@ -93,6 +101,10 @@ CREATE TABLE IF NOT EXISTS materials (
   -- 教材審核 workflow（docs/material-review-workflow.md）。
   -- changes_requested = 需修改（從未公開過、球在創作者手上）；
   -- unpublished = 曾經上架、被平台下架（目前唯一來源是檢舉處置）。兩者不得混用。
+  -- 最低上架價 NT$30（`DEC-39`）。應用層的 `utils/listingPricePolicy.js` 是 canonical
+  -- 判斷來源，本約束是**最後一道防線** —— 任何繞過 route 的寫入路徑也擋得住。
+  -- 型別已是 INTEGER，整數性由型別保證，故此處只需下限。
+  CONSTRAINT materials_price_min_check CHECK (price >= 30),
   CONSTRAINT materials_status_check CHECK (status IN ('pending_review', 'published', 'changes_requested', 'unpublished')),
   CONSTRAINT materials_review_reason_check CHECK (review_reason_code IS NULL OR review_reason_code IN (
     'incomplete_info', 'media_quality', 'features_mismatch', 'file_problem', 'ip_concern', 'other'

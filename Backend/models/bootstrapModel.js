@@ -269,6 +269,79 @@ async function runIdempotentMigrations() {
   `);
 
   /*
+   * 上架價格的 DB 層保證（`COR-09` / `DEC-34` ＋ `DEC-39`，2026-09-28）。
+   *
+   * 應用層的 canonical 判斷是 `utils/listingPricePolicy.js`（整數 TWD 且 >= 30）；
+   * 這裡是**最後一道防線** —— 任何繞過 route 的寫入路徑（腳本、手動 SQL、未來的新端點）
+   * 也擋得住。
+   *
+   * ## 三件事，且**全部 fail-closed**
+   *
+   *   1. 型別收斂為 `INTEGER` —— `NUMERIC` 會讓小數價格在 DB 層可表達。
+   *   2. 移除 `DEFAULT 0` —— 「忘記給價格」不該靜默變成一個違反 `DEC-39` 的 0 元教材。
+   *   3. 加上 `materials_price_min_check CHECK (price >= 30)`。
+   *
+   * ## **絕不正規化既有資料**
+   *
+   * 若既有列違反政策，本區塊**拋出例外**而不是把它們 floor／round／clamp 成合法值。
+   * 代價是**伺服器不會啟動** —— 那是刻意的：帶著一批沒人看過的違規價格繼續營運，
+   * 比啟動失敗更糟。錯誤訊息會指向 census 工具。
+   *
+   * ⚠️ **部署前置**：任何要套用本區塊的資料庫，都應先跑
+   * `node scripts/listing-price-census.js` 確認 violations = 0。
+   *
+   * 冪等：型別、DEFAULT、約束三者都先檢查現況再動作，重跑無副作用。
+   *
+   * 見 Backend/migrations/20260928_cor09_materials_price_integer_min30.sql
+   * （同一段邏輯的 ops 版本，供既有資料庫手動套用）。
+   */
+  await db.query(`
+    DO $$
+    DECLARE
+      current_type text;
+      bad_rows bigint;
+    BEGIN
+      SELECT data_type INTO current_type
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'materials' AND column_name = 'price';
+
+      IF current_type IS NULL THEN
+        RETURN;  -- 表尚不存在（全新資料庫的建表順序），由 CREATE TABLE 負責
+      END IF;
+
+      -- 先驗證，再改變任何東西。違反即中止，**不做任何轉換**。
+      SELECT count(*) INTO bad_rows
+      FROM materials
+      WHERE price IS NULL
+         OR price <> trunc(price)
+         OR price < 30;
+
+      IF bad_rows > 0 THEN
+        RAISE EXCEPTION
+          'COR-09: % materials row(s) violate the listing price policy (integer TWD and >= 30). Refusing to convert or constrain. Run: node scripts/listing-price-census.js --samples',
+          bad_rows
+          USING HINT = 'Reconcile the offending rows first; this bootstrap will never normalise them automatically.';
+      END IF;
+
+      IF current_type <> 'integer' THEN
+        ALTER TABLE materials ALTER COLUMN price TYPE INTEGER USING price::integer;
+      END IF;
+
+      ALTER TABLE materials ALTER COLUMN price DROP DEFAULT;
+      ALTER TABLE materials ALTER COLUMN price SET NOT NULL;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.materials'::regclass
+          AND conname = 'materials_price_min_check'
+      ) THEN
+        ALTER TABLE materials
+          ADD CONSTRAINT materials_price_min_check CHECK (price >= 30);
+      END IF;
+    END $$;
+  `);
+
+  /*
    * Latest review decision snapshot。**不是** review history ——
    * 每次新的審核決定都會覆寫這四個欄位；完整歷史的 canonical source 是
    * `activity_logs`（target_type = 'material'）。見 docs/material-review-workflow.md。
@@ -1666,7 +1739,7 @@ function ensureCoreTables() {
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           description TEXT,
-          price NUMERIC NOT NULL DEFAULT 0,
+          price INTEGER NOT NULL,
           category TEXT,
           age_range TEXT,
           teaching_objective TEXT,

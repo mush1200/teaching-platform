@@ -68,8 +68,8 @@ async function insertUser(id, createdAtTpe) {
 
 async function insertMaterial(id, createdAtTpe) {
   await db.query(
-    `INSERT INTO materials(id, title, teacher_id, status, file_key, created_at, updated_at)
-     VALUES($1, $2, $3, 'published', $4, ${TPE_NAIVE(5)}, ${TPE_NAIVE(5)})`,
+    `INSERT INTO materials(id, title, teacher_id, status, file_key, price, created_at, updated_at)
+     VALUES($1, $2, $3, 'published', $4, 100, ${TPE_NAIVE(5)}, ${TPE_NAIVE(5)})`,
     [PREFIX + id, `fixture ${id}`, `${PREFIX}owner`, `files/${PREFIX}${id}.pdf`, createdAtTpe]
   );
 }

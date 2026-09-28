@@ -216,21 +216,28 @@ async function createOrderFromCart(
       const qty = Number(row.quantity);
       const quantity = Number.isInteger(qty) && qty > 0 ? qty : 1;
       /*
-       * ⚠️ **不要移除這個 `floorMoney` —— 順序有依賴（`COR-09` V8）。**
+       * **上架價格在 DB 層即保證為整數 TWD 且 >= 30**（`COR-09` 收斂完成，2026-09-28）：
+       * `materials.price` 為 `INTEGER NOT NULL`，並有 `materials_price_min_check
+       * CHECK (price >= 30)`。canonical 判斷來源是 `utils/listingPricePolicy.js`。
        *
-       * 新上架的價格自 2026-09-27 起已由 `utils/listingPricePolicy` 強制為
-       * **整數 TWD 且 >= 30**（`DEC-34` ＋ `DEC-39`），因此對新資料而言此處是不會觸發的防線。
+       * 因此這裡**不再做任何金額正規化** —— 先前的 `floorMoney(row.price)` 是
+       * legacy 小數價格的相容行為，在 census 證明 0 violations、型別與約束落地後已移除。
+       * **`DEC-34` 明文禁止靜默 floor／round／clamp**，保留它只會讓一個已不存在的
+       * 資料形狀繼續影響成交價。
        *
-       * 但 **legacy 小數價格可能仍存在於 DB**（`materials.price` 為 `NUMERIC` 且無 CHECK），
-       * 而**這行是目前唯一讓那些教材仍能完成結帳的機制**。在歷史價格 census／對帳
-       * 證明零違反之前先移除它，會把一個資料一致性問題換成**結帳直接失敗**。
+       * 仍然斷言整數性：走到這裡卻拿到非整數，代表 DB 不變條件被破壞
+       * （約束被移除、或有人繞過型別寫入）。**那種情況必須大聲失敗** ——
+       * 靜默取整正是 `COR-09` 當初要修掉的缺陷。
        *
-       * 正確順序：census → 對帳 → 驗證零違反 → 移除／改為 assertion → 加 DB CHECK。
-       * census 工具：`Backend/scripts/listing-price-census.js`。
-       *
-       * **此行為屬歷史相容，不是 pricing 政策** —— 政策一律以 `listingPricePolicy` 為準。
+       * ⚠️ `floorMoney` 本身**仍在使用中**（promo 折扣值，見本檔 `resolvePromotion`），
+       * 不得因為這裡不再呼叫就把它一併刪除。
        */
-      const unitPrice = floorMoney(row.price);
+      const unitPrice = Number(row.price);
+      if (!Number.isInteger(unitPrice)) {
+        const err = new Error("material price is not an integer; DB invariant violated");
+        err.code = "MATERIAL_PRICE_NOT_INTEGER";
+        throw err;
+      }
       const subtotal = unitPrice * quantity;
       lines.push({
         materialId: String(row.material_id),
