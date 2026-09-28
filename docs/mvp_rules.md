@@ -3068,6 +3068,118 @@ allowlist：`.pdf` `.zip` `.pptx` `.docx` `.xlsx`；上限 `MAX_MATERIAL_FILE_BY
 
 ---
 
+# 21B. Creator settlement（`PRE-18` 核心金流引擎，2026-09-28 實作 Batch 1）
+
+政策的 canonical source 是 `DEC-21`～`DEC-39`（`docs/pending-work-tracker.md` §1.6.0-I (A)）；
+設計是 `docs/pre-18-implementation-design-2026-09-27.md`。本節只記**規則與邊界**。
+
+> ⚠️ **`SETTLEMENT_WRITE_ENABLED` 預設關閉。** 關閉時付款核准路徑**不寫入任何**
+> ledger／切片／懸記，只計算（shadow）。`PRE-18` 仍為 **OPEN**。
+
+## 21B.1 Schema 的唯一可執行來源
+
+settlement 的 11 張表 ＋ `orders.refund_window_end` 全部定義在
+**`Backend/migrations/20260928_pre18_settlement_core.sql`**。
+`Backend/models/settlementSchema.js` 於 bootstrap **直接讀該檔執行**，
+因此 bootstrap 與 migration **不可能漂移**。`db/db_schema.sql` 內
+`PRE18_SETTLEMENT_CORE` 區塊是**文件副本**，由
+`Backend/tests/settlementSchemaParity.test.js` 逐 statement 比對。
+**要改 schema 請改 migration 檔，再同步文件區塊。**
+
+## 21B.2 三個概念不得混為一欄
+
+| 概念 | 何時確定 | 存放位置 | 可變性 |
+| --- | --- | --- | --- |
+| **金額事實** | 付款核准當下 | `creator_ledger_entries` | **永久不可變**（trigger 擋 UPDATE／DELETE） |
+| **結算資格** | 每次期間關閉時評估 | **不持久化**，由 `utils/settlementAgeing.js` 推導 | 隨 hold 與窗口變動 |
+| **期間歸屬** | 該切片首次 eligible 的期間關閉時 | `creator_payable_slices.settlement_cycle_id` | **write-once**（trigger 強制） |
+
+`creator_cycle_statements` 是**物化快照**，**絕不得**成為金額歷史的權威來源。
+
+## 21B.3 切片（`creator_payable_slices`）
+
+分錄記「賺了多少」，切片記「這筆錢在結算上如何被對待」。
+`DEC-31` 把 earning 分錄固定在**每創作者 × 每訂單**，`DEC-28` 允許 hold 落在
+**每品項**甚至品項內的**部分金額** —— 因此一筆分錄的不同部分可以有不同的 ageing。
+
+- **部分金額 hold ＝ 依金額再分割為子切片**（`DEC-33` §P7a）。
+  **不得**暫停整個切片（§P7b 禁止的塌縮）、**不得**重置被 hold 部分的 ageing、
+  **不得**變更任何 `creator_ledger_entries` 金額欄位。
+- **一個 leaf 切片要嘛整筆未被佔用，要嘛整筆被佔用** —— 部分佔用一律先分割。
+- `order_item_id IS NULL` 的 **residue 切片永遠不可被 hold**（DB trigger 強制）。
+
+## 21B.4 hold 不是 ledger 分錄
+
+以「先負後正」兩筆分錄表達 hold，會讓 hold 期間的 carried balance 顯示為 0，
+而 `DEC-32` §P3 規定餘額歸零即**重置 ageing** —— 那正是 `DEC-33` 明文禁止的。
+**獨立實體 ＋ 自身區間是唯一同時滿足兩者的模型。**
+
+## 21B.5 ageing 判準 ＝ CUTOFF-STATE
+
+`DEC-32` §P1 的原文是**期末**判準：只看 cutoff 當下的狀態，**不看期間內的 hold 歷程**。
+反面的解釋會讓一連串短暫的 hold 無限期阻止 ageing，正好製造 `DEC-29` 要防的結果。
+
+六期 override 以 **`ageing_before`（帶入本期的計數）** 判斷 ——
+第 1～6 期皆合格 → **第 7 期**釋出（與 `DEC-32` §P2 示例一致）。
+
+## 21B.6 未歸屬一律 fail closed
+
+`order_items.seller_id IS NULL` 的品項**永遠進不了** `creator_ledger_entries`
+（`creator_id` 為 `NOT NULL`，這是結構性保證，不是應用層檢查），
+改進 `unattributed_suspense_entries`。懸記反映**歸屬未決**，不是所有權已定：
+**不得**視為平台收入、**不得**沒收、**不得** write-off、**不得**自動退款。
+最終會計／法律處置維持外部事項（`O19`、`AD-10`）。
+
+`creator_fault` 分類**不能治癒缺失的歸屬**：無安全歸屬時拒絕建立分類。
+
+### 懸記存的是品項淨額，不是已經切好的 80％
+
+`DEC-37` 禁止把未歸屬金額「自動視為平台抽成或平台所有之收入」——
+在創作者未知之前就先算出一筆 platform commission，等於對歸屬先下了結論。
+因此 `unattributed_suspense_entries.net_amount` 是**分攤折扣後的品項淨額**
+（`DEC-23`），**不是**創作者應付、**不是**平台抽成。
+80／20 於**對帳歸屬成立時**才套用 —— 那時 `DEC-24` 的基數才真正存在。
+
+### 對帳分錄必須保存完整的 `DEC-31` 三個量
+
+`opening`（legacy 期初與事後歸屬）**與 `earning` 同受** `cle_attributed_split_check`：
+必須同時帶 `creator_net_sales`／`platform_commission`，且恆等式成立。
+只帶 `amount` 會讓被對帳歸屬的交易永久遺失分潤資訊，
+使 `DEC-37` 要求的「創作者已歸屬／平台抽成／未歸屬懸記」三分報表短報平台抽成。
+
+## 21B.9 部分 hold 的金額換算 —— exact-or-fail-closed
+
+`DEC-31` 只授權兩種取整：品項折扣分攤的 **floor**，與分潤的 **round-half-up**。
+把買方案件金額（`refund_remedy_cases.approved_amount`）換算成創作者 payable 時，
+**不得發明第三套取整規則**（`ceil`／`floor`／`round` 皆然）。
+
+| 情形 | 行為 |
+| --- | --- |
+| 買方金額 × 4/5 **為整數** | 精確 hold 該金額 |
+| 買方金額 **大於**品項淨額 | **fail closed 退回整個品項**（`DEC-28` §L6 字面） |
+| 買方金額 × 4/5 **非整數** | **fail closed 退回整個品項**（`DEC-28`「取最窄的**安全**層級」） |
+
+退回整個品項不會波及他人：案件本就指名該品項，item scope 是 `DEC-28` 已授權的範圍。
+反之「多凍一點點」需要一條沒有人批准的取整規則。
+`settlement_holds` 的**解除不可逆**（`released_at` write-once），
+否則同一筆錢可能同時被父切片與子切片各算一次未解除 hold。
+
+## 21B.7 `orders.refund_window_end` 不受旗標約束
+
+它是 `DEC-26` 要求的**持久化期限**，於付款核准時以 `paid_at` 為錨點算一次後寫入，
+**write-once**。**歷史列一律不 backfill**（`DEC-27` §K1）——
+沒有期限的已付訂單走 legacy reconciliation，`opening` 分錄與正常結算結構上可區分。
+
+## 21B.8 撥款
+
+系統**不匯錢**。`payout_items` 由期間關閉產生，Admin 於平台外完成匯款後標記已付；
+`bank_reference` 是 `status = 'paid'` 的 **DB 層必要條件**。
+標記已付時同一 transaction 內寫入 `payout_allocations`（逐切片）＋
+`payout_consumption` 分錄。撥款金額大於可消耗應付 → **fail closed，整筆回滾**。
+通知在 transaction 之外（`DEC-20` C4：通知失敗不得回滾）。
+
+---
+
 # 22. Admin activity log search（`GET /admin/activity-logs`）
 
 ## 22.1 既有契約不變

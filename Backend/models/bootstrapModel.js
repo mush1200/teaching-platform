@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const { applySettlementSchema } = require("./settlementSchema");
 
 let readyPromise = null;
 
@@ -1709,6 +1710,12 @@ async function runIdempotentMigrations() {
     `CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);`
   );
 
+  // PRE-18 settlement core（11 張表 ＋ `orders.refund_window_end` ＋ invariant trigger）。
+  // SQL 的唯一來源是 `Backend/migrations/20260928_pre18_settlement_core.sql` ——
+  // 這裡**不再抄一份**，因此 bootstrap 與 migration 不可能漂移（見 settlementSchema.js）。
+  // 完全 additive：不改任何既有表的既有欄位。
+  await applySettlementSchema(db);
+
   // Dev/demo: stable placeholder cover art when missing (Lorem Picsum — one image per material id).
   await db.query(`
     UPDATE materials
@@ -1968,6 +1975,28 @@ async function verifyCriticalSchema() {
       requireNoDefault: true,
       migration: "Backend/migrations/20260827b_legal_document_requires_reconsent.sql",
       why: "legal_documents.requires_reconsent 是 re-consent enforcement metadata，必須 NOT NULL 且無 DEFAULT（SCHEMA-03 / DEC-LEGAL-06）",
+    },
+    {
+      table: "creator_ledger_entries",
+      column: "creator_id",
+      expect: "text",
+      // `creator_id NOT NULL` 是 invariant 6（「無歸屬即無創作者責任」）成為
+      // **結構性**保證的機制：未歸屬金額只能進 `unattributed_suspense_entries`。
+      // 一旦這一欄變成 nullable，`DEC-36` 要防的失效模式就重新打開，而且
+      // 不會有任何測試以外的地方叫出來 —— 所以在啟動時 fail closed。
+      requireNotNull: true,
+      migration: "Backend/migrations/20260928_pre18_settlement_core.sql",
+      why: "creator_ledger_entries.creator_id 必須 NOT NULL —— 這是 DEC-36／DEC-37「未歸屬金額永不進入創作者應付」的結構性保證",
+    },
+    {
+      table: "creator_payable_slices",
+      column: "amount",
+      expect: "integer",
+      // `DEC-31`：全部應付金額為整數 TWD。若這一欄漂成 NUMERIC，
+      // 切片加總與分錄金額的比對會在小數處靜默失真。
+      requireNotNull: true,
+      migration: "Backend/migrations/20260928_pre18_settlement_core.sql",
+      why: "creator_payable_slices.amount 必須是 INTEGER NOT NULL —— DEC-31 全額整數 TWD",
     },
   ];
 

@@ -12,6 +12,7 @@ const { dispatchBestEffort } = require("../utils/bestEffortDispatch");
 const materialReviewService = require("../services/materialReview.service");
 const materialRightsReviewService = require("../services/materialRightsReview.service");
 const { recordFulfillmentSnapshot } = require("../services/orderService");
+const { onOrderPaymentApproved } = require("../services/settlementIntegration.service");
 const entitlementService = require("../services/entitlement.service");
 const refundRemedyService = require("../services/refundRemedy.service");
 const materialFileRetention = require("../services/materialFileRetention.service");
@@ -339,6 +340,20 @@ router.post("/payment-proofs/:id/approve", async (req, res) => {
      * 猜一個版本等於製造假的履約證據。已有 snapshot 的品項也不覆寫。
      */
     await recordFulfillmentSnapshot(client, pr.order_id);
+
+    /*
+     * 結算接點（`PRE-18`）。**同一個 transaction** —— 訂單狀態與金額事實不得分歧。
+     *
+     * 旗標 `SETTLEMENT_WRITE_ENABLED` 預設關閉：關閉時**不寫入任何 ledger／切片／
+     * 懸記**，只算一次（shadow）。`orders.refund_window_end` 是唯一的例外，
+     * 一律寫入 —— 它是 `DEC-26` 的持久化期限，不產生應付，且漏寫就補不回來
+     * （`DEC-27` §K1 禁止 backfill）。
+     */
+    await onOrderPaymentApproved(client, {
+      orderId: pr.order_id,
+      actorId: req.user.userId,
+      paidAt: updatedOrder.rows[0].paid_at,
+    });
 
     await client.query("COMMIT");
 

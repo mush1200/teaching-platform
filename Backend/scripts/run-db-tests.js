@@ -19,6 +19,7 @@ const TARGET_DB = "teaching_platform_security_test";
 const BACKEND_DIR = path.resolve(__dirname, "..");
 const TEST_FILES = [
   path.join("tests", "listingPrice.db.test.js"),
+  path.join("tests", "settlementCore.db.test.js"),
   path.join("tests", "dashboardPeriod.db.test.js"),
   path.join("tests", "dashboardTrends.db.test.js"),
   path.join("tests", "creatorSales.db.test.js"),
