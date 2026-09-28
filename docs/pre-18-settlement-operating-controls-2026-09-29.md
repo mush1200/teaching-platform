@@ -72,6 +72,25 @@
 
 ---
 
+## 1A. 六個角色的職責與交接（**姓名由 Owner 於 clearance 文件 §3 指派，本文件不代填**）
+
+> **候選人盤點結果**：repo 文件中唯一被指名的營運行為者是泛稱的「**Owner**」
+> （`由維運` 11 處、`由 Owner 執行` 3 處等）。
+> **沒有任何具名人員，也沒有任何撥款專屬角色。**
+> 因此以下六個角色**全部是新設**，不得由既有文件推定。
+
+| 角色 | 職責 | 交接期望 |
+| --- | --- | --- |
+| **Primary settlement operator** | 執行期間關閉前的 preview 比對；維護撥款期限日曆；每週檢視 pending payout items；對帳 disposition | 休假／不可用時**必須**明示移交給 Backup，並轉移日曆事項 |
+| **Backup settlement operator** | Primary 不可用期間承接其全部職責 | 需具備與 Primary 相同的 Admin 權限與文件存取 |
+| **Settlement incident owner** | 判定是否觸發 §8 的停止條件；決定是否緊急停用旗標；主導事故取證與記錄 | 需能在營業時間內被聯繫到；不可與執行操作者為同一人時最佳，但允許兼任 |
+| **First-24-hour monitoring owner** | 旗標啟用後首 24 小時執行 §3／§4 檢查表並記錄結果 | 僅限啟用後首 24 小時；之後併入 Primary 的每週檢視 |
+| **First-cycle-close approver** | 第一次期間關閉前**明示核准**；確認 Gate 3 狀態與撥款期限提醒已建立 | 不得由執行關閉的同一人自行核准 |
+| **Emergency-disable authority** | 有權在無需額外核可下立即把 `SETTLEMENT_WRITE_ENABLED` 關回 OFF | **必須**有 Render dashboard 存取權；建議與 incident owner 同一人或其上級 |
+
+> ⚠️ **一人可兼多角**，由 Owner 決定；但 **First-cycle-close approver 與實際執行關閉者不應為同一人**
+> —— 那會讓「明示核准」失去意義。**此為建議，非技術強制。**
+
 ## 2. 啟用 runbook
 
 ### 2.1 前置條件（**全部必須成立**）
@@ -200,16 +219,24 @@ node scripts/settlement-production-shadow.js --json    # overall = NO_UNEXPLAINE
 
 ## 8. 事故升級程序
 
-| 事故 | 立即動作 | 後續 |
-| --- | --- | --- |
-| invariant 違反 | **立即停用旗標**（§7） | 由 `settlementInvariants` 的 key 定位；不得直接改資料 |
-| 重複 earning | 立即停用 | 檢查 `cle_one_earning_per_order_creator` 為何未擋下；此情況理論上不可能 |
-| 不明經濟差異 | 立即停用 | shadow `--json` 取 `blocking` 清單；**不得**逕行調整使其相符 |
-| 非預期 suspense | **不需**停用 | 屬正常（`seller_id IS NULL`）；走 disposition 流程 |
-| 誤產生 payout item | 停用旗標 | `POST .../mark-failed` 並記錄理由；**不得**刪除 |
-| **誤 mark-paid** | 立即停用 | **錢可能已離開平台** → 進入 `DEC-21` 範疇，且受 `AD-12` 法律限制未決 |
-| 錯誤的創作者歸屬 | 視情況 | 走 `DEC-36` 的明示可稽核對帳；**不得**臆造歸屬 |
-| 通知失敗 | **不需**停用 | 設計上不回滾撥款；查 `order_email_failed` |
+| 事故 | 立即圍堵 | 需停用旗標？ | 不得刪除 | 應保全的證據 | 升級對象 | 已核准的更正機制 |
+| --- | --- | --- | --- | --- | --- | --- |
+| **invariant 違反** | 停止一切 Admin 寫入動作 | ✅ **是** | 任何 ledger／切片／allocation | `report` 的 `invariants.keys`、shadow `--json` | Incident owner | **無自動機制** —— 依 key 個案分析後以 reversal 更正（**需一次性維運操作，無 HTTP 路由**） |
+| **重複 earning** | 同上 | ✅ **是** | 兩筆分錄都不得刪 | 兩筆 `creator_ledger_entries` 的 id ＋ `cle_one_earning_per_order_creator` 狀態 | Incident owner | reversal（**需維運操作**）。⚠️ 此情況理論上被 partial unique index 擋住，發生即代表更深層問題 |
+| **錯誤的 ledger 分錄** | 記錄分錄 id | ⚠️ 視範圍 | 原分錄 | 分錄全欄位 ＋ 產生它的 `activity_logs` | Incident owner | **僅 reversal 分錄**（`DEC-26` §J5）。`recordReversal` **無 HTTP 路由** → **一次性維運腳本** |
+| **錯誤的創作者歸屬** | 暫停該創作者的期間關閉 | ⚠️ 視範圍 | 原分錄與切片 | 訂單、品項、`seller_id` 歷程 | Incident owner | `DEC-36` 的明示可稽核對帳；**不得臆造歸屬**。`resolveSuspense` **無 HTTP 路由** |
+| **誤關閉期間** | 停止後續動作 | ⚠️ 視情況 | statement、cycle 列 | `settlement.cycle_closed` 事件 ＋ statements | Incident owner ＋ First-cycle approver | **期間不可重開**（trigger）。差異依 `DEC-30` §N5 走**下一期間**或顯式可稽核例外 |
+| **誤產生 payout item** | 立即標記 | ✅ **是**（防擴大） | payout item 列 | item 全欄位 ＋ 產生它的 cycle | Incident owner | `POST .../payout-items/:id/mark-failed` ＋ 理由（**此路由存在且可用**） |
+| **誤 mark-paid** | 立即停止所有撥款 | ✅ **是** | payout item、allocation、`payout_consumption` 分錄 | 全部上述 ＋ `payout.marked_paid` 事件 ＋ `bank_reference` | **Owner**（非僅 incident owner） | ⚠️ **錢可能已離開平台** → 進入 `DEC-21` 範疇；法律可執行性受 `AD-12` 未決限制。**系統層無回復機制** |
+| **通知失敗** | 無 | ❌ **否** | — | `order_email_failed` 事件 | Primary operator | 設計上不回滾撥款；可人工重寄（`sendPayoutPaidEmail` 為 idempotent 對 `notified_at`） |
+| **非預期 suspense** | 無 | ❌ **否** | 懸記列 | 懸記列 ＋ 來源品項 | Primary operator | 正常流程 —— 走 disposition（`POST .../reconciliation/dispositions`，**路由存在**） |
+| **錯過撥款期限** | 記錄事實 | ❌ **否** | — | 該 cycle 的 `payout_due_at` ＋ pending item | **Owner** | **無技術機制** —— 逾期為可觀察事實。若因 Gate 3 未通過而無法支付，**必須明示記錄，不得靜默略過**（§5 第 6 點） |
 
-**所有事故的共同禁令**：**不得對 production 直接下 `DELETE` 或 `UPDATE` 修補金額。**
-trigger 會擋，而且那會破壞稽核鏈。
+### 8.1 所有事故的共同禁令
+
+1. **不得**對 production 直接下 `DELETE` 或 `UPDATE` 修補金額 ——
+   11 個 trigger 會擋，而且那會破壞稽核鏈；
+2. **不得**為了讓報表相符而調整數字；
+3. **不得**在取證之前變更任何設定（旗標除外）；
+4. 四類更正（reversal／legacy opening／hold／歸屬對帳）**目前皆無 HTTP 路由** ——
+   一律需要**一次性維運操作**，且該操作本身必須留下紀錄。

@@ -198,29 +198,50 @@ Emergency-disable authority   : ____________________
 > ⚠️ **未經 Owner 明示勾選者一律視為 NOT ADOPTED。**
 > 程式碼支援不等於控制存在。
 
+每一項控制都必須有**狀態**、**負責人**與**依據文件**。
+依據欄已預填（工程端可確認的事實）；**狀態與負責人由 Owner 填寫。**
+
 ```text
-控制                                    ADOPTED / NOT ADOPTED / N/A
----------------------------------------------------------------
-payout review checklist                 [ ] / [ ] / [ ]
-cycle-close checklist                   [ ] / [ ] / [ ]
-payout deadline calendar                [ ] / [ ] / [ ]
-payout due-date alert / reminder        [ ] / [ ] / [ ]
-weekly exception review                 [ ] / [ ] / [ ]
-reconciliation review                   [ ] / [ ] / [ ]
-first-hour monitoring                   [ ] / [ ] / [ ]
-first-24-hour monitoring                [ ] / [ ] / [ ]
-emergency flag-off procedure            [ ] / [ ] / [ ]
-invariant incident response             [ ] / [ ] / [ ]
-duplicate earning response              [ ] / [ ] / [ ]
-incorrect-ledger correction response    [ ] / [ ] / [ ]
-accidental cycle-close response         [ ] / [ ] / [ ]
-accidental payout-item response         [ ] / [ ] / [ ]
-accidental mark-paid response           [ ] / [ ] / [ ]
-notification failure response           [ ] / [ ] / [ ]
-payout freeze until Gate 3 PASS         [ ] / [ ] / [ ]
+#   控制                                  狀態                        負責人        依據
+                                          A=ADOPTED N=NOT ADOPTED X=N/A
+--------------------------------------------------------------------------------------------
+ 1  payout review checklist               [ ]A [ ]N [ ]X            __________    controls §4
+ 2  cycle-close checklist                 [ ]A [ ]N [ ]X            __________    controls §5
+ 3  payout deadline calendar              [ ]A [ ]N [ ]X            __________    controls §5A(1)
+ 4  payout due-date alert / reminder      [ ]A [ ]N [ ]X            __________    controls §5A(2)
+ 5  weekly exception review               [ ]A [ ]N [ ]X            __________    controls §5A(4)
+ 6  reconciliation review                 [ ]A [ ]N [ ]X            __________    controls §8 (suspense)
+ 7  first-hour monitoring                 [ ]A [ ]N [ ]X            __________    controls §3
+ 8  first-24-hour monitoring              [ ]A [ ]N [ ]X            __________    controls §4
+ 9  emergency flag-off procedure          [ ]A [ ]N [ ]X            __________    controls §7
+10  invariant incident response           [ ]A [ ]N [ ]X            __________    controls §8
+11  duplicate earning response            [ ]A [ ]N [ ]X            __________    controls §8
+12  incorrect-ledger correction response  [ ]A [ ]N [ ]X            __________    controls §8 ⚠️無 HTTP 路由
+13  accidental cycle-close response       [ ]A [ ]N [ ]X            __________    controls §8 ⚠️期間不可重開
+14  accidental payout-item response       [ ]A [ ]N [ ]X            __________    controls §8（mark-failed 可用）
+15  accidental mark-paid response         [ ]A [ ]N [ ]X            __________    controls §8 ⚠️無系統回復機制
+16  notification failure response         [ ]A [ ]N [ ]X            __________    controls §8
+17  payout freeze until Gate 3 PASS       [ ]A [ ]N [ ]X            __________    controls §6
 ```
 
-各控制的實際內容見 `pre-18-settlement-operating-controls-2026-09-29.md` §2–§8。
+> ⚠️ **未經 Owner 明示勾選者一律視為 NOT ADOPTED。**
+> 程式碼支援不等於控制存在 —— 沒有負責人的控制在事故當下等於不存在。
+
+各控制的實際內容見 `pre-18-settlement-operating-controls-2026-09-29.md` §1A、§2–§8。
+
+### 4.1 立即停用旗標的停止條件（採用第 9 項即等於採用本清單）
+
+下列任一情形出現，**Emergency-disable authority 得在不需額外核可下立即把旗標關回 OFF**：
+
+1. 任一 invariant 違反；
+2. 重複 earning 候選出現；
+3. 不明經濟差異（shadow 回 `STOP_UNEXPLAINED_DIFFERENCE`）；
+4. 非預期的懸記（非源於 `seller_id IS NULL`）；
+5. 錯誤的創作者歸屬；
+6. 非預期的 payout item；
+7. **未經核准的期間關閉**；
+8. **未經核准的 mark-paid**；
+9. 交易／稽核原子性失效（金額已寫但稽核事件缺失，或反之）。
 
 ---
 
@@ -283,10 +304,15 @@ GATE 2 —— 外部後果認知確認
 4. 日後把旗標關回 OFF **只會停止未來的 gated 寫入**，
    **不會**抹除已經產生的義務。
 
-  [ ] 我確認以上認知          [ ] 我不確認
+  [ ] ACCEPT（我確認以上認知）
+  [ ] DO NOT ACCEPT（我不確認）
 
 簽署：__________________    日期：__________
 ```
+
+> **本輪 Owner 未於對話中明示接受或拒絕上述認知，故兩個選項皆維持未勾選。**
+> 工程端**不得**由「Owner 選擇了 option (a)」推定其已接受 G2-E ——
+> 那是兩件不同的事：前者是**量測範圍**的決定，後者是**後果認知**的確認。
 
 ---
 
