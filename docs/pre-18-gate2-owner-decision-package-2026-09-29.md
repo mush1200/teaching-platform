@@ -341,25 +341,180 @@ mark-paid／mark-failed（人工）、撥款通知（人工觸發後自動寄出
 
 ---
 
-## J. 決定記錄範本（**待填，本文件不代填**）
+## J. 2026-09-29 追加查證（Phase 2–8）
+
+### K.1 production 讀取管道 —— **本 session 全部不可用**
+
+| 管道 | 狀態 |
+| --- | --- |
+| `DATABASE_URL`（production DB） | **NOT SET** |
+| `PRIVATE_FILE_STORAGE_S3_*` | **NOT SET** |
+| production Admin API | **HTTP 401** —— 本 session 無 production admin 憑證 |
+| `TEST_ADMIN_*` | 已設定，但**僅適用 `teaching_platform_security_test`**，非 production |
+
+⚠️ **因此 §C 的曝險數字仍為未量化，本輪亦未取得。不估算。**
+
+> **一項自我更正**：production `/admin/settlement/*` 回 **401** 曾被我視為
+> 「settlement router 已部署」的證據。**該推論不成立** ——
+> `/admin/settlement/definitely-not-a-route` 同樣回 401，因為
+> `requireAuth` 在路由比對**之前**執行。401 只證明 `/admin` 掛載存在，
+> 而那早於 Batch 3。**已撤回該推論。**
+
+### K.2 production 程式碼是否為最新 —— **是**（可由 git 證明）
+
+production 部署 commit 為 `665c406`。其後至 HEAD 的每一個 commit
+（`f11976e`／`73f08e2`／`d7d1d72`／`d41c665`／`92a9b3e`）
+**非 `docs/` 檔案變更數皆為 0**，累計亦為 **0**。
+
+**因此 production 執行的程式碼與 HEAD 在功能上等效** ——
+§A 的行為敘述適用於現行 production，不需重新部署。
+
+### K.3 路由可達性 —— 於 HEAD `92a9b3e` **重新查證**（未沿用前次結論）
+
+| 函式 | 有 HTTP 路由？ | 其他 production 呼叫端 |
+| --- | --- | --- |
+| `closeCycle` | **是**（1） | — |
+| `markPaid` | **是**（1） | — |
+| `markFailed` | **是**（1） | — |
+| `recordDisposition` | **是**（1，**不受旗標約束**） | — |
+| `recordOrderEarnings` | 否 | `settlementIntegration`（付款核准，受旗標約束） |
+| `recordSuspense` | 否 | 同上 |
+| `openHold` / `releaseHold` | **否** | **無** |
+| `recordAdjustment` / `recordReversal` | **否** | **無** |
+| `resolveSuspense` / `correctClassification` | **否** | **無** |
+| `recordLegacyOpening` | **否** | 僅被 `resolveSuspense` 內部呼叫（該函式本身不可達） |
+
+**結論不變且已重新驗證**：六類寫入**即使旗標開啟也做不到**。
+
+### K.4 歷史 vs 未來寫入行為（Phase 4 逐題）
+
+1. **開啟旗標會自動物化所有既有已付訂單嗎？** **不會。**
+2. **自動物化只發生在啟用後的新付款核准嗎？** **是** ——
+   唯一的自動寫入點是 `onOrderPaymentApproved`，只在 Admin 核准付款憑證時執行。
+3. **哪些歷史訂單成為對帳 backlog？** 啟用時點之前**所有**已核准＋已付款的訂單。
+4. **目前有建立 legacy opening 對帳分錄的 HTTP 路由嗎？** **沒有。**
+5. **那有什麼已核准的路徑？** 服務層的 `recordLegacyOpening` 已實作並測試，
+   但**唯一呼叫端是同樣不可達的 `resolveSuspense`**。
+   實務上需要**新增路由或一次性維運腳本**（本輪未實作）。
+6. **只是把旗標打開，既有訂單會立刻產生創作者應付嗎？** **不會。**
+7. **未來的義務何時出現？** 啟用後的**第一筆付款核准**當下。
+8. **啟用後 Admin 能立刻關閉期間嗎？** **能** —— 端點即時可用，系統不作額外檢查。
+9. **能立刻產生 payout items 嗎？** **能**，但只透過關閉期間產生。
+10. **能立刻 mark-paid 嗎？** **能** —— 只需一個 transfer reference 字串。
+    ⚠️ 系統**不會**檢查 Gate 3、不會檢查是否真的匯了款。
+11. **哪些寫入類別因無路由而仍不可能？** 見 §J.3 的六類。
+
+### K.5 立即／歷史／未來義務（Phase 5）
+
+**A. 開啟當下立即產生的義務 ＝ NT$0。**
+理由：唯一的自動寫入點是付款核准；**啟用動作本身不觸發任何回溯處理**。
+在下一筆付款核准發生之前，ledger 維持空的。
+
+**B. 歷史 backlog** —— 金額**未量化**（無 production 存取）。
+- **旗標維持 OFF 時該 backlog 依然存在**，且**隨每筆新的已付訂單持續增長**；
+- 差別只在於：OFF 時它**全部**是 backlog；ON 之後**新訂單不再累積 backlog**，
+  但既有部分仍需一次性對帳，**而該對帳路徑目前無入口**。
+
+**C. 未來義務** —— 啟用後第一筆付款核准即：
+earning 分錄與切片於**同一 transaction** 寫入並自此不可變；
+切片於下一個**已關閉**期間的 cutoff 起開始 ageing；
+於首次成為 eligible 的期間關閉時取得永久的期間歸屬；
+達 NT$300／六期 override／終止 override 時成為應撥付，
+期限為**次月 15 日**（`payout_cycles.payout_due_at`，已持久化）。
+
+**D. 無法清償的義務風險**
+- **`AD-09` 未決** → 系統中**沒有**收款資料欄位，因此**匯不出款**；應付持續累積。
+- **稅務未決** → 即使能匯款，`payout_items.amount` 的 gross／net 語意未定
+  （決定包 §A 與會計師包 §2.2 Q8）。
+- **應付能否持續累積？** **能，且完全可稽核**（append-only ＋ 14 項 invariant）。
+- **有撥款期限監控嗎？** **沒有。** 全 repo 搜尋 `payout_due_at`，
+  **唯一非查詢用途的讀取點是創作者 statements 端點** —— 無排程、無告警、無提醒。
+- **逾期未付會被技術阻止嗎？** **不會。** 期限已持久化，但**僅為可觀察事實**，
+  系統不會因此阻擋任何動作，也不會主動通知任何人。
+
+### K.6 分階段控制 —— **重新查證，結論不變**
+
+全系統**只有一個** settlement 相關開關。逐項確認**皆不存在**：
+指定日期後啟用、僅新訂單、創作者白名單、獨立的累積旗標、
+獨立的期間關閉旗標、獨立的撥款旗標、Admin 權限細分、功能別寫入閘門。
+
+**唯一真正存在的分階段能力是 dry-run**（`preview` 端點 ＋ shadow 腳本），
+且**現在、旗標 OFF 的狀態下就可用**。
+
+| | 技術強制 | 操作紀律 |
+| --- | --- | --- |
+| 旗標 OFF 時不得寫入 | ✅ **是** | — |
+| 「旗標 ON 但不關閉期間」 | ❌ **否** | ⚠️ **是** —— 任何 admin 皆可關閉，系統不阻止 |
+| 「Gate 3 前不 mark-paid」 | ❌ **否** | ⚠️ **是** —— 系統不檢查 Gate 3 |
+
+### K.7 營運控制盤點（Phase 6 摘要）
+
+依**文件／流程證據**（非程式碼能力）判定：
+**READY 1 項、PARTIAL 11 項、MISSING 8 項。**
+
+**MISSING 的 8 項**：主要撥款操作者、備援操作者、事故負責人、
+首 24 小時監控負責人、撥款期限行事曆、**撥款到期提醒／告警**、
+每日／每週例外審查、對帳審查流程的既有定義。
+
+完整盤點與所有 runbook／檢查表見
+`docs/pre-18-settlement-operating-controls-2026-09-29.md`。
+
+---
+
+## K. Gate 2 子閘門（**不得合併成單一 READY**）
+
+| 子閘門 | 狀態 | 判準與現況 |
+| --- | --- | --- |
+| **G2-T 技術** | ✅ **PASS** | readiness `READY`、invariant 0 違反、shadow 無不明差異、寫入探測 409、稽核原子性已測 |
+| **G2-D 曝險已掌握** | ❌ **FAIL** | **production 曝險未量測** —— 本 session 無任何 production 讀取管道。決定所需的金額與筆數目前**皆為未知** |
+| **G2-O 營運控制** | ❌ **FAIL** | 8 項 MISSING（含**無撥款期限告警**、**無指定操作者**）、11 項 PARTIAL |
+| **G2-E 外部後果認知** | ⏸ **待 Owner 明示** | **不要求** `AD-09`／稅務先解決，但要求 Owner **明示認知**：應付可能在能夠撥款之前就開始累積 |
+| **G2-OWNER** | ⏸ **PENDING** | 待 Owner 明示選擇 KEEP OFF 或 ENABLE |
+
+> **G2-D 與 G2-O 目前為 FAIL 是事實陳述，不是建議。**
+> 兩者都可以在**不開啟旗標**的情況下補齊：
+> G2-D 只需執行兩支唯讀指令；G2-O 只需指派人員並採用 §J.7 的控制包。
+
+## L. 決定記錄範本（**待填，本文件不代填**）
 
 ```text
 GATE 2 OWNER DECISION —— SETTLEMENT_WRITE_ENABLED
 
-Decision:            [ ] KEEP OFF        [ ] ENABLE
-Effective date/time: ____________________
-Scope:               ____________________   （例：僅 ledger 累積，暫不關閉期間）
-Reason:              ____________________
+Decision:
+  [ ] KEEP SETTLEMENT_WRITE_ENABLED OFF
+  [ ] ENABLE SETTLEMENT_WRITE_ENABLED
 
-Known unresolved external items:
-  [ ] AD-09（收款資料）        [ ] 稅務／扣繳
-  [ ] AD-10 / PRE-03（定性）   [ ] O19（懸記終局處置）
+Effective date/time:        ____________________
+Scope:                      ____________________
 
-Accepted risks:      ____________________
-Required monitoring: ____________________   （見 §H）
-Rollback trigger:    ____________________   （見 §H 停止條件）
-Responsible operator:____________________
-Next review date:    ____________________
+Reason:                     ____________________
+
+Measured production exposure at decision time:
+  approved + paid orders:   ____________________
+  expected earning entries: ____________________
+  expected creator earnings:____________________
+  eligible payable:         ____________________
+  >= NT$300 / below:        ____________________ / ____________________
+  earliest payout due date: ____________________
+  (source: settlement-production-shadow.js --json  +  cycles/<YYYY-MM>/preview)
+
+Known unresolved items:
+  AD-09 (收款資料):          ____________________
+  tax / withholding:        ____________________
+  AD-10 / PRE-03 (定性):     ____________________
+  O19 (懸記終局處置):        ____________________
+
+Accepted operational risk:  ____________________
+
+Primary operator:           ____________________
+Backup operator:            ____________________
+Monitoring owner:           ____________________
+
+Emergency-disable trigger:  ____________________   （見控制包 §8）
+First review date:          ____________________
+
+Payout execution permitted?   [ ] YES   [ ] NO
+  If NO — reason / blocking gate: ____________________
 
 簽署：__________________    日期：__________
 ```
