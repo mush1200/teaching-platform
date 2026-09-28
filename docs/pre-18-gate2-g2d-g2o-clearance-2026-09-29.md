@@ -546,49 +546,69 @@ Owner 明示接受下列認知：
 
 ---
 
-## 8. 剩餘的 Owner 輸入 —— **僅剩 1 項**
+## 8. Owner 輸入 —— ✅ **全部完成**
 
-已於 2026-09-29 完成、**不再詢問**的事項：first-cycle approver（＝事業夥伴）、
-四個控制 bundle（全部 ADOPTED）、撥款凍結（ADOPTED）、G2-E（ACCEPTED）、
-Backup onboarding（**OPERATIONALLY READY**）、production 曝險量測（**17 項全數實測**）。
+2026-09-29 全數完成：first-cycle approver（＝事業夥伴）、四個控制 bundle（全部 ADOPTED）、
+撥款凍結（ADOPTED）、G2-E（ACCEPTED）、Backup onboarding（`OPERATIONALLY READY`）、
+production 曝險量測（17 項全數實測）、**最終 Gate 2 決定（`KEEP OFF`）**。
 
-```text
-OWNER ACTION（唯一剩餘）—— 最終 Gate 2 決定
-  [ ] KEEP OFF   [ ] ENABLE
-
-  前置條件狀態：G2-T ✅ / G2-D ✅ / G2-O ✅ / G2-E ✅  —— 四項皆已 PASS
-  已掌握的 production 曝險總量：NT$1（1 位創作者、1 筆 legacy 訂單、readiness = READY）
-
-  ⚠️ 本文件不代 Owner 作此決定，亦不建議任一選項。
-```
+**本閘門已無待辦的 Owner 輸入。**
 
 ---
 
-## 9. Gate 2 子閘門現況
+## 9. Gate 2 子閘門最終狀態 —— 🔒 **CLOSED / OWNER DECIDED**
 
 | 子閘門 | 狀態 | 依據 |
 | --- | --- | --- |
-| **G2-T** 技術 | ✅ **PASS** | 既有技術就緒證據 |
+| **G2-T** 技術 | ✅ **PASS** | production readiness `verdict ＝ READY`、shadow `NO_UNEXPLAINED_DIFFERENCE` |
 | **G2-D** 曝險已掌握 | ✅ **PASS** | §2.2 的 17 項**全部實測取得**，無一估算；§2.2.1 以 canonical 程式碼重算逐項相符 |
 | **G2-O** 營運控制 | ✅ **PASS** | §6 —— 條件 1～12 完成、13～15 Owner 具結完成、16 重新分類（§6.1） |
 | **G2-E** 外部後果認知 | ✅ **PASS** | §7 Owner 已於 2026-09-29 ACCEPT |
-| **G2-OWNER** | ⏸ **PENDING** | **Owner 尚未明示選擇 KEEP OFF 或 ENABLE** |
+| **G2-OWNER** | 🔒 **KEEP OFF**（2026-09-29 最終決定） | §9.1 |
 
-**Gate 2 已可進入最終 Owner 決定。**
+**Gate 2 ＝ `CLOSED / OWNER DECIDED`　│　`SETTLEMENT_WRITE_ENABLED` ＝ OFF　│　PRODUCTION WRITE ENABLED ＝ NO。**
 
-> ⚠️ **四個子閘門 PASS 不是開啟旗標的授權，也不是開啟旗標的建議。**
-> `SETTLEMENT_WRITE_ENABLED` **維持 OFF**，直到 G2-OWNER 作成明示決定為止。
+### 9.1 Owner 決定內容（2026-09-29）
+
+**決定：維持 `SETTLEMENT_WRITE_ENABLED` ＝ OFF。這是最終的 Gate 2 Owner 決定。**
+
+理由（Owner 陳述）：
+
+1. `PRE-18` 技術就緒 ＝ PASS；`G2-T`／`G2-D`／`G2-O`／`G2-E` 皆 PASS；
+   production shadow 已驗證；write-enable readiness ＝ `READY`。
+2. **但** `AD-09` 與稅務／扣繳仍未解決，兩者仍**阻擋安全的創作者撥款執行**。
+3. 現在開啟會使日後每一筆核准付款產生**不可變的**創作者結算義務，
+   而平台**尚無法可靠地清償**它們。
+4. **沒有任何營運上的必要**要在撥款阻擋解除前承受該曝險。
+
+> ⚠️ **這不是 `PRE-18` 技術就緒的失敗。技術就緒維持 PASS。**
+> `PRE-18` 本身仍為 **OPEN**，原因是**外部 launch 相依未解**。
+
+### 9.2 重開條件
+
+🔁 **Gate 2 可於日後重開。** 觸發條件：適用的撥款／法律／會計阻擋解除 ——
+主要為 **`AD-09`（創作者收款資料）** 與 **稅務／扣繳**，
+另含屆時仍然適用的 `AD-10`（代理收付定性）與 `O19`（懸記終局處置）。
+
+> ⚠️ **重開時不得沿用 2026-09-29 的 PASS。**
+> `G2-T`／`G2-D`／`G2-O`／`G2-E` **必須以當時的證據重新確認**：
 >
-> **PASS 不代表下列已解決**（皆為通過時仍然成立的已記錄限制）：
->
-> | 仍未解決 | 位置 |
+> | 子閘門 | 為什麼會失效 |
 > | --- | --- |
-> | `AD-09` 與稅務／扣繳的外部意見 | 律師／會計師 packet 尚在外部審閱 |
-> | Gate 3 前的撥款凍結**無技術強制** | §6.C(2) |
-> | Backup 的 admin 存取**無 endpoint 層級限縮** | §3.3、§6.C(1) |
-> | `payout_due_at` **無程式消費端** | §6.1 |
-> | 四類事故更正路徑**無 HTTP 路由**；誤 `mark-paid` **無回復機制** | §6.C(3) |
->
+> | `G2-D` | **曝險量測必然過期** —— 每一筆新的已核准訂單都會改變總量；NT$1 只是 2026-09-29 當下的事實 |
+> | `G2-O` | 角色與 onboarding 具結需重新確認仍然成立（人員可能異動） |
+> | `G2-T` | 需重跑 readiness 與 shadow |
+> | `G2-E` | 屆時的外部後果與今日不同，須就當時事實重新確認 |
+
+### 9.3 本決定當下仍然成立的限制（`KEEP OFF` **不會**使它們消失）
+
+| 仍未解決 | 位置 |
+| --- | --- |
+| `AD-09` 與稅務／扣繳的外部意見 | 律師／會計師 packet 尚在外部審閱 |
+| Gate 3 前的撥款凍結**無技術強制** | §6.C(2) |
+| Backup 的 admin 存取**無 endpoint 層級限縮**（可達全部 72 個 endpoint） | §3.3、§6.C(1) |
+| `payout_due_at` **無程式消費端** | §6.1 |
+| 四類事故更正路徑**無 HTTP 路由**；誤 `mark-paid` **無回復機制** | §6.C(3) |
+
 > **G2-D 的範圍已由 Owner 於 2026-09-29 鎖定為「總量曝險」（option (a)，見 §0）** ——
-> 逐創作者拆分的六個欄位為 **DEFERRED — GATE 3 / FIRST-CYCLE-CLOSE READINESS**，
-> 其不可得**不影響** G2-D 的 PASS。
+> 逐創作者拆分的六個欄位為 **DEFERRED — GATE 3 / FIRST-CYCLE-CLOSE READINESS**。

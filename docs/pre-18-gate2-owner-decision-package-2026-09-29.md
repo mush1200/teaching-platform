@@ -9,6 +9,21 @@
 
 ---
 
+> ## 🔒 本文件已完成其用途 —— Owner 已於 2026-09-29 決定：**KEEP OFF**
+>
+> **`G2-OWNER` ＝ `KEEP OFF`　│　Gate 2 ＝ `CLOSED / OWNER DECIDED`　│**
+> **`SETTLEMENT_WRITE_ENABLED` ＝ OFF　│　PRODUCTION WRITE ENABLED ＝ NO。**
+>
+> 決定全文見 §L（已填）；子閘門最終狀態見 §K。
+> **§C 的「未量化」與 §K 先前的 `G2-D`／`G2-O` ＝ FAIL 均已被實測取代**，
+> 兩處皆已就地更正並標明取代關係。
+>
+> ⚠️ **維持 OFF 不是 `PRE-18` 技術就緒的失敗** —— 技術就緒為 **PASS**。
+> `PRE-18` 仍為 OPEN 的原因是**外部 launch 相依未解**。
+> 🔁 Gate 2 **可於撥款／法律／會計阻擋解除後重開**（重開須重新取證，見 §K）。
+
+---
+
 ## A. 開啟旗標實際上會做什麼（逐點以程式碼查證）
 
 ### A.1 旗標的全貌
@@ -112,10 +127,29 @@ Backend/utils/settlementPolicy.js:157
 
 ---
 
-## C. 目前的 production 曝險 —— **未量化**
+## C. 目前的 production 曝險 —— ✅ **已於 2026-09-29 實測**
 
-**本 session 無 production 憑證（`DATABASE_URL = NOT SET`），因此以下欄位無法填寫。**
-**不估算、不推測。**
+> 🔁 **本節原記為「未量化」，已被 Owner 執行的 production 量測取代。**
+> 原因是撰寫當下本 session 無 production 憑證（`DATABASE_URL = NOT SET`）。
+> 下列數值由 Owner 執行唯讀指令後提供，**全部為實測值，無一估算**。
+
+| 欄位 | **實測值** |
+| --- | --- |
+| total orders ／ approved ／ approved ＋ `paid_at` | **1 ／ 1 ／ 1** |
+| approved 但 `paid_at` NULL | **0** |
+| 可歸屬的已付品項 ／ `seller_id` NULL 品項 | **1 ／ 0** |
+| expected earning entries | **1** |
+| expected payable slices | **0**（殘差切片 1；`floor(1×4/5) ＝ 0`） |
+| expected `creator_net_sales` ／ Creator 分潤 ／ 平台佣金 | **NT$1 ／ NT$1 ／ NT$0** |
+| 重複 earning 候選 ／ 懸記候選 ／ 未處置 disposition | **0 ／ 0 ／ 0** |
+| invariant 違反 | **0**（14 項檢查） |
+| shadow `blocking` ／ `overall` | **`[]` ／ `NO_UNEXPLAINED_DIFFERENCE`** |
+| readiness `verdict` | **`READY`** |
+
+**決定當下的 production 曝險總量 ＝ NT$1**（1 位創作者、1 筆訂單）。
+
+> ⚠️ 該筆訂單**沒有持久化的 `refund_window_end`**（legacy，`DEC-27` §K1 禁止 backfill），
+> 且**開啟旗標不會回溯物化它**。詳見 clearance §2.2.2。
 
 最近一次 Owner 回報的 production shadow（**非本 session 第一手量測**）只涵蓋**判定**，
 未包含數量：
@@ -461,63 +495,82 @@ earning 分錄與切片於**同一 transaction** 寫入並自此不可變；
 
 ---
 
-## K. Gate 2 子閘門（**不得合併成單一 READY**）
+## K. Gate 2 子閘門 —— **最終狀態（不得合併成單一 READY）**
 
 | 子閘門 | 狀態 | 判準與現況 |
 | --- | --- | --- |
 | **G2-T 技術** | ✅ **PASS** | readiness `READY`、invariant 0 違反、shadow 無不明差異、寫入探測 409、稽核原子性已測 |
-| **G2-D 曝險已掌握** | ❌ **FAIL** | **production 曝險未量測** —— 本 session 無任何 production 讀取管道。決定所需的金額與筆數目前**皆為未知** |
-| **G2-O 營運控制** | ❌ **FAIL** | 8 項 MISSING（含**無撥款期限告警**、**無指定操作者**）、11 項 PARTIAL |
-| **G2-E 外部後果認知** | ⏸ **待 Owner 明示** | **不要求** `AD-09`／稅務先解決，但要求 Owner **明示認知**：應付可能在能夠撥款之前就開始累積 |
-| **G2-OWNER** | ⏸ **PENDING** | 待 Owner 明示選擇 KEEP OFF 或 ENABLE |
+| **G2-D 曝險已掌握** | ✅ **PASS** | 🔁 **原為 FAIL（未量測），已由 2026-09-29 的 production 實測取代** —— 17 項欄位全數實測，曝險總量 **NT$1** |
+| **G2-O 營運控制** | ✅ **PASS** | 🔁 **原為 FAIL（8 項 MISSING／11 項 PARTIAL），已由角色指派 ＋ 四個 bundle ADOPTED ＋ Backup `OPERATIONALLY READY` 取代** |
+| **G2-E 外部後果認知** | ✅ **PASS** | Owner 已於 2026-09-29 明示 ACCEPT |
+| **G2-OWNER** | 🔒 **KEEP OFF** | Owner 2026-09-29 最終決定（§L） |
 
-> **G2-D 與 G2-O 目前為 FAIL 是事實陳述，不是建議。**
-> 兩者都可以在**不開啟旗標**的情況下補齊：
-> G2-D 只需執行兩支唯讀指令；G2-O 只需指派人員並採用 §J.7 的控制包。
+**Gate 2 ＝ `CLOSED / OWNER DECIDED`。**
 
-## L. 決定記錄範本（**待填，本文件不代填**）
+> ⚠️ **四閘 PASS 並未導致旗標開啟** —— Owner 在四閘皆 PASS 的情況下仍選擇 KEEP OFF，
+> 理由是撥款阻擋（`AD-09`、稅務／扣繳）未解。這正是把 `G2-OWNER`
+> 與其他四閘**分開**的用意：技術與營運就緒**不蘊含**商業上應該開始累積義務。
+
+> 🔁 **重開 Gate 2 時，四個子閘門必須重新取證**，不得沿用本次 PASS。
+> `G2-D` 尤其必然過期 —— 每一筆新的已核准訂單都會改變曝險總量。
+
+## L. 決定記錄 —— 🔒 **已於 2026-09-29 填載**
 
 ```text
 GATE 2 OWNER DECISION —— SETTLEMENT_WRITE_ENABLED
 
 Decision:
-  [ ] KEEP SETTLEMENT_WRITE_ENABLED OFF
+  [x] KEEP SETTLEMENT_WRITE_ENABLED OFF
   [ ] ENABLE SETTLEMENT_WRITE_ENABLED
 
-Effective date/time:        ____________________
-Scope:                      ____________________
+Effective date/time:        2026-09-29（最終 Gate 2 Owner 決定）
+Scope:                      production —— SETTLEMENT_WRITE_ENABLED 維持 OFF
 
-Reason:                     ____________________
+Reason:
+  - PRE-18 技術就緒 = PASS；G2-T / G2-D / G2-O / G2-E 皆 PASS
+  - production shadow 已驗證；write-enable readiness = READY
+  - 但 AD-09 與稅務／扣繳仍未解決，仍阻擋安全的創作者撥款執行
+  - 現在開啟會使日後每筆核准付款產生不可變的創作者義務，
+    而平台尚無法可靠地清償
+  - 沒有任何營運上的必要要在撥款阻擋解除前承受該曝險
 
 Measured production exposure at decision time:
-  approved + paid orders:   ____________________
-  expected earning entries: ____________________
-  expected creator earnings:____________________
-  eligible payable:         ____________________
-  >= NT$300 / below:        ____________________ / ____________________
-  earliest payout due date: ____________________
-  (source: settlement-production-shadow.js --json  +  cycles/<YYYY-MM>/preview)
+  approved + paid orders:   1
+  expected earning entries: 1
+  expected creator earnings:NT$1
+  eligible payable:         NT$0（ledger 為空，尚無任何分錄）
+  >= NT$300 / below:        0 / 1   （NT$1 < NT$300 門檻）
+  earliest payout due date: 不適用 —— 尚無任何已物化的期間或付款義務
+  (source: settlement-production-shadow.js --json  +  settlement-write-enable-readiness.js)
+  ⚠️ 逐創作者門檻拆分 = DEFERRED TO GATE 3（Owner 2026-09-29 option (a)）
 
 Known unresolved items:
-  AD-09 (收款資料):          ____________________
-  tax / withholding:        ____________________
-  AD-10 / PRE-03 (定性):     ____________________
-  O19 (懸記終局處置):        ____________________
+  AD-09 (收款資料):          UNRESOLVED —— 外部審閱中；阻擋撥款執行
+  tax / withholding:        UNRESOLVED —— 外部審閱中；阻擋撥款執行與申報
+  AD-10 / PRE-03 (定性):     UNRESOLVED —— 外部審閱中；阻擋會計標籤與對外揭露
+  O19 (懸記終局處置):        UNRESOLVED —— 目前 0 筆懸記，故尚非實際阻擋
 
-Accepted operational risk:  ____________________
+Accepted operational risk:  無新增曝險 —— 維持 OFF 即不產生任何新的創作者義務。
+                            既有曝險維持 NT$1 且不會自動物化。
 
-Primary operator:           ____________________
-Backup operator:            ____________________
-Monitoring owner:           ____________________
+Primary operator:           Owner
+Backup operator:            Owner 的事業夥伴（OPERATIONALLY READY，2026-09-29）
+Monitoring owner:           Owner
+First-cycle-close approver: Owner 的事業夥伴
 
-Emergency-disable trigger:  ____________________   （見控制包 §8）
-First review date:          ____________________
+Emergency-disable trigger:  不適用於本決定 —— 旗標本就 OFF，無可停用之寫入。
+                            控制包 §8 的觸發條件於日後 ENABLE 時方生效。
+First review date:          AD-09 或稅務／扣繳取得外部意見時（事件觸發，非日曆觸發）
 
-Payout execution permitted?   [ ] YES   [ ] NO
-  If NO — reason / blocking gate: ____________________
+Payout execution permitted?   [ ] YES   [x] NO
+  If NO — reason / blocking gate:
+    AD-09 與稅務／扣繳未解；另 Gate 3 撥款凍結（BUNDLE D）仍然強制。
+    旗標為 OFF，且無任何已物化的 payout_item 存在。
 
-簽署：__________________    日期：__________
+備註：本決定為 KEEP OFF，依 §L 尾註不需建立新的 DEC-* ID
+      （該註記僅就 ENABLE 的情形要求）。
+      DEC-20 ~ DEC-39 未因本決定而變更。
 ```
 
-> 若決定為 **ENABLE**，依 `DEC-24` 的先例，這應成為一筆**明示的 Owner Decision**
-> 並記入 tracker 的決定登記簿。**本輪不預先建立 ID。**
+> 若日後決定改為 **ENABLE**，依 `DEC-24` 的先例，那應成為一筆**明示的 Owner Decision**
+> 並記入 tracker 的決定登記簿。**本次為 KEEP OFF，未建立新 ID。**

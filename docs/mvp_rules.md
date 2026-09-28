@@ -3234,6 +3234,32 @@ schema 存在／migration chain 完整／invariant 零違反／`DEC-24` 恆等�
 寫入探測 **409 `settlement_writes_disabled`**。
 **`PRE-18` TECHNICAL READINESS ＝ PASS；`SETTLEMENT_WRITE_ENABLED` 仍為 OFF。**
 
+### 🔒 Gate 2 Owner 決定（2026-09-29）—— **KEEP OFF**
+
+**`G2-OWNER` ＝ `KEEP OFF`　│　Gate 2 ＝ `CLOSED / OWNER DECIDED`　│　`SETTLEMENT_WRITE_ENABLED` ＝ **OFF**　│　PRODUCTION WRITE ENABLED ＝ **NO**。**
+
+四個非 Owner 子閘門於決定當下**全部 PASS**：
+`G2-T` ✅ 技術／`G2-D` ✅ 曝險已掌握（17 項全數實測，總量 **NT$1**）／
+`G2-O` ✅ 營運控制／`G2-E` ✅ 外部後果認知。
+
+Owner 據以維持 OFF 的理由：
+
+1. `AD-09`（創作者收款資料）與**稅務／扣繳**仍未解決，兩者**擋住撥款執行**；
+2. 現在開啟會使日後每一筆核准付款產生**不可變的**創作者應付義務，
+   而平台**尚無法可靠地清償**這些義務；
+3. **沒有任何營運上的必要**要在撥款阻擋解除前承受該曝險。
+
+> ⚠️ **這不是 `PRE-18` 技術就緒的失敗。**
+> 技術就緒維持 **PASS**（本節上方的 production 實測未被此決定推翻）。
+> `PRE-18` 之所以仍為 **OPEN**，是因為**外部 launch 相依未解**，
+> 不是因為程式碼或閘門有缺陷。
+
+> 🔁 **Gate 2 可於日後重開** —— 在適用的撥款／法律／會計阻擋
+> （`AD-09`、稅務／扣繳，以及屆時仍然適用的 `AD-10`、`O19`）解除後，
+> 由 Owner 重新提出 `G2-OWNER` 決定。重開時 `G2-T`／`G2-D`／`G2-O`／`G2-E`
+> **必須以當時的證據重新確認**，不得沿用 2026-09-29 的 PASS ——
+> 曝險量測尤其會隨新訂單改變。
+
 ### 四個外部項目**分別**擋住什麼（不得混為一談）
 
 | 外部項目 | 擋住**第一筆結算寫入**？ | 實際擋住的是 |
