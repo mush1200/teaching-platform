@@ -84,22 +84,19 @@
 | **Backup settlement operator** | **Owner 的事業夥伴** | Primary 不可用期間承接其全部職責 | 需具備履行職責所需的 Admin 權限與文件存取（見 §1B） |
 | **Settlement incident owner** | **Owner** | 判定是否觸發 §8 的停止條件；決定是否緊急停用旗標；主導事故取證與記錄 | 需能在營業時間內被聯繫到 |
 | **First-24-hour monitoring owner** | **Owner** | 旗標啟用後首 24 小時執行 §3／§4 檢查表並記錄結果 | 僅限啟用後首 24 小時；之後併入 Primary 的每週檢視 |
-| **First-cycle-close approver** | **Owner** | 第一次期間關閉前**明示核准**；確認 Gate 3 狀態與撥款期限提醒已建立 | 見下方 ⚠️ |
+| **First-cycle-close approver** | **Owner 的事業夥伴**（2026-09-29 改指派） | 第一次期間關閉前**明示核准**；確認 Gate 3 狀態與撥款期限提醒已建立 | 見下方 ⚠️ |
 | **Emergency-disable authority** | **Owner** | 有權在無需額外核可下立即把 `SETTLEMENT_WRITE_ENABLED` 關回 OFF | **必須**有 Render dashboard 存取權 |
 
-> ⚠️ **一項需 Owner 裁示的重疊（不阻擋 G2-O）**
+> 🔒 **2026-09-29 更新：重疊已由 Owner 解除。**
 >
-> 本文件先前寫有「**First-cycle-close approver 與實際執行關閉者不應為同一人**」。
-> **該句的來源是本專案上一輪（commit `7d98c75`）由工程端寫下的建議，
-> 並非任何既有政策、法規或 `DEC-*` 要求。**
+> 先前 Primary operator 與 First-cycle-close approver 同為 Owner。
+> **Owner 已將 approver 改指派給事業夥伴**，因此第一次真實的期間關閉
+> 採**真人雙人覆核**：執行為 Owner，核准為夥伴，兩者在 `activity_logs`
+> 以不同 `actor_id` 留痕。
 >
-> 現行指派中 Primary operator 與 First-cycle-close approver **同為 Owner**，
-> 因此「明示核准」會由執行者自行給出。
->
-> 既然 Backup 是真實的第二人，**Owner 可選擇**把
-> First-cycle-close approver 改指派給 Backup 以恢復雙人覆核。
-> **本文件不代為變更，也不把它列為 G2-O 的必要條件** ——
-> 僅據實指出該建議與現行指派不一致。
+> ⚠️ **這是 Owner 的營運選擇** —— 查證結果仍為**沒有任何規則要求兩者分離**（見 §1A.1）。
+> ⚠️ **前置條件**：夥伴必須先完成 onboarding 並擁有自己的 admin 帳號，
+> 否則無法履行此角色（見 clearance §3.2）。
 
 ### 1A.1 既有規則查證 —— 是否有任何規則**要求**這兩個角色由不同人擔任？
 
@@ -306,7 +303,7 @@ node scripts/settlement-production-shadow.js --json    # overall = NO_UNEXPLAINE
 
 ---
 
-## 6. 撥款凍結規則（Gate 3 PASS 之前）
+## 6. 撥款凍結規則（Gate 3 PASS 之前）—— 🔒 **Owner 已於 2026-09-29 採用**
 
 **在 Gate 3 PASS 之前：**
 
