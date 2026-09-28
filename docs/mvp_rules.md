@@ -3222,6 +3222,34 @@ schema 存在／migration chain 完整／invariant 零違反／`DEC-24` 恆等�
 `BLOCKED_BY_DISPOSITION`。阻擋原因依嚴重度取**第一個**成立者，
 輸出永遠指得出「先修哪一個」；exit code 僅 `READY` 為 0。
 
+### ⚠️ `READY` 不是啟用授權
+
+閘門回 `READY` 只回答一件事：**技術上是否具備開啟的條件**。
+它**不回答**「商業／法律上是否應該開始累積創作者應付」——後者是 Owner 決定，
+且取決於下表四個外部項目。**任何人不得因為閘門回 `READY` 就開啟旗標。**
+
+**2026-09-29 production 實測（Owner 執行並回報）**：
+`verdict = READY`、`blockedBy = null`、shadow `overall = NO_UNEXPLAINED_DIFFERENCE`
+（兩層皆執行）、invariant 0 違反、重複 earning 0、suspense 0、未處置 disposition 0、
+寫入探測 **409 `settlement_writes_disabled`**。
+**`PRE-18` TECHNICAL READINESS ＝ PASS；`SETTLEMENT_WRITE_ENABLED` 仍為 OFF。**
+
+### 四個外部項目**分別**擋住什麼（不得混為一談）
+
+| 外部項目 | 擋住**第一筆結算寫入**？ | 實際擋住的是 |
+| --- | --- | --- |
+| **`AD-09`** 收款資料 | **否** | **撥款執行** —— 沒有收款目的地就匯不出款；目的地的儲存與驗證亦未定 |
+| **`AD-10`** 代理收付定性 | **否**（技術上） | **會計／法律標籤與對外揭露** —— 抽成如何認列、發票／收據、揭露用語 |
+| **稅務／扣繳** | **否** | **撥款執行與稅務申報** —— 若須扣繳，實際匯出金額 ≠ `payout_items.amount`，而 ledger 會記為全額消耗 |
+| **`O19`** 懸記終局處置 | **否**（目前 0 筆） | **潛在** —— 一旦出現無法歸屬的已付品項才成為實際阻擋 |
+
+**四者之中沒有任何一項在技術上阻擋「第一筆結算寫入」**（核准時記錄 earning／切片、
+期間關閉、statement、創作者端收益揭露都不依賴它們）。
+
+> ⚠️ **但「技術上不阻擋」不等於「應該先開」。** 開啟旗標即開始累積**真實的創作者應付**，
+> 而那是平台日後必須清償的義務。在 `AD-09` 與稅務扣繳未決前開啟，等於累積
+> **尚無法合規清償**的義務。這是 Owner 的風險判斷，本文件**不代為決定**。
+
 ### 記錄處置**不受** `SETTLEMENT_WRITE_ENABLED` 約束
 
 `POST /admin/settlement/reconciliation/dispositions` 刻意不被旗標擋住 ——
