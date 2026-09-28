@@ -30,7 +30,7 @@
 | 平台目前**完全不持有**任何創作者收款資料 | `payout_items` 僅有 `bank_reference`，語意是**平台自己**的轉帳憑據（例：銀行交易序號），非創作者帳戶資料 |
 | 平台目前**不持有**創作者的姓名、身分證號、地址或任何身分資料 | `users` 欄位僅 `id, email, password_hash, role, created_at, account_status, frozen_at, frozen_by, freeze_reason, unfrozen_at, unfrozen_by` |
 | 平台**已持有**買家側的部分金融資訊 | `manual_payment_proofs` 有 `reported_bank_name`、`reported_amount`、`reported_transfer_at`，以及**匯款截圖檔案**（可能含姓名與帳號末碼） |
-| 付款憑證檔案存放於 **Backblaze B2（美國）**，屬**跨境傳輸** | `Backend/storage/s3PrivateFileStorage.js`；Backblaze 無亞太 region |
+| 付款憑證檔案存放於 **Backblaze B2**（bucket `teaching-platform-prod-files`）。**實際 region／endpoint 無法由 repo 驗證** | `render.yaml`：`PRIVATE_FILE_STORAGE_S3_ENDPOINT` 與 `PRIVATE_FILE_STORAGE_S3_REGION` 皆為 **`sync: false`**（值設於 Render dashboard，**不在 repo**）。repo 另有 canonical 紀錄（`docs/legal-drafts/review-handoff.md` O-20、tracker `DEC-16`）記載「該儲存位於美國」—— 僅得引為**歷史／canonical repo 紀錄**，**未經本輪第一手驗證**，故於本次 preflight **標記為 UNVERIFIED**。⚠️ **在獨立驗證之前，本文件不主張 B2 目前的所在國家。** |
 | 憑證檔案已有嚴格保護 | 私有儲存、非公開 URL、`storage_key`／`checksum` 不得出現在任何 API 回應或 log；讀取僅 `Admin OR 訂單擁有者` |
 | 已有個資請求處理機制 | `privacy_requests`，`request_type` ∈ `access, copy, correction, stop_processing, deletion, withdraw_consent, other` |
 | 已有版本化法律文件與同意紀錄 | `legal_documents`（`document_type` ∈ `terms, privacy, creator_agreement, refund_policy`）＋ `consent_records`（綁定文件版本與 content hash） |
@@ -63,9 +63,25 @@
 
 **跨境與受託處理者**
 
-8. 收款資料**得否**存放於現行的 Backblaze B2（美國）？
-   或**必須**留在境內資料庫（Neon，目前 region 需確認）？
-9. 若涉跨境，告知／同意的**形式與時點**為何？
+8. 收款資料得存放於何處？請就下列兩個**目前實際存在的儲存位置**分別答覆
+   （兩者的事實狀態不同，**請勿合併處理**）：
+   - **(a) production 資料庫 Neon —— 已驗證為 AWS Singapore。**
+     依據：`PRE-07` STEP 2 的 production 驗證紀錄（2026-09-01；Neon Free／AWS Singapore／
+     PostgreSQL 17.11／database `neondb`／user `neondb_owner`）。
+     ⚠️ **因此 Neon 並非我國境內的儲存選項** —— 「把資料留在資料庫」
+     **並不等於**避免跨境傳輸。此項得否作為收款資料的儲存位置？
+   - **(b) 物件儲存 Backblaze B2 —— 目前 production region／endpoint 為 UNVERIFIED。**
+     依據：`render.yaml` 的 `PRIVATE_FILE_STORAGE_S3_ENDPOINT` 與 `_REGION` 皆為
+     `sync: false`（值不在 repo）。repo 既有「位於美國」之記載僅為歷史／canonical 紀錄，
+     **本輪未獨立驗證**。⚠️ **本文件不主張其目前所在國家。**
+     請問：在該事實確認之前，得否將收款資料存放於此？
+     以及**須先確認哪些事實**才能作成判斷？
+9. 若涉跨境，告知／同意的**形式與時點**為何？並請一併答覆：
+   - **(c) 目的地國家是否改變**所需的告知／同意或其他法律處理？
+     若是，請說明不同司法管轄區之間的差異。
+   - **(d)** 若法律上**要求收款資料必須存放於我國境內**，適用的要求為何？
+     ⚠️ 事實提示：**目前已驗證的 Neon production 資料庫（AWS Singapore）不滿足該條件**，
+     因此境內儲存將屬**新增基礎建設需求**，而非既有設定的調整。
 
 **當事人權利**
 
