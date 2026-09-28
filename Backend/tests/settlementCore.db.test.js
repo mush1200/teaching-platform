@@ -171,6 +171,21 @@ async function makePaidOrder(tag, { items, discount = 0, paidAt = "2020-01-01T00
   return orderId;
 }
 
+/**
+ * 關閉期間是**結算寫入**，Batch 2 起受 `SETTLEMENT_WRITE_ENABLED` 約束。
+ * 只改本 process 的環境變數，不碰任何檔案或部署設定。
+ */
+async function withWritesEnabled(fn) {
+  const previous = process.env.SETTLEMENT_WRITE_ENABLED;
+  process.env.SETTLEMENT_WRITE_ENABLED = "true";
+  try {
+    return await fn();
+  } finally {
+    if (previous === undefined) delete process.env.SETTLEMENT_WRITE_ENABLED;
+    else process.env.SETTLEMENT_WRITE_ENABLED = previous;
+  }
+}
+
 async function inTx(fn) {
   const client = await db.pool.connect();
   try {
@@ -826,8 +841,8 @@ test("full lifecycle: close a cycle below threshold, then pay out and consume th
 
   // 用遙遠未來的期間 id，避免與其他測試或真實資料互相干擾；cleanup 會一併刪掉。
   const cycleId = "2099-01";
-  const { statements, payoutItems } = await inTx((client) =>
-    settlement.closeCycle(client, { cycleId })
+  const { statements, payoutItems } = await withWritesEnabled(() =>
+    inTx((client) => settlement.closeCycle(client, { cycleId }))
   );
   const mine = statements.filter((row) => row.creator_id === `${PREFIX}c1`);
   assert.equal(mine.length, 1);
@@ -840,8 +855,10 @@ test("full lifecycle: close a cycle below threshold, then pay out and consume th
   const item = payoutItems.find((row) => row.creator_id === `${PREFIX}c1`);
   assert.equal(Number(item.amount), 400);
 
-  const paid = await inTx((client) =>
-    payout.markPaid(client, { payoutItemId: item.id, bankReference: "TXN-TEST-0001" })
+  const paid = await withWritesEnabled(() =>
+    inTx((client) =>
+      payout.markPaid(client, { payoutItemId: item.id, bankReference: "TXN-TEST-0001" })
+    )
   );
   assert.equal(paid.payoutItem.status, "paid");
   assert.equal(
@@ -858,15 +875,17 @@ test("full lifecycle: close a cycle below threshold, then pay out and consume th
 test("a closed cycle cannot be reopened and its statements cannot be edited", async (t) => {
   t.after(cleanup);
   await cleanup();
-  await inTx((client) => settlement.closeCycle(client, { cycleId: "2099-03" }));
-  await assert.rejects(
-    () => db.query(`UPDATE payout_cycles SET status = 'open' WHERE id = '2099-03'`),
-    /cannot be reopened/
-  );
-  await assert.rejects(
-    () => inTx((client) => settlement.closeCycle(client, { cycleId: "2099-03" })),
-    /already closed/
-  );
+  await withWritesEnabled(async () => {
+    await inTx((client) => settlement.closeCycle(client, { cycleId: "2099-03" }));
+    await assert.rejects(
+      () => db.query(`UPDATE payout_cycles SET status = 'open' WHERE id = '2099-03'`),
+      /cannot be reopened/
+    );
+    await assert.rejects(
+      () => inTx((client) => settlement.closeCycle(client, { cycleId: "2099-03" })),
+      /already closed/
+    );
+  });
 });
 
 test("paying more than the consumable payable fails closed", async (t) => {

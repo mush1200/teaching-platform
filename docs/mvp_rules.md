@@ -3147,7 +3147,37 @@ settlement 的 11 張表 ＋ `orders.refund_window_end` 全部定義在
 只帶 `amount` 會讓被對帳歸屬的交易永久遺失分潤資訊，
 使 `DEC-37` 要求的「創作者已歸屬／平台抽成／未歸屬懸記」三分報表短報平台抽成。
 
-## 21B.9 部分 hold 的金額換算 —— exact-or-fail-closed
+## 21B.9 Admin settlement API（Batch 2）
+
+掛在 `/admin`（`ALLOW_ROOT` 的 `admin` 已涵蓋，**不需新增 proxy 前綴**），
+授權沿用 `requireAuth` ＋ `requireRole("admin")`。
+
+| 端點 | 旗標關閉時 |
+| --- | --- |
+| `GET /admin/settlement/cycles` | ✅ 可用 |
+| `GET /admin/settlement/cycles/:cycleId/preview` | ✅ 可用（**唯讀 shadow**） |
+| `POST /admin/settlement/cycles/:cycleId/close` | ❌ **409** `settlement_writes_disabled` |
+| `GET /admin/settlement/cycles/:cycleId/statements` | ✅ 可用 |
+| `GET /admin/settlement/payout-items` | ✅ 可用 |
+| `GET /admin/settlement/payout-items/:id/evidence` | ✅ 可用 |
+| `POST /admin/settlement/payout-items/:id/mark-paid` | ❌ **409** |
+| `POST /admin/settlement/payout-items/:id/mark-failed` | ❌ **409** |
+| `GET /admin/settlement/report` | ✅ 可用 |
+
+**寫入被拒是 409，不是靜默略過** —— 靜默會讓 Admin 以為期間已經關了。
+
+`mark-paid` 的 `transferReference` 是**平台自己的轉帳憑據**（例如銀行交易序號）。
+**不得**用它存放帳號、分行或任何 `AD-09` 所轄的創作者收款資料；
+撥款通知信同樣**不含任何銀行資訊與稅務／扣繳文字**。
+
+### `DEC-29` §3 終止／停業 override 的觸發來源
+
+repo **沒有** canonical 的「合作關係終止」狀態 ——
+`users.account_status` 只有 `active` / `frozen`，而**凍結是風控動作，不是關係終止**。
+把凍結當成終止會讓被凍結的帳號**拿到錢**，方向剛好相反。
+因此該 override 由 **Admin 於關閉期間時明示提供名單**，不由系統推導。
+
+## 21B.10 部分 hold 的金額換算 —— exact-or-fail-closed
 
 `DEC-31` 只授權兩種取整：品項折扣分攤的 **floor**，與分潤的 **round-half-up**。
 把買方案件金額（`refund_remedy_cases.approved_amount`）換算成創作者 payable 時，

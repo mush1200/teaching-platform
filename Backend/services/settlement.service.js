@@ -30,6 +30,7 @@ const {
   assertCycleId,
   cycleBounds,
   payoutTriggerReason,
+  isSettlementWriteEnabled,
   AGEING_OVERRIDE_CYCLES,
 } = require("../utils/settlementPolicy");
 const {
@@ -201,6 +202,62 @@ async function closedCycleIds(executor) {
   return rows.map((row) => row.id);
 }
 
+/**
+ * **唯讀** shadow：算出關閉某期間**會**產生什麼，但不寫入任何東西。
+ *
+ * 與 `closeCycle` 共用 `computeStatement` —— shadow 與正式路徑算的是**同一段
+ * 程式碼**，不是兩份會漂移的實作。`SETTLEMENT_WRITE_ENABLED` 關閉時，
+ * 這是唯一能執行的結算動作。
+ */
+async function previewCycleClose(executor, { cycleId, terminatingCreatorIds = [] }) {
+  assertCycleId(cycleId);
+  const closed = await closedCycleIds(executor);
+  const creators = await creatorsWithLedger(executor);
+  const terminating = new Set(terminatingCreatorIds);
+
+  const statements = [];
+  for (const creatorId of creators) {
+    const { rows: prior } = await executor.query(
+      `SELECT eligible_balance FROM creator_cycle_statements
+        WHERE creator_id = $1 AND cycle_id < $2
+        ORDER BY cycle_id DESC LIMIT 1`,
+      [creatorId, cycleId]
+    );
+    const statement = await computeStatement(executor, {
+      creatorId,
+      cycleId,
+      closedCycleIds: closed,
+      terminating: terminating.has(creatorId),
+      openingBalance: prior.length > 0 ? Number(prior[0].eligible_balance) : 0,
+    });
+    statements.push({
+      creatorId,
+      openingBalance: statement.openingBalance,
+      earnings: statement.earnings,
+      adjustments: statement.adjustments,
+      heldAmount: statement.heldAmount,
+      eligibleBalance: statement.eligibleBalance,
+      ageingQualified: statement.ageingQualified,
+      ageingCyclesBefore: statement.ageingCyclesBefore,
+      ageingCyclesAfter: statement.ageingCyclesAfter,
+      payoutTriggeredReason: statement.payoutTriggeredReason,
+      wouldCreatePayoutItem: statement.payoutTriggeredReason !== "none",
+      eligibleSliceCount: statement.eligibleSlices.length,
+    });
+  }
+
+  return {
+    cycleId,
+    cutoffAt: cycleBounds(cycleId).cutoffAt,
+    payoutDueAt: cycleBounds(cycleId).payoutDueAt,
+    written: false,
+    statements,
+    wouldPayTotal: statements
+      .filter((s) => s.wouldCreatePayoutItem)
+      .reduce((sum, s) => sum + s.eligibleBalance, 0),
+  };
+}
+
 /** 有 ledger 分錄的全部創作者。 */
 async function creatorsWithLedger(executor) {
   const { rows } = await executor.query(
@@ -222,6 +279,16 @@ async function creatorsWithLedger(executor) {
  */
 async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorIds = [] }) {
   assertCycleId(cycleId);
+  if (!isSettlementWriteEnabled()) {
+    // `D11`／設計 §21：旗標關閉時**不寫入任何東西**。期間關閉是結算寫入，
+    // 不是唯讀查詢，因此這裡 fail closed 而不是靜默略過 ——
+    // 靜默略過會讓呼叫端以為期間已經關了。唯讀的替代路徑是 `previewCycleClose`。
+    const err = new Error(
+      "settlement writes are disabled (SETTLEMENT_WRITE_ENABLED); use previewCycleClose for a read-only shadow"
+    );
+    err.code = "SETTLEMENT_WRITES_DISABLED";
+    throw err;
+  }
   await ensureCycle(client, cycleId);
 
   const { rows: cycleRows } = await client.query(
@@ -326,6 +393,7 @@ async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorI
 
 module.exports = {
   loadCreatorHistory,
+  previewCycleClose,
   // 推導規則本身住在 `utils/settlementAgeing.js`（純函式、無 db 相依）；
   // 這裡一併 re-export，讓呼叫端只需要認得 settlement service 一個入口。
   isLeaf,

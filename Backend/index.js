@@ -18,6 +18,7 @@ const complaintsRouter = require("./routes/complaints");
 const reportsRouter = require("./routes/reports");
 const adminRouter = require("./routes/admin");
 const adminActivityLogsRouter = require("./routes/adminActivityLogs");
+const adminSettlementRouter = require("./routes/adminSettlement");
 const adminLegalDocumentsRouter = require("./routes/adminLegalDocuments");
 const adminPrivacyRequestsRouter = require("./routes/adminPrivacyRequests");
 const legalRouter = require("./routes/legal");
@@ -113,6 +114,8 @@ app.use("/reports", reportsRouter);
 app.use("/payment", paymentRouter);
 app.use("/admin", adminRouter);
 app.use("/admin", adminActivityLogsRouter);
+// PRE-18 結算：唯讀端點恆可用；寫入端點受 SETTLEMENT_WRITE_ENABLED 約束（預設關閉）。
+app.use("/admin", adminSettlementRouter);
 app.use("/admin", adminLegalDocumentsRouter);
 // 個資權利請求（`OPS-04`）—— **獨立於 /admin/complaints 的 domain**，
 // 不是消費申訴的一種類型（`DEC-LEGAL-13`）。

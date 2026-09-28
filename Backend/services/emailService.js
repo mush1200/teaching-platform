@@ -329,9 +329,72 @@ async function sendMaterialChangesRequestedEmail(materialId) {
   }
 }
 
+/**
+ * 撥款完成通知（`DEC-20` C4）。
+ *
+ * ## 三個刻意的省略
+ *
+ *   1. **不含任何銀行資訊** —— 收款目的地屬 `AD-09`，尚未決定，也不在本信範圍。
+ *      `bank_reference` 是平台自己的轉帳憑據，**不寄給創作者**。
+ *   2. **不含任何稅務／扣繳文字** —— 那是會計師事項（`AD-10` 與稅務未決），
+ *      在信裡寫任何一句都等於替未決事項下結論。
+ *   3. **不重算任何金額** —— 只讀 `payout_items.amount`，那是已定案的事實。
+ *
+ * ## 通知狀態會被持久化
+ *
+ * 寄送成功後寫入 `payout_items.notified_at`。它**只記錄「通知已送出」**，
+ * 不是撥款狀態的一部分 —— 撥款早在通知之前就已經 commit，
+ * 寄信失敗**不得**、也無法回滾它（本函式在交易之外呼叫）。
+ */
+async function sendPayoutPaidEmail(payoutItemId) {
+  const { rows } = await db.query(
+    `SELECT p.id, p.amount, p.cycle_id, p.paid_at, u.email
+       FROM payout_items p
+       JOIN users u ON u.id = p.creator_id
+      WHERE p.id = $1 AND p.status = 'paid'`,
+    [payoutItemId]
+  );
+  if (rows.length === 0) return;
+  const item = rows[0];
+  if (!item.email) return;
+
+  const html = emailCard(
+    "創作者撥款已完成",
+    `<p>結算期間：${item.cycle_id}</p>
+     <p>撥款金額：NT$${Number(item.amount)}</p>
+     <p>撥款時間：${new Date(item.paid_at).toLocaleString("zh-TW")}</p>
+     <p>款項已依您提供的收款方式匯出，實際入帳時間依銀行作業而定。</p>
+     <p><a href="${appBaseUrl()}/creator/earnings" style="color:#5b45d9;font-weight:700;">查看撥款紀錄</a></p>`
+  );
+
+  await sendEmailWithLog({
+    targetType: "payout_item",
+    targetId: item.id,
+    to: item.email,
+    subject: "【教材平台】創作者撥款已完成",
+    html,
+    metaType: "payout_paid",
+  });
+
+  // `sendEmailWithLog` 自己吞掉寄送失敗，因此這裡確認一次是否真的寄出了。
+  const { rows: sent } = await db.query(
+    `SELECT 1 FROM activity_logs
+      WHERE target_type = 'payout_item' AND target_id = $1 AND action = 'order_email_sent'
+      LIMIT 1`,
+    [item.id]
+  );
+  if (sent.length > 0) {
+    await db.query(
+      `UPDATE payout_items SET notified_at = NOW() WHERE id = $1 AND notified_at IS NULL`,
+      [item.id]
+    );
+  }
+}
+
 module.exports = {
   verifySmtpConnection,
   sendSmtpTestEmail,
+  sendPayoutPaidEmail,
   sendOrderCreatedEmail,
   sendProofUploadedEmail,
   sendPaymentApprovedEmail,
