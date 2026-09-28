@@ -173,7 +173,7 @@ Invoke-RestMethod -Uri "https://teaching-platform-backend.onrender.com/admin/set
 
 ---
 
-## 3. 營運角色指派（G2-O，**待 Owner 填寫**）
+## 3. 營運角色指派（G2-O）—— **已由 Owner 指派完成**
 
 **🔒 2026-09-29 Owner 已指派完成。營運人力為兩位真實人員。**
 
@@ -204,45 +204,137 @@ Owner **得選擇**將 approver 改指派給 Backup。**本文件不代為變更
 
 ---
 
-## 4. 營運控制採用檢查表（**待 Owner 勾選**）
+### 3.1 First-cycle-close approver —— 兩個選項（**Owner 裁示，本文件不選**）
 
-> ⚠️ **未經 Owner 明示勾選者一律視為 NOT ADOPTED。**
-> 程式碼支援不等於控制存在。
+查證結果：**沒有任何 `DEC-*`、政策或外部規則要求**這兩個角色由不同人擔任
+（詳見 `controls` §1A.1）。因此以下兩者**皆為合規**。
 
-每一項控制都必須有**狀態**、**負責人**與**依據文件**。
-依據欄已預填（工程端可確認的事實）；**狀態與負責人由 Owner 填寫。**
+| | **OPTION A** approver ＝ Owner（現況） | **OPTION B** approver ＝ 事業夥伴 |
+| --- | --- | --- |
+| 營運效果 | 首次關閉由 Owner 自行核准後執行，最快 | 需等夥伴確認後才能關閉，多一個往返 |
+| 稽核效果 | `activity_logs` 只會有一個 `actor_id`；「核准」與「執行」在軌跡上無法分辨 | 核准與執行由**不同 `actor_id`** 留痕，事後可分辨 |
+| 雙人覆核 | ❌ 無 | ✅ 有（針對首次期間關閉這一個動作） |
+| 是否改變 G2-O 通過條件 | ❌ 否 | ❌ 否 —— 條件 5 只要求「已指派」 |
+| 是否需要程式／存取變更 | ❌ 否 | ⚠️ **需要** —— 夥伴必須先完成 §3.2 的 onboarding 並擁有自己的 admin 帳號 |
+
+> 若選 B，工程端將**機械性地**更新兩份文件的 approver 欄位，不另做其他變更。
+
+### 3.2 Backup operator onboarding（**全部 INCOMPLETE**）
+
+**狀態規則：`ASSIGNED` → `ONBOARDING IN PROGRESS` → `OPERATIONALLY READY`。
+第 1～10 項全部通過之前，Backup 不得被視為 `OPERATIONALLY READY`。**
+
+**目前狀態：`ASSIGNED`（尚未開始 onboarding）。**
+
+| # | 項目 | 狀態 | 需要的證據 | 誰執行 | 需改程式？ | 需 production 動作？ | 阻擋就緒？ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 取得 scoped Admin 帳號 | ❌ INCOMPLETE | 帳號已建立且可登入（**不揭露密碼**） | Owner 執行 `npm run create-admin` | 否 | ✅ **是**（建立 production 帳號） | ✅ 是 |
+| 2 | 存取限縮於結算／Admin 必要功能 | ❌ INCOMPLETE | — | — | 否 | 否 | ⚠️ **技術上無法達成**，見下 |
+| 3 | 已閱讀結算營運 runbook | ❌ INCOMPLETE | 夥伴書面確認已讀 `controls` §2–§8 | 夥伴 | 否 | 否 | ✅ 是 |
+| 4 | 已閱讀緊急停用程序 | ❌ INCOMPLETE | 書面確認已讀 `controls` §7 | 夥伴 | 否 | 否 | ✅ 是 |
+| 5 | 已閱讀期間關閉檢查表 | ❌ INCOMPLETE | 書面確認已讀 `controls` §5 | 夥伴 | 否 | 否 | ✅ 是 |
+| 6 | 已閱讀撥款凍結規則 | ❌ INCOMPLETE | 書面確認已讀 `controls` §6 | 夥伴 | 否 | 否 | ✅ 是 |
+| 7 | 已閱讀事故升級程序 | ❌ INCOMPLETE | 書面確認已讀 `controls` §8 | 夥伴 | 否 | 否 | ✅ 是 |
+| 8 | 理解憑證處理規則 | ❌ INCOMPLETE | 書面確認 | 夥伴 | 否 | 否 | ✅ 是 |
+| 9 | **未共用密碼**（使用自己的帳號） | ❌ INCOMPLETE | 第 1 項完成即滿足；Owner 確認未轉交自己的憑證 | Owner ＋ 夥伴 | 否 | 否 | ✅ **是（硬性）** |
+| 10 | **未將 production secret 寫入文件** | ❌ INCOMPLETE | Owner 確認 | Owner | 否 | 否 | ✅ **是（硬性）** |
+
+> ⚠️ **第 2 項在現行架構下無法以技術達成。**
+> `requireRole` 只做角色字串比對，**沒有 permission／scope／endpoint 層級授權**，
+> 因此一個 admin 帳號即授予全部 **72 個** admin 端點（含 4 個結算寫入端點）。
+> 該項只能以**營運紀律 ＋ 事後稽核**滿足（詳見 `controls` §1B.1）。
+> **本輪不修改 RBAC。**
+>
+> ⚠️ **第 9、10 項是硬性要求**：`activity_logs` 以 `actor_id` 辨識行為人，
+> 共用登入會讓整套稽核失去分辨能力。
+
+## 4. 營運控制 —— 負責人對應與採用
+
+### 4.0 ⚠️ 兩件不同的事
+
+**指定負責人 ≠ 採用控制。** 下表的「建議負責人」是工程端依 §3 的角色職責**機械對應**的結果，
+**不代表該控制已被採用**。採用一律以 §4.2 的四個 bundle 為準。
+
+### 4.1 17 項控制的建議負責人對應
+
+| # | 控制 | 建議負責人 | 依據 |
+| --- | --- | --- | --- |
+| 1 | payout review checklist | Primary operator | controls §1A 職責 |
+| 2 | cycle-close checklist | Primary operator（執行）＋ First-cycle approver（首次核准） | controls §5 |
+| 3 | payout deadline calendar | Primary operator | controls §5A(1) |
+| 4 | payout due-date alert / reminder | Primary operator（Backup 代理期間承接） | controls §1C.3 |
+| 5 | weekly exception review | Primary operator | controls §5A(4) |
+| 6 | reconciliation review | Primary operator | controls §8（suspense 列） |
+| 7 | first-hour monitoring | First-24-hour monitoring owner | controls §3 |
+| 8 | first-24-hour monitoring | First-24-hour monitoring owner | controls §4 |
+| 9 | emergency flag-off procedure | **Emergency-disable authority** | controls §7 |
+| 10 | invariant incident response | Incident owner | controls §8 |
+| 11 | duplicate earning response | Incident owner | controls §8 |
+| 12 | incorrect-ledger correction response | Incident owner | controls §8 ⚠️ 無 HTTP 路由 |
+| 13 | accidental cycle-close response | Incident owner ＋ First-cycle approver | controls §8 ⚠️ 期間不可重開 |
+| 14 | accidental payout-item response | Incident owner | controls §8（mark-failed 可用） |
+| 15 | accidental mark-paid response | **Owner**（非僅 incident owner） | controls §8 ⚠️ 無系統回復機制 |
+| 16 | notification failure response | Primary operator | controls §8 |
+| 17 | payout freeze until Gate 3 PASS | **Owner** | controls §6 |
+
+**歸屬明確者 15 項。以下 2 項的歸屬在現行角色下不唯一，需 Owner 裁示：**
+
+| # | 控制 | 為什麼不唯一 |
+| --- | --- | --- |
+| 2 | cycle-close checklist | 執行與核准目前同為 Owner（見 §3 的重疊說明）；若 approver 改為 Backup，本項會分屬兩人 |
+| 13 | accidental cycle-close response | 同上 —— 取決於誰核准了那次關閉 |
+
+> 兩項皆**不阻擋** bundle 採用：無論 approver 由誰擔任，控制內容本身不變。
+
+### 4.2 採用 bundle（**四個選擇，非 17 個**）
+
+> 每個 bundle 只有在其**全部**成員控制都已有書面內容時才被提出 ——
+> 不存在「採用了卻沒有文件」的成員。
 
 ```text
-#   控制                                  狀態                        負責人        依據
-                                          A=ADOPTED N=NOT ADOPTED X=N/A
---------------------------------------------------------------------------------------------
- 1  payout review checklist               [ ]A [ ]N [ ]X            __________    controls §4
- 2  cycle-close checklist                 [ ]A [ ]N [ ]X            __________    controls §5
- 3  payout deadline calendar              [ ]A [ ]N [ ]X            __________    controls §5A(1)
- 4  payout due-date alert / reminder      [ ]A [ ]N [ ]X            __________    controls §5A(2)
- 5  weekly exception review               [ ]A [ ]N [ ]X            __________    controls §5A(4)
- 6  reconciliation review                 [ ]A [ ]N [ ]X            __________    controls §8 (suspense)
- 7  first-hour monitoring                 [ ]A [ ]N [ ]X            __________    controls §3
- 8  first-24-hour monitoring              [ ]A [ ]N [ ]X            __________    controls §4
- 9  emergency flag-off procedure          [ ]A [ ]N [ ]X            __________    controls §7
-10  invariant incident response           [ ]A [ ]N [ ]X            __________    controls §8
-11  duplicate earning response            [ ]A [ ]N [ ]X            __________    controls §8
-12  incorrect-ledger correction response  [ ]A [ ]N [ ]X            __________    controls §8 ⚠️無 HTTP 路由
-13  accidental cycle-close response       [ ]A [ ]N [ ]X            __________    controls §8 ⚠️期間不可重開
-14  accidental payout-item response       [ ]A [ ]N [ ]X            __________    controls §8（mark-failed 可用）
-15  accidental mark-paid response         [ ]A [ ]N [ ]X            __________    controls §8 ⚠️無系統回復機制
-16  notification failure response         [ ]A [ ]N [ ]X            __________    controls §8
-17  payout freeze until Gate 3 PASS       [ ]A [ ]N [ ]X            __________    controls §6
+BUNDLE A —— 例行結算作業
+  含：payout review checklist / cycle-close checklist /
+      weekly exception review / reconciliation review
+  文件：controls §4、§5、§5A(4)、§8
+  負責人：Primary operator（首次關閉另需 approver 核准）
+
+  [ ] ADOPT        [ ] DO NOT ADOPT
+
+
+BUNDLE B —— 期限與監控
+  含：payout deadline calendar / payout due-date reminder /
+      first-hour monitoring / first-24-hour monitoring
+  文件：controls §3、§4、§5A
+  負責人：Primary operator（期限）＋ First-24-hour monitoring owner（監控）
+  ⚠️ 期限部分為人工控制，payout_due_at 無任何程式消費端
+
+  [ ] ADOPT        [ ] DO NOT ADOPT
+
+
+BUNDLE C —— 事故應變
+  含：emergency flag-off / invariant incident / duplicate earning /
+      incorrect ledger / accidental cycle close / accidental payout item /
+      accidental mark-paid / notification failure
+  文件：controls §7、§8（10 情境表）
+  負責人：Incident owner（誤 mark-paid 升級至 Owner）
+  ⚠️ 含四類「無 HTTP 路由、需一次性維運操作」的更正路徑，
+     以及一類「無系統回復機制」（誤 mark-paid）
+
+  [ ] ADOPT        [ ] DO NOT ADOPT
+
+
+BUNDLE D —— 撥款安全
+  含：payout freeze until Gate 3 PASS
+  文件：controls §6
+  負責人：Owner
+  ⚠️ 無技術強制 —— 旗標開啟後任何 admin 皆可呼叫 mark-paid，系統不檢查 Gate 3
+
+  [ ] ADOPT        [ ] DO NOT ADOPT
 ```
 
-> ⚠️ **未經 Owner 明示勾選者一律視為 NOT ADOPTED。**
-> 程式碼支援不等於控制存在 —— 沒有負責人的控制在事故當下等於不存在。
+> **未經明示 ADOPT 者一律視為 NOT ADOPTED。**
 
-各控制的實際內容見 `pre-18-settlement-operating-controls-2026-09-29.md` §1A、§2–§8。
-
-### 4.1 立即停用旗標的停止條件（採用第 9 項即等於採用本清單）
-
-下列任一情形出現，**Emergency-disable authority 得在不需額外核可下立即把旗標關回 OFF**：
+### 4.3 立即停用旗標的停止條件（採用 BUNDLE C 即等於採用本清單）
 
 1. 任一 invariant 違反；
 2. 重複 earning 候選出現；
@@ -283,25 +375,32 @@ Owner **得選擇**將 approver 改指派給 Backup。**本文件不代為變更
 
 ## 6. G2-O 轉為 PASS 的最低條件
 
-**全部滿足才算 PASS。皆為人工控制，不需要任何程式碼變更。**
+**全部滿足才算 PASS。除 Backup 帳號建立外，皆為人工控制，不需要任何程式碼變更。**
 
-| # | 條件 | 狀態 | 證據 |
+| 群組 | # | 條件 | 狀態 |
 | --- | --- | --- | --- |
-| 1 | Primary operator 已指派 | ✅ **完成** | §3 ＝ Owner |
-| 2 | Backup operator 已指派 | ✅ **完成** | §3 ＝ Owner 的事業夥伴 |
-| 3 | Incident owner 已指派 | ✅ **完成** | §3 ＝ Owner |
-| 4 | Monitoring owner 已指派 | ✅ **完成** | §3 ＝ Owner |
-| 5 | First-cycle approver 已指派 | ✅ **完成** | §3 ＝ Owner |
-| 6 | Emergency-disable authority 已指派 | ✅ **完成** | §3 ＝ Owner |
-| 7 | **Backup operator 已完成 onboarding 並就緒** | ❌ **未完成** | controls §1B 的 10 項全部待確認 |
-| 8 | 撥款凍結規則已採用 | ❌ **未採用** | §4 第 17 列 |
-| 9 | 撥款期限提醒已採用 | ❌ **未採用** | §4 第 3、4 列 ＋ §5 方案 |
-| 10 | 監控檢查表已採用 | ❌ **未採用** | §4 第 7、8 列 |
-| 11 | 緊急停用程序已採用 | ❌ **未採用** | §4 第 9 列 |
-| 12 | 事故升級程序已採用 | ❌ **未採用** | §4 第 10–16 列 |
+| **角色** | 1 | Primary operator 已指派 | ✅ **完成** |
+| | 2 | Backup operator 已指派 | ✅ **完成** |
+| | 3 | Incident owner 已指派 | ✅ **完成** |
+| | 4 | First-24-hour monitoring owner 已指派 | ✅ **完成** |
+| | 5 | First-cycle-close approver 已指派 | ✅ **完成** |
+| | 6 | Emergency-disable authority 已指派 | ✅ **完成** |
+| **Backup** | 7 | Backup **operationally ready**（§3.2 的 10 項） | ❌ **未完成** |
+| **控制** | 8 | BUNDLE A 例行作業已採用 | ❌ **未採用** |
+| | 9 | BUNDLE B 期限與監控已採用 | ❌ **未採用** |
+| | 10 | BUNDLE C 事故應變已採用 | ❌ **未採用** |
+| | 11 | BUNDLE D 撥款安全已採用 | ❌ **未採用** |
+| **流程** | 12 | 撥款提醒流程**實際運作中** | ❌ **未啟動** |
+| | 13 | 緊急停用程序已採用 | 併入 BUNDLE C |
+| | 14 | 事故升級程序已採用 | 併入 BUNDLE C |
+| | 15 | 交接程序已書面化 | ✅ **完成**（controls §1C／§1C.1–3） |
+| | 16 | Gate 3 前的撥款凍結**實際生效中** | 併入 BUNDLE D |
 
-> **六個角色都有名字，但 G2-O 仍為 FAIL** ——
-> 條件 7～12 尚未滿足。**不得**僅因指派完成即視為 PASS。
+**尚缺：條件 7～12（Backup 就緒 ＋ 四個 bundle ＋ 提醒流程啟動）。**
+
+> ⚠️ **不得因為六個角色都有名字就判 PASS。**
+> 也**不得**放寬任何金流安全要求以加速通過 ——
+> 條件 11（BUNDLE D）與 16 是本清單中唯一直接防止「在 Gate 3 未通過時付錢」的項目。
 
 ---
 
@@ -331,13 +430,45 @@ GATE 2 —— 外部後果認知確認
 
 ---
 
-## 8. Gate 2 子閘門現況
+## 8. 剩餘的 Owner 輸入（**全部非 Owner 工作已窮盡**）
+
+以下是**唯一**還需要 Owner 的事項。其餘全部已機械完成。
+
+```text
+OWNER INPUT 1 —— First-cycle-close approver（見 §3.1）
+  [ ] Owner（現況，不需任何額外動作）
+  [ ] 事業夥伴（需先完成 §3.2 onboarding）
+
+OWNER INPUT 2 —— Backup onboarding（見 §3.2）
+  [ ] COMPLETE（10 項全部通過，請附證據）
+  [ ] NOT COMPLETE
+
+OWNER INPUT 3 —— 控制採用（見 §4.2，四個 bundle）
+  BUNDLE A 例行結算作業   [ ] ADOPT   [ ] DO NOT ADOPT
+  BUNDLE B 期限與監控     [ ] ADOPT   [ ] DO NOT ADOPT
+  BUNDLE C 事故應變       [ ] ADOPT   [ ] DO NOT ADOPT
+  BUNDLE D 撥款安全       [ ] ADOPT   [ ] DO NOT ADOPT
+
+OWNER INPUT 4 —— G2-E 認知確認（見 §7）
+  [ ] ACCEPT   [ ] DO NOT ACCEPT
+
+OWNER INPUT 5 —— production 量測（見 §1）
+  執行指令 A ＋ B，回傳兩份 JSON（**不要回傳任何憑證**）
+
+OWNER INPUT 6 —— 最終 Gate 2 決定
+  [ ] KEEP OFF   [ ] ENABLE
+  ⚠️ 在 G2-D／G2-O／G2-E 全部 PASS 之前，**不應**提出此項
+```
+
+---
+
+## 9. Gate 2 子閘門現況
 
 | 子閘門 | 狀態 | 轉為 PASS 所需 |
 | --- | --- | --- |
 | **G2-T** 技術 | ✅ **PASS** | — |
 | **G2-D** 曝險已掌握 | ⏸ **WAITING FOR AGGREGATE PRODUCTION MEASUREMENT** | Owner 執行 §1 的指令 A ＋ B 並貼回輸出，取得 §2.1 的 17 項 |
-| **G2-O** 營運控制 | ⏸ **WAITING FOR BACKUP ONBOARDING / CONTROL ADOPTION**（角色指派已完成） | §6 的條件 7～12：Backup onboarding ＋ 5 組控制採用 |
+| **G2-O** 營運控制 | ⏸ **WAITING FOR BACKUP ONBOARDING / CONTROL ADOPTION**（6 個角色**已指派完成**） | §6 條件 7～12：Backup 就緒 ＋ 四個 bundle ＋ 提醒流程啟動 |
 | **G2-E** 外部後果認知 | ⏸ **WAITING FOR OWNER ACKNOWLEDGEMENT** | §7 已簽署 |
 | **G2-OWNER** | ⏸ **PENDING** | Owner 明示選擇 KEEP OFF 或 ENABLE |
 
