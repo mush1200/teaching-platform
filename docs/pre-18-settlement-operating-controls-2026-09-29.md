@@ -74,22 +74,66 @@
 
 ## 1A. 六個角色的職責與交接（**姓名由 Owner 於 clearance 文件 §3 指派，本文件不代填**）
 
-> **候選人盤點結果**：repo 文件中唯一被指名的營運行為者是泛稱的「**Owner**」
-> （`由維運` 11 處、`由 Owner 執行` 3 處等）。
-> **沒有任何具名人員，也沒有任何撥款專屬角色。**
-> 因此以下六個角色**全部是新設**，不得由既有文件推定。
+> **2026-09-29 Owner 指派完成。營運人力為【兩位真實人員】** ——
+> Primary 為 Owner 本人，**Backup 為 Owner 的事業夥伴（真實的第二人）**。
+> **Backup 不是「同一人兜底」**，而是在 Primary 不可用時可實際接手的另一個人。
 
-| 角色 | 職責 | 交接期望 |
+| 角色 | **指派** | 職責 | 交接期望 |
+| --- | --- | --- | --- |
+| **Primary settlement operator** | **Owner** | 執行期間關閉前的 preview 比對；維護撥款期限日曆；每週檢視 pending payout items；對帳 disposition | 不可用時**必須**明示移交給 Backup，並轉移日曆事項 |
+| **Backup settlement operator** | **Owner 的事業夥伴** | Primary 不可用期間承接其全部職責 | 需具備履行職責所需的 Admin 權限與文件存取（見 §1B） |
+| **Settlement incident owner** | **Owner** | 判定是否觸發 §8 的停止條件；決定是否緊急停用旗標；主導事故取證與記錄 | 需能在營業時間內被聯繫到 |
+| **First-24-hour monitoring owner** | **Owner** | 旗標啟用後首 24 小時執行 §3／§4 檢查表並記錄結果 | 僅限啟用後首 24 小時；之後併入 Primary 的每週檢視 |
+| **First-cycle-close approver** | **Owner** | 第一次期間關閉前**明示核准**；確認 Gate 3 狀態與撥款期限提醒已建立 | 見下方 ⚠️ |
+| **Emergency-disable authority** | **Owner** | 有權在無需額外核可下立即把 `SETTLEMENT_WRITE_ENABLED` 關回 OFF | **必須**有 Render dashboard 存取權 |
+
+> ⚠️ **一項需 Owner 裁示的重疊（不阻擋 G2-O）**
+>
+> 本文件先前寫有「**First-cycle-close approver 與實際執行關閉者不應為同一人**」。
+> **該句的來源是本專案上一輪（commit `7d98c75`）由工程端寫下的建議，
+> 並非任何既有政策、法規或 `DEC-*` 要求。**
+>
+> 現行指派中 Primary operator 與 First-cycle-close approver **同為 Owner**，
+> 因此「明示核准」會由執行者自行給出。
+>
+> 既然 Backup 是真實的第二人，**Owner 可選擇**把
+> First-cycle-close approver 改指派給 Backup 以恢復雙人覆核。
+> **本文件不代為變更，也不把它列為 G2-O 的必要條件** ——
+> 僅據實指出該建議與現行指派不一致。
+
+## 1B. Backup operator 的就緒要求
+
+**狀態：`ASSIGNED / NOT YET OPERATIONALLY READY`**
+
+> ⚠️ **已指名 ≠ 已就緒。** 下列項目全部完成並由 Owner 明示確認之前，
+> Backup **不得**被視為可獨立承接職責，G2-O 也**不得**因為「六個角色都有名字」而 PASS。
+
+| # | 項目 | 完成 |
 | --- | --- | --- |
-| **Primary settlement operator** | 執行期間關閉前的 preview 比對；維護撥款期限日曆；每週檢視 pending payout items；對帳 disposition | 休假／不可用時**必須**明示移交給 Backup，並轉移日曆事項 |
-| **Backup settlement operator** | Primary 不可用期間承接其全部職責 | 需具備與 Primary 相同的 Admin 權限與文件存取 |
-| **Settlement incident owner** | 判定是否觸發 §8 的停止條件；決定是否緊急停用旗標；主導事故取證與記錄 | 需能在營業時間內被聯繫到；不可與執行操作者為同一人時最佳，但允許兼任 |
-| **First-24-hour monitoring owner** | 旗標啟用後首 24 小時執行 §3／§4 檢查表並記錄結果 | 僅限啟用後首 24 小時；之後併入 Primary 的每週檢視 |
-| **First-cycle-close approver** | 第一次期間關閉前**明示核准**；確認 Gate 3 狀態與撥款期限提醒已建立 | 不得由執行關閉的同一人自行核准 |
-| **Emergency-disable authority** | 有權在無需額外核可下立即把 `SETTLEMENT_WRITE_ENABLED` 關回 OFF | **必須**有 Render dashboard 存取權；建議與 incident owner 同一人或其上級 |
+| 1 | 已取得符合角色所需的授權存取（Admin 帳號） | [ ] |
+| 2 | 存取範圍**限縮於**結算／Admin 必要功能，非全權 | [ ] |
+| 3 | 已閱讀本結算營運 runbook（§2–§8） | [ ] |
+| 4 | 已閱讀緊急停用程序（§7） | [ ] |
+| 5 | 已閱讀期間關閉檢查表（§5） | [ ] |
+| 6 | 已閱讀撥款凍結規則（§6） | [ ] |
+| 7 | 已閱讀事故升級程序（§8） | [ ] |
+| 8 | 已理解憑證處理規則 | [ ] |
+| 9 | **未共用任何密碼**（Backup 使用自己的帳號） | [ ] |
+| 10 | **未將任何 production secret 複製進文件或訊息** | [ ] |
 
-> ⚠️ **一人可兼多角**，由 Owner 決定；但 **First-cycle-close approver 與實際執行關閉者不應為同一人**
-> —— 那會讓「明示核准」失去意義。**此為建議，非技術強制。**
+> 第 9、10 項不是形式要求：平台目前唯一的 Admin 帳號由 `create-admin` CLI 建立，
+> 若以共用密碼讓第二人使用，`activity_logs` 的 `actor_id` 將**無法分辨是誰做的**，
+> 而那正是本系統全部稽核能力的基礎。
+
+## 1C. 交接規則（Primary 不可用時）
+
+1. **Backup 得執行**已核准的營運結算職責（§1A 所列 Primary 職責）；
+2. **Backup 必須遵循與 Primary 完全相同的 runbook**，無簡化版本；
+3. **Gate 3 的撥款凍結規則同樣適用** —— Gate 3 仍為 BLOCKED 時，
+   **不得執行任何真實撥款**；
+4. **不得**在適用的撥款閘門尚未通過時執行 `mark-paid`；
+5. **緊急停用**僅得依 §7 的書面程序為之，不得臨場自創步驟；
+6. 交接與交還**都必須**留下紀錄（日期、範圍、期間內執行過的動作）。
 
 ## 2. 啟用 runbook
 

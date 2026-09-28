@@ -175,21 +175,32 @@ Invoke-RestMethod -Uri "https://teaching-platform-backend.onrender.com/admin/set
 
 ## 3. 營運角色指派（G2-O，**待 Owner 填寫**）
 
+**🔒 2026-09-29 Owner 已指派完成。營運人力為兩位真實人員。**
+
 ```text
-PRE-18 SETTLEMENT —— 營運角色指派
+PRE-18 SETTLEMENT —— 營運角色指派（已填）
 
-Primary settlement operator   : ____________________
-Backup settlement operator    : ____________________
-Incident owner                : ____________________
-First-24-hour monitoring owner: ____________________
-First-cycle-close approver    : ____________________
-Emergency-disable authority   : ____________________
+Primary settlement operator   : Owner
+Backup settlement operator    : Owner 的事業夥伴（真實的第二人）
+Settlement incident owner     : Owner
+First-24-hour monitoring owner: Owner
+First-cycle-close approver    : Owner
+Emergency-disable authority   : Owner
 
-生效日：____________    指派人：____________
+指派日：2026-09-29    指派人：Owner
 ```
 
-> 同一人可兼任多角，但**每一欄都必須有名字** ——
-> 空白等於事故當下沒有人負責。
+⚠️ **Backup 不是「同一人兜底」** —— 是可在 Primary 不可用時實際接手的另一個人。
+
+⚠️ **Backup 目前狀態為 `ASSIGNED / NOT YET OPERATIONALLY READY`**：
+已指名不等於已就緒，10 項 onboarding 要求見
+`pre-18-settlement-operating-controls-2026-09-29.md` §1B。
+
+⚠️ **一項重疊需 Owner 裁示（不阻擋 G2-O）**：Primary operator 與
+First-cycle-close approver 同為 Owner，故「明示核准」將由執行者自行給出。
+該分工建議的來源是**工程端於 commit `7d98c75` 寫下的建議**，
+**非任何既有政策或 `DEC-*` 要求**。既然 Backup 是真實第二人，
+Owner **得選擇**將 approver 改指派給 Backup。**本文件不代為變更。**
 
 ---
 
@@ -274,19 +285,23 @@ Emergency-disable authority   : ____________________
 
 **全部滿足才算 PASS。皆為人工控制，不需要任何程式碼變更。**
 
-| # | 條件 | 證據 |
-| --- | --- | --- |
-| 1 | Primary operator 已指派 | §3 已填 |
-| 2 | Backup operator 已指派 | §3 已填 |
-| 3 | Incident owner 已指派 | §3 已填 |
-| 4 | Monitoring owner 已指派 | §3 已填 |
-| 5 | First-cycle approver 已指派 | §3 已填 |
-| 6 | Emergency-disable authority 已指派 | §3 已填 |
-| 7 | 撥款凍結規則已採用 | §4 該列 ADOPTED |
-| 8 | 撥款期限提醒已採用 | §4 該列 ADOPTED ＋ §5 方案就位 |
-| 9 | 監控檢查表已採用 | §4 first-hour ＋ first-24-hour 皆 ADOPTED |
-| 10 | 緊急停用程序已採用 | §4 該列 ADOPTED |
-| 11 | 事故升級程序已採用 | §4 invariant／duplicate／mark-paid 三列皆 ADOPTED |
+| # | 條件 | 狀態 | 證據 |
+| --- | --- | --- | --- |
+| 1 | Primary operator 已指派 | ✅ **完成** | §3 ＝ Owner |
+| 2 | Backup operator 已指派 | ✅ **完成** | §3 ＝ Owner 的事業夥伴 |
+| 3 | Incident owner 已指派 | ✅ **完成** | §3 ＝ Owner |
+| 4 | Monitoring owner 已指派 | ✅ **完成** | §3 ＝ Owner |
+| 5 | First-cycle approver 已指派 | ✅ **完成** | §3 ＝ Owner |
+| 6 | Emergency-disable authority 已指派 | ✅ **完成** | §3 ＝ Owner |
+| 7 | **Backup operator 已完成 onboarding 並就緒** | ❌ **未完成** | controls §1B 的 10 項全部待確認 |
+| 8 | 撥款凍結規則已採用 | ❌ **未採用** | §4 第 17 列 |
+| 9 | 撥款期限提醒已採用 | ❌ **未採用** | §4 第 3、4 列 ＋ §5 方案 |
+| 10 | 監控檢查表已採用 | ❌ **未採用** | §4 第 7、8 列 |
+| 11 | 緊急停用程序已採用 | ❌ **未採用** | §4 第 9 列 |
+| 12 | 事故升級程序已採用 | ❌ **未採用** | §4 第 10–16 列 |
+
+> **六個角色都有名字，但 G2-O 仍為 FAIL** ——
+> 條件 7～12 尚未滿足。**不得**僅因指派完成即視為 PASS。
 
 ---
 
@@ -322,7 +337,7 @@ GATE 2 —— 外部後果認知確認
 | --- | --- | --- |
 | **G2-T** 技術 | ✅ **PASS** | — |
 | **G2-D** 曝險已掌握 | ⏸ **WAITING FOR AGGREGATE PRODUCTION MEASUREMENT** | Owner 執行 §1 的指令 A ＋ B 並貼回輸出，取得 §2.1 的 17 項 |
-| **G2-O** 營運控制 | ⏸ **WAITING FOR OWNER ASSIGNMENT / CONTROL ADOPTION** | §6 的 11 項條件全數滿足 |
+| **G2-O** 營運控制 | ⏸ **WAITING FOR BACKUP ONBOARDING / CONTROL ADOPTION**（角色指派已完成） | §6 的條件 7～12：Backup onboarding ＋ 5 組控制採用 |
 | **G2-E** 外部後果認知 | ⏸ **WAITING FOR OWNER ACKNOWLEDGEMENT** | §7 已簽署 |
 | **G2-OWNER** | ⏸ **PENDING** | Owner 明示選擇 KEEP OFF 或 ENABLE |
 
