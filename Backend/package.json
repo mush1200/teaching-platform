@@ -6,7 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "smoke": "node scripts/api-smoke-test.js",
-    "test:unit": "node --test tests/reportingRange.test.js tests/trendBuckets.test.js tests/reportWorkflow.test.js tests/adminQuery.test.js tests/paymentProofReview.test.js tests/materialFilePolicy.test.js tests/materialFileStorage.test.js tests/paymentProofPolicy.test.js tests/privateFileStorage.test.js tests/materialMediaPolicy.test.js tests/pathParams.test.js tests/errorResponses.test.js tests/complaintSla.test.js tests/reportedPayment.test.js tests/paymentTimingPolicy.test.js tests/multipartFilename.test.js tests/legalPublicationPreflight.test.js tests/bestEffortDispatch.test.js tests/privateFileStorageParity.test.js tests/privateFileStorageConfig.test.js tests/productionUrlContract.test.js tests/smtpContract.test.js tests/listingPricePolicy.test.js tests/settlementMoney.test.js tests/settlementPolicy.test.js tests/settlementAgeing.test.js tests/settlementSchemaParity.test.js tests/settlementAdminContract.test.js",
+    "test:unit": "node --test tests/reportingRange.test.js tests/trendBuckets.test.js tests/reportWorkflow.test.js tests/adminQuery.test.js tests/paymentProofReview.test.js tests/materialFilePolicy.test.js tests/materialFileStorage.test.js tests/paymentProofPolicy.test.js tests/privateFileStorage.test.js tests/materialMediaPolicy.test.js tests/pathParams.test.js tests/errorResponses.test.js tests/complaintSla.test.js tests/reportedPayment.test.js tests/paymentTimingPolicy.test.js tests/multipartFilename.test.js tests/legalPublicationPreflight.test.js tests/bestEffortDispatch.test.js tests/privateFileStorageParity.test.js tests/privateFileStorageConfig.test.js tests/productionUrlContract.test.js tests/smtpContract.test.js tests/listingPricePolicy.test.js tests/settlementMoney.test.js tests/settlementPolicy.test.js tests/settlementAgeing.test.js tests/settlementSchemaParity.test.js tests/settlementAdminContract.test.js tests/uiReviewGuard.test.js",
     "test:db": "node scripts/run-db-tests.js",
     "create-admin": "node scripts/create-admin.js",
     "legal:preflight": "node scripts/legal-publication-preflight.js",
@@ -14,7 +14,10 @@
     "migrate:payment-proofs": "node scripts/migrate-payment-proofs-to-private.js",
     "smtp:check": "node scripts/smtp-smoke-test.js",
     "postman:newman": "node scripts/run-postman.js",
-    "test": "npm run test:unit && npm run test:db"
+    "test": "npm run test:unit && npm run test:db",
+    "ui-review:seed": "node scripts/ui-review/seed.js",
+    "ui-review:verify": "node scripts/ui-review/seed.js --verify",
+    "ui-review:serve": "node scripts/ui-review/serve.js"
   },
   "keywords": [],
   "author": "",

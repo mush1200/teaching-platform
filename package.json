@@ -6,6 +6,9 @@
     "dev": "npm run dev --prefix Backend",
     "postman": "npm run postman:newman --prefix Backend",
     "smoke": "npm run smoke --prefix Backend",
-    "git-hooks": "git config core.hooksPath .githooks"
+    "git-hooks": "git config core.hooksPath .githooks",
+    "ui-review:reset": "npm run ui-review:seed --prefix Backend",
+    "ui-review:backend": "npm run ui-review:serve --prefix Backend",
+    "ui-review:frontend": "npm run dev:web:ui-review --prefix frontend"
   }
 }
