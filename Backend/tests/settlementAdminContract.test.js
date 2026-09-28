@@ -23,10 +23,19 @@ test("the router is mounted under /admin and reuses the admin auth boundary", ()
   assert.match(index, /app\.use\("\/admin", adminSettlementRouter\)/);
 });
 
-test("every state-changing endpoint is gated by the settlement write flag", () => {
+/**
+ * 記錄處置**刻意不受旗標約束**：它不移動任何金錢，而且是開旗標的前置條件 ——
+ * 若也被擋住就會死結（沒開旗標不能記處置，沒記處置不能開旗標）。
+ * 這個例外必須是**明列**的，否則日後有人會「順手把它補上 gate」而鎖死流程。
+ */
+const UNGATED_BY_DESIGN = ["/settlement/reconciliation/dispositions"];
+
+test("every money-moving endpoint is gated by the settlement write flag", () => {
   const mutating = [...code.matchAll(/router\.post\("([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(mutating.length >= 3, "expected the close / mark-paid / mark-failed endpoints");
-  for (const route of mutating) {
+  assert.ok(mutating.length >= 4, "expected close / mark-paid / mark-failed / dispositions");
+  const gated = mutating.filter((r) => !UNGATED_BY_DESIGN.includes(r));
+  assert.ok(gated.length >= 3, "expected at least three gated endpoints");
+  for (const route of gated) {
     const start = code.indexOf(`router.post("${route}"`);
     const next = code.indexOf("\nrouter.", start + 1);
     const body = code.slice(start, next === -1 ? undefined : next);
@@ -36,6 +45,28 @@ test("every state-changing endpoint is gated by the settlement write flag", () =
       `POST ${route} must check SETTLEMENT_WRITE_ENABLED`
     );
   }
+});
+
+test("the disposition endpoint is ungated on purpose, and writes no money", () => {
+  const start = code.indexOf('router.post("/settlement/reconciliation/dispositions"');
+  const next = code.indexOf("\nrouter.", start + 1);
+  const body = code.slice(start, next === -1 ? undefined : next);
+  assert.equal(
+    /isSettlementWriteEnabled\(\)/.test(body),
+    false,
+    "gating this would deadlock: dispositions are a precondition for enabling the flag"
+  );
+  // 它只能寫處置，不得碰任何金額表。
+  for (const moneyTable of [
+    "creator_ledger_entries",
+    "creator_payable_slices",
+    "payout_items",
+    "payout_allocations",
+    "settlement_hold_allocations",
+  ]) {
+    assert.equal(body.includes(moneyTable), false, `the disposition endpoint must not touch ${moneyTable}`);
+  }
+  assert.match(body, /written_basis_required/, "an undocumented disposition must be rejected");
 });
 
 test("read-only endpoints are NOT gated — shadow inspection must always work", () => {

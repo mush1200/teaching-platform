@@ -285,6 +285,93 @@ async function resolveSuspense(
   return { suspense: rows[0], entry };
 }
 
+/**
+ * `DEC-27` §K3 的逐筆處置記錄。
+ *
+ * ## 三個狀態必須分開
+ *
+ *   1. **issue detected** —— census 查得出來（`approved` ＋ `paid_at IS NULL` 等）；
+ *   2. **disposition recorded** —— 操作者對**那一列**下了有依據的決定（本函式）；
+ *   3. **resolved for write-enable** —— 每一筆偵測到的列都有 (2)。
+ *
+ * `DEC-27` §K2 **不要求那些列消失**，但要求每一列都拿到 (2)。
+ * 因此有 (1) 而缺 (2) 時，write-enable 閘門必須擋下來。
+ *
+ * ## 不受 `SETTLEMENT_WRITE_ENABLED` 約束
+ *
+ * 記錄處置**不移動任何金錢**，而且它是開旗標的**前置條件**。
+ * 若也被旗標擋住就會死結：沒開旗標不能記處置，沒記處置不能開旗標。
+ */
+async function recordDisposition(
+  client,
+  { targetType, targetId, category, decision, writtenBasis, evidenceReference = null, decidedBy, runId = null, supersedesId = null }
+) {
+  if (!decidedBy) {
+    throw new Error("recordDisposition: the deciding operator must be recorded (DEC-27 K3)");
+  }
+  if (!writtenBasis || !String(writtenBasis).trim()) {
+    throw new Error("recordDisposition: a written basis is required (DEC-27 K3)");
+  }
+  const { rows } = await client.query(
+    `INSERT INTO reconciliation_dispositions
+       (target_type, target_id, category, decision, written_basis, evidence_reference,
+        decided_by, run_id, supersedes_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [targetType, targetId, category, decision, writtenBasis.trim(), evidenceReference, decidedBy, runId, supersedesId]
+  );
+
+  await writeActivityLog({
+    client,
+    actorId: decidedBy,
+    actorRole: "admin",
+    targetType,
+    targetId,
+    action: "reconciliation.disposition_recorded",
+    meta: {
+      category,
+      decision,
+      evidence_reference: evidenceReference,
+      reconciliation_run_id: runId,
+      supersedes_id: supersedesId,
+    },
+  });
+
+  return rows[0];
+}
+
+/**
+ * 仍**缺少**明示處置的列。
+ *
+ * 這是 write-enable 閘門的唯一判準來源 —— 回傳空陣列才代表 (3) 成立。
+ * **不會**替任何一列猜測處置。
+ */
+async function outstandingDispositions(executor) {
+  const { rows: orders } = await executor.query(
+    `SELECT o.id FROM orders o
+      WHERE o.status = 'approved' AND o.paid_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM reconciliation_dispositions d
+           WHERE d.target_type = 'order' AND d.target_id = o.id
+        )
+      ORDER BY o.id`
+  );
+  const { rows: items } = await executor.query(
+    `SELECT oi.id FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+      WHERE o.status = 'approved' AND o.paid_at IS NOT NULL AND oi.seller_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM reconciliation_dispositions d
+           WHERE d.target_type = 'order_item' AND d.target_id = oi.id
+        )
+      ORDER BY oi.id`
+  );
+  return {
+    approvedWithoutPaidAt: orders.map((r) => r.id),
+    unattributedOrderItems: items.map((r) => r.id),
+    total: orders.length + items.length,
+  };
+}
+
 module.exports = {
   census,
   startRun,
@@ -292,4 +379,6 @@ module.exports = {
   recordLegacyOpening,
   recordSuspense,
   resolveSuspense,
+  recordDisposition,
+  outstandingDispositions,
 };

@@ -19,6 +19,7 @@ const reportsRouter = require("./routes/reports");
 const adminRouter = require("./routes/admin");
 const adminActivityLogsRouter = require("./routes/adminActivityLogs");
 const adminSettlementRouter = require("./routes/adminSettlement");
+const creatorEarningsRouter = require("./routes/creatorEarnings");
 const adminLegalDocumentsRouter = require("./routes/adminLegalDocuments");
 const adminPrivacyRequestsRouter = require("./routes/adminPrivacyRequests");
 const legalRouter = require("./routes/legal");
@@ -134,6 +135,8 @@ app.use("/teacher/sales", teacherSalesRouter);
  * 必須掛在 `teacherUploadRouter` 之前：後者用 `app.use("/teacher", ...)` 這種寬前綴，
  * 順序顛倒時 `/teacher/cases` 會先落到它身上。
  */
+app.use("/creator/earnings", creatorEarningsRouter);
+app.use("/teacher/earnings", creatorEarningsRouter);
 app.use("/creator/cases", creatorCasesRouter);
 app.use("/teacher/cases", creatorCasesRouter);
 app.use("/teacher", teacherUploadRouter);

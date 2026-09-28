@@ -203,17 +203,48 @@ async function closedCycleIds(executor) {
 }
 
 /**
+ * 終止／停業 override 的輸入正規化（`DEC-29` §3）。
+ *
+ * ## 為什麼一定是**明示輸入**
+ *
+ * repo **沒有** canonical 的「合作關係終止」狀態：`users.account_status` 只有
+ * `active` / `frozen`，而**凍結是風控動作，不是關係終止**。若從 `frozen` 推導
+ * 終止，結果會是「被凍結的帳號因此拿到錢」—— 方向剛好相反。
+ *
+ * 所以這裡**只接受**明示的 `{ creatorId, reason }`，而且 reason 不得空白：
+ * 沒有理由的 override 就是 `DEC-35` §Q8 所禁止的「無依據的勾選」。
+ */
+function normaliseTerminationOverrides(input) {
+  if (!Array.isArray(input)) {
+    throw new Error("terminationOverrides must be an array of { creatorId, reason }");
+  }
+  return input.map((entry) => {
+    const creatorId = typeof entry === "string" ? entry : entry?.creatorId;
+    const reason = typeof entry === "string" ? null : entry?.reason;
+    if (!creatorId || typeof creatorId !== "string") {
+      throw new Error("terminationOverrides: creatorId is required");
+    }
+    if (!reason || typeof reason !== "string" || !reason.trim()) {
+      throw new Error(
+        `terminationOverrides: a written reason is required for creator ${creatorId} (DEC-29 §3 is a manual judgement, not a checkbox)`
+      );
+    }
+    return { creatorId, reason: reason.trim() };
+  });
+}
+
+/**
  * **唯讀** shadow：算出關閉某期間**會**產生什麼，但不寫入任何東西。
  *
  * 與 `closeCycle` 共用 `computeStatement` —— shadow 與正式路徑算的是**同一段
  * 程式碼**，不是兩份會漂移的實作。`SETTLEMENT_WRITE_ENABLED` 關閉時，
  * 這是唯一能執行的結算動作。
  */
-async function previewCycleClose(executor, { cycleId, terminatingCreatorIds = [] }) {
+async function previewCycleClose(executor, { cycleId, terminationOverrides = [] }) {
   assertCycleId(cycleId);
   const closed = await closedCycleIds(executor);
   const creators = await creatorsWithLedger(executor);
-  const terminating = new Set(terminatingCreatorIds);
+  const terminating = new Set(normaliseTerminationOverrides(terminationOverrides).map((o) => o.creatorId));
 
   const statements = [];
   for (const creatorId of creators) {
@@ -277,8 +308,14 @@ async function creatorsWithLedger(executor) {
  *
  * **不重開已關閉的期間**，**不回溯移動已歸屬的金額**（`DEC-30` §N5／§N6）。
  */
-async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorIds = [] }) {
+async function closeCycle(client, { cycleId, actorId = null, terminationOverrides = [] }) {
   assertCycleId(cycleId);
+  const overrides = normaliseTerminationOverrides(terminationOverrides);
+  if (overrides.length > 0 && !actorId) {
+    throw new Error(
+      "closeCycle: a termination/shutdown override requires an identified operator (DEC-29 §3 audit)"
+    );
+  }
   if (!isSettlementWriteEnabled()) {
     // `D11`／設計 §21：旗標關閉時**不寫入任何東西**。期間關閉是結算寫入，
     // 不是唯讀查詢，因此這裡 fail closed 而不是靜默略過 ——
@@ -301,7 +338,7 @@ async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorI
 
   const closed = await closedCycleIds(client);
   const creators = await creatorsWithLedger(client);
-  const terminating = new Set(terminatingCreatorIds);
+  const terminating = new Set(overrides.map((o) => o.creatorId));
 
   const statements = [];
   const payoutItems = [];
@@ -368,6 +405,27 @@ async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorI
     }
   }
 
+  // `DEC-29` §3 的 override 是**人工判斷**，因此每一次套用都要單獨留痕：
+  // 誰、對誰、為什麼、什麼時候、產生了多少。與金額同一個 transaction。
+  for (const override of overrides) {
+    const statement = statements.find((row) => row.creator_id === override.creatorId);
+    await writeActivityLog({
+      client,
+      actorId,
+      actorRole: "admin",
+      targetType: "creator",
+      targetId: override.creatorId,
+      action: "settlement.termination_override_applied",
+      meta: {
+        cycle_id: cycleId,
+        reason: override.reason,
+        applied: statement ? statement.payout_triggered_reason === "termination" : false,
+        eligible_balance: statement ? Number(statement.eligible_balance) : null,
+        basis: "explicit operator input; never inferred from users.account_status",
+      },
+    });
+  }
+
   await client.query(
     `UPDATE payout_cycles SET status = 'closed', closed_at = NOW(), closed_by = $2 WHERE id = $1`,
     [cycleId, actorId]
@@ -385,6 +443,7 @@ async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorI
       payout_item_count: payoutItems.length,
       payout_total: payoutItems.reduce((sum, item) => sum + Number(item.amount), 0),
       ageing_override_cycles: AGEING_OVERRIDE_CYCLES,
+      termination_override_count: overrides.length,
     },
   });
 
@@ -393,6 +452,7 @@ async function closeCycle(client, { cycleId, actorId = null, terminatingCreatorI
 
 module.exports = {
   loadCreatorHistory,
+  normaliseTerminationOverrides,
   previewCycleClose,
   // 推導規則本身住在 `utils/settlementAgeing.js`（純函式、無 db 相依）；
   // 這裡一併 re-export，讓呼叫端只需要認得 settlement service 一個入口。

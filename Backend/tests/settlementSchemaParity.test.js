@@ -39,18 +39,20 @@ test("the migration chain is readable and is what bootstrap will execute", () =>
   assert.ok(sql.includes("CREATE TABLE IF NOT EXISTS creator_payable_slices"));
 });
 
-test("db/db_schema.sql carries a verbatim copy of the settlement DDL", () => {
+test("db/db_schema.sql carries a verbatim copy of the whole settlement chain", () => {
   const doc = fs.readFileSync(SCHEMA_DOC, "utf8");
-  const start = doc.indexOf(BEGIN);
-  const end = doc.indexOf(END);
-  assert.ok(start >= 0, "db_schema.sql must contain the PRE18_SETTLEMENT_CORE begin marker");
-  assert.ok(end > start, "db_schema.sql must contain the PRE18_SETTLEMENT_CORE end marker");
-
-  const block = doc.slice(start + BEGIN.length, end);
+  // 文件端逐段標記，與 chain 的檔案一一對應；串起來必須等於 chain 的可執行原文。
+  const blocks = [...doc.matchAll(/-- BEGIN (PRE18_SETTLEMENT_\w+)\n([\s\S]*?)-- END \1\n/g)];
+  assert.ok(blocks.length > 0, "db_schema.sql must contain the PRE18_SETTLEMENT_* blocks");
   assert.equal(
-    normalise(block),
+    blocks.length,
+    settlementMigrationFiles().length,
+    "every settlement migration needs a matching documentation block in db/db_schema.sql"
+  );
+  assert.equal(
+    normalise(blocks.map((m) => m[2]).join("\n")),
     normalise(settlementSchemaSql()),
-    "db/db_schema.sql has drifted from Backend/migrations/20260928_pre18_settlement_core.sql"
+    "db/db_schema.sql has drifted from the Backend/migrations settlement chain"
   );
 });
 
@@ -75,10 +77,14 @@ test("all eleven settlement tables are present in the single executable source",
       `${table} is missing from the settlement schema`
     );
   }
+  assert.ok(
+    sql.includes("CREATE TABLE IF NOT EXISTS reconciliation_dispositions ("),
+    "the disposition table is part of the chain"
+  );
   assert.equal(
     (sql.match(/CREATE TABLE IF NOT EXISTS/g) || []).length,
-    tables.length,
-    "the settlement schema must create exactly the eleven documented tables"
+    tables.length + 1,
+    "the settlement chain creates the eleven core tables plus reconciliation_dispositions"
   );
 });
 

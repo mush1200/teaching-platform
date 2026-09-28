@@ -29,6 +29,7 @@ const { sendPayoutPaidEmail } = require("../services/emailService");
 const settlementService = require("../services/settlement.service");
 const payoutService = require("../services/payout.service");
 const reportingService = require("../services/settlementReporting.service");
+const reconciliationService = require("../services/settlementReconciliation.service");
 const { runInvariantChecks } = require("../utils/settlementInvariants");
 const {
   assertCycleId,
@@ -105,7 +106,7 @@ router.get("/settlement/cycles/:cycleId/preview", async (req, res) => {
   }
   const preview = await settlementService.previewCycleClose(db, {
     cycleId,
-    terminatingCreatorIds: [],
+    terminationOverrides: [],
   });
   return res.json(preview);
 });
@@ -113,7 +114,7 @@ router.get("/settlement/cycles/:cycleId/preview", async (req, res) => {
 /**
  * 關閉一個結算期間。
  *
- * `terminatingCreatorIds` 是 **Admin 明示提供**的名單，不由系統推導 ——
+ * `terminationOverrides` 是 **Admin 明示提供**的 `{ creatorId, reason }` 清單，不由系統推導 ——
  * repo 沒有 canonical 的「合作關係終止」狀態（`users.account_status` 只有
  * `active` / `frozen`，而凍結是風控動作，不是關係終止）。把凍結當終止會讓
  * 一個被凍結的帳號**拿到錢**，方向剛好相反。因此 `DEC-29` §3 的 override
@@ -128,12 +129,18 @@ router.post("/settlement/cycles/:cycleId/close", async (req, res) => {
   }
   if (!isSettlementWriteEnabled()) return writesDisabled(res);
 
-  const terminating = req.body?.terminatingCreatorIds;
-  if (terminating !== undefined && !Array.isArray(terminating)) {
+  const overrides = req.body?.terminationOverrides;
+  if (overrides !== undefined && !Array.isArray(overrides)) {
     return res.status(400).json({
-      code: "invalid_terminating_creator_ids",
-      message: "terminatingCreatorIds must be an array of creator ids when provided.",
+      code: "invalid_termination_overrides",
+      message: "terminationOverrides must be an array of { creatorId, reason } when provided.",
     });
+  }
+  try {
+    // 空白理由的 override 就是「無依據的勾選」，在進交易之前先擋掉。
+    settlementService.normaliseTerminationOverrides(overrides ?? []);
+  } catch (err) {
+    return res.status(400).json({ code: "invalid_termination_overrides", message: err.message });
   }
 
   try {
@@ -141,7 +148,7 @@ router.post("/settlement/cycles/:cycleId/close", async (req, res) => {
       settlementService.closeCycle(client, {
         cycleId,
         actorId: req.user.userId,
-        terminatingCreatorIds: terminating ?? [],
+        terminationOverrides: overrides ?? [],
       })
     );
     return res.status(201).json({
@@ -149,6 +156,7 @@ router.post("/settlement/cycles/:cycleId/close", async (req, res) => {
       statementCount: result.statements.length,
       payoutItemCount: result.payoutItems.length,
       payoutTotal: result.payoutItems.reduce((sum, item) => sum + Number(item.amount), 0),
+      terminationOverridesApplied: (overrides ?? []).length,
     });
   } catch (err) {
     if (err.code === "SETTLEMENT_WRITES_DISABLED") return writesDisabled(res);
@@ -340,6 +348,184 @@ router.post("/settlement/payout-items/:id/mark-failed", async (req, res) => {
     console.error("mark payout failed failed:", err);
     return res.status(500).json({ message: "failed to mark payout as failed" });
   }
+});
+
+/**
+ * Hold 清單與其**來源案件** —— 「為什麼這筆錢被凍結」必須答得出來。
+ *
+ * 一個 order-scope 的 hold 可以涵蓋多位創作者，因此受影響者由 allocation
+ * 指向的切片決定，而不是 hold 主表上的某個欄位。
+ */
+router.get("/settlement/holds", async (req, res) => {
+  const openOnly = req.query.open === "true";
+  const { rows } = await db.query(
+    `SELECT h.id, h.scope, h.order_id, h.order_item_id, h.source_type, h.source_id,
+            h.reason, h.opened_at, h.opened_by, h.released_at, h.released_by, h.release_reason,
+            COALESCE(SUM(a.held_amount), 0)::int AS allocated_total,
+            COUNT(a.id)::int AS allocation_count,
+            COALESCE(
+              ARRAY_AGG(DISTINCT e.creator_id) FILTER (WHERE e.creator_id IS NOT NULL),
+              ARRAY[]::text[]
+            ) AS affected_creators
+       FROM settlement_holds h
+       LEFT JOIN settlement_hold_allocations a ON a.hold_id = h.id
+       LEFT JOIN creator_payable_slices s ON s.id = a.payable_slice_id
+       LEFT JOIN creator_ledger_entries e ON e.id = s.ledger_entry_id
+      WHERE ($1::boolean IS NOT TRUE OR h.released_at IS NULL)
+      GROUP BY h.id
+      ORDER BY h.opened_at DESC, h.id`,
+    [openOnly]
+  );
+  return res.json({ holds: rows });
+});
+
+/** 過失分類（`DEC-35`）—— 含書面依據與更正軌跡。 */
+router.get("/settlement/fault-classifications", async (req, res) => {
+  const creatorId = typeof req.query.creatorId === "string" ? req.query.creatorId : null;
+  const { rows } = await db.query(
+    `SELECT c.*, (
+              SELECT s.id FROM creator_fault_classifications s WHERE s.supersedes_id = c.id
+            ) AS superseded_by
+       FROM creator_fault_classifications c
+      WHERE ($1::text IS NULL OR c.creator_id = $1)
+      ORDER BY c.decided_at DESC, c.id DESC`,
+    [creatorId]
+  );
+  return res.json({ classifications: rows });
+});
+
+/**
+ * 負向調整與沖正 —— `DEC-21` 的窄例外。
+ *
+ * 每一筆都帶出其分類依據；**沒有分類就不可能存在**（DB CHECK 擋住）。
+ */
+router.get("/settlement/adjustments", async (req, res) => {
+  const creatorId = typeof req.query.creatorId === "string" ? req.query.creatorId : null;
+  const { rows } = await db.query(
+    `SELECT e.id, e.creator_id, e.entry_type, e.amount, e.order_id, e.order_item_id,
+            e.source_type, e.source_id, e.reverses_entry_id, e.occurred_at, e.created_by,
+            c.result, c.reason_code, c.written_basis, c.evidence_reference, c.decided_by
+       FROM creator_ledger_entries e
+       LEFT JOIN creator_fault_classifications c ON c.id = e.fault_classification_id
+      WHERE e.entry_type IN ('adjustment', 'reversal')
+        AND ($1::text IS NULL OR e.creator_id = $1)
+      ORDER BY e.occurred_at DESC, e.id DESC`,
+    [creatorId]
+  );
+  return res.json({ adjustments: rows });
+});
+
+/**
+ * 未歸屬懸記（`DEC-37`）。
+ *
+ * **不是**平台收入、**不是**任何創作者的應付。最終處置為外部事項（`O19`），
+ * 因此這裡只讀，沒有任何「結案」動作。
+ */
+router.get("/settlement/suspense", async (req, res) => {
+  const state = req.query.state === "resolved" ? "resolved" : req.query.state === "open" ? "open" : null;
+  const { rows } = await db.query(
+    `SELECT u.*, e.creator_id AS resolved_creator_id, e.creator_net_sales,
+            e.amount AS resolved_creator_earnings, e.platform_commission
+       FROM unattributed_suspense_entries u
+       LEFT JOIN creator_ledger_entries e ON e.id = u.resolved_entry_id
+      WHERE ($1::text IS NULL OR u.state = $1)
+      ORDER BY u.created_at DESC, u.id`,
+    [state]
+  );
+  return res.json({
+    suspense: rows,
+    note: "attribution undetermined; never creator payable and never platform revenue (DEC-37); terminal disposition is external (O19)",
+  });
+});
+
+/**
+ * 對帳狀態 —— legacy census ＋ 歷次 reconciliation run。
+ *
+ * `approved` ＋ `paid_at IS NULL` 與 `seller_id IS NULL` 的存在**本身不是錯誤**；
+ * `DEC-27` §K2／`DEC-36` 要求的是**逐筆明示處置**。這個端點讓 Admin 看得到
+ * 還有多少筆待處置，而不是讓系統替他們決定。
+ */
+router.get("/settlement/reconciliation", async (req, res) => {
+  const census = await reconciliationService.census(db);
+  const { rows: runs } = await db.query(
+    `SELECT id, run_scope, phase, status, note, started_at, completed_at, started_by
+       FROM reconciliation_runs
+      ORDER BY started_at DESC, id DESC
+      LIMIT 50`
+  );
+  return res.json({
+    census,
+    runs,
+    note: "rows needing disposition are not errors; DEC-27 K2 / DEC-36 require an explicit per-row decision",
+  });
+});
+
+/**
+ * 記錄一筆 `DEC-27` §K3 的逐筆處置。
+ *
+ * ⚠️ **刻意不受 `SETTLEMENT_WRITE_ENABLED` 約束。** 記錄處置不移動任何金錢，
+ * 而且它是開啟旗標的**前置條件** —— 若也被旗標擋住就會死結：
+ * 沒開旗標不能記處置，沒記處置不能開旗標。
+ */
+router.post("/settlement/reconciliation/dispositions", async (req, res) => {
+  const { targetType, targetId, category, decision, writtenBasis, evidenceReference, runId, supersedesId } =
+    req.body ?? {};
+
+  if (!["order", "order_item"].includes(targetType)) {
+    return res.status(400).json({ code: "invalid_target_type", message: "targetType must be order or order_item" });
+  }
+  if (!["approved_without_paid_at", "unattributed_order_item"].includes(category)) {
+    return res.status(400).json({ code: "invalid_category", message: "unknown disposition category" });
+  }
+  if (!["include_with_evidence", "exclude_no_evidence", "suspense_recorded"].includes(decision)) {
+    return res.status(400).json({ code: "invalid_decision", message: "unknown disposition decision" });
+  }
+  if (typeof writtenBasis !== "string" || !writtenBasis.trim()) {
+    return res.status(400).json({
+      code: "written_basis_required",
+      message: "A written basis is required; an undocumented decision is exactly what DEC-35 Q8 forbids.",
+    });
+  }
+
+  try {
+    const disposition = await inTransaction((client) =>
+      reconciliationService.recordDisposition(client, {
+        targetType,
+        targetId,
+        category,
+        decision,
+        writtenBasis,
+        evidenceReference: evidenceReference ?? null,
+        decidedBy: req.user.userId,
+        runId: runId ?? null,
+        supersedesId: supersedesId ?? null,
+      })
+    );
+    return res.status(201).json({ disposition });
+  } catch (err) {
+    if (/duplicate key/.test(err.message)) {
+      return res.status(409).json({
+        code: "disposition_already_recorded",
+        message: "This row already has an effective disposition; record a correction with supersedesId.",
+      });
+    }
+    if (/violates check constraint/.test(err.message) || /is required/.test(err.message)) {
+      return res.status(400).json({ code: "invalid_disposition", message: err.message });
+    }
+    console.error("record reconciliation disposition failed:", err);
+    return res.status(500).json({ message: "failed to record disposition" });
+  }
+});
+
+/** 仍缺少明示處置的列 —— write-enable 閘門的判準來源。 */
+router.get("/settlement/reconciliation/outstanding", async (req, res) => {
+  const outstanding = await reconciliationService.outstandingDispositions(db);
+  return res.json({
+    outstanding,
+    note:
+      "DEC-27 K2 does not require these rows to disappear, but each one needs an explicit " +
+      "auditable disposition before settlement writes may be enabled",
+  });
 });
 
 /**

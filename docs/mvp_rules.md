@@ -3147,6 +3147,20 @@ settlement 的 11 張表 ＋ `orders.refund_window_end` 全部定義在
 只帶 `amount` 會讓被對帳歸屬的交易永久遺失分潤資訊，
 使 `DEC-37` 要求的「創作者已歸屬／平台抽成／未歸屬懸記」三分報表短報平台抽成。
 
+## 21B.7 `orders.refund_window_end` 不受旗標約束
+
+它是 `DEC-26` 要求的**持久化期限**，於付款核准時以 `paid_at` 為錨點算一次後寫入，
+**write-once**。**歷史列一律不 backfill**（`DEC-27` §K1）——
+沒有期限的已付訂單走 legacy reconciliation，`opening` 分錄與正常結算結構上可區分。
+
+## 21B.8 撥款
+
+系統**不匯錢**。`payout_items` 由期間關閉產生，Admin 於平台外完成匯款後標記已付；
+`bank_reference` 是 `status = 'paid'` 的 **DB 層必要條件**。
+標記已付時同一 transaction 內寫入 `payout_allocations`（逐切片）＋
+`payout_consumption` 分錄。撥款金額大於可消耗應付 → **fail closed，整筆回滾**。
+通知在 transaction 之外（`DEC-20` C4：通知失敗不得回滾）。
+
 ## 21B.9 Admin settlement API（Batch 2）
 
 掛在 `/admin`（`ALLOW_ROOT` 的 `admin` 已涵蓋，**不需新增 proxy 前綴**），
@@ -3177,7 +3191,73 @@ repo **沒有** canonical 的「合作關係終止」狀態 ——
 把凍結當成終止會讓被凍結的帳號**拿到錢**，方向剛好相反。
 因此該 override 由 **Admin 於關閉期間時明示提供名單**，不由系統推導。
 
-## 21B.10 部分 hold 的金額換算 —— exact-or-fail-closed
+## 21B.10 啟用 `SETTLEMENT_WRITE_ENABLED` 之前的正式閘門
+
+`node scripts/settlement-write-enable-readiness.js [--json]` ——
+**唯讀**，回 machine-readable PASS／FAIL 與 exit code。10 項檢查：
+schema 存在／migration chain 完整／invariant 零違反／`DEC-24` 恆等式全數成立／
+無重複 earning／對帳狀態／未歸屬金額已隔離／稽核原子性可用／撥款 API 受旗標約束／
+**旗標目前為 OFF**。
+
+### 三個狀態必須分開，缺一不可
+
+| # | 狀態 | 來源 |
+| --- | --- | --- |
+| 1 | **issue detected** | census 查得出來 |
+| 2 | **disposition recorded** | `reconciliation_dispositions` 有一筆有效紀錄 |
+| 3 | **resolved for write-enable** | 每一筆 (1) 都有 (2) |
+
+`DEC-27` §K2 **不要求那些列消失**，但**要求每一列都拿到 (2)**。
+因此有 (1) 而缺 (2) 時，閘門回 **`BLOCKED_BY_DISPOSITION`** ——
+**不得**回 `READY`，也**不得**回「PASS 但附註有未決事項」。
+一個用來決定「可不可以開啟 production 金流寫入」的閘門，
+把判斷責任丟回給讀的人並不安全。
+
+**處置永遠不會被自動產生**：`approved` ＋ `paid_at IS NULL` 的列一律由人決定
+`include_with_evidence`（須附證據參照）或 `exclude_no_evidence`，兩者都必須有書面依據。
+
+### 閘門結果（machine-readable）
+
+`READY` ／ `NOT_READY` ／ `BLOCKED_BY_SCHEMA` ／ `BLOCKED_BY_INVARIANT` ／
+`BLOCKED_BY_DISPOSITION`。阻擋原因依嚴重度取**第一個**成立者，
+輸出永遠指得出「先修哪一個」；exit code 僅 `READY` 為 0。
+
+### 記錄處置**不受** `SETTLEMENT_WRITE_ENABLED` 約束
+
+`POST /admin/settlement/reconciliation/dispositions` 刻意不被旗標擋住 ——
+它不移動任何金錢，而且是開旗標的**前置條件**。若也被擋住就會死結：
+沒開旗標不能記處置，沒記處置不能開旗標。
+
+### shadow 的分層結論
+
+`order_side`（PASS／FAIL）、`settlement_layer`（PASS／`SKIPPED_SCHEMA_ABSENT`／FAIL）、
+`overall`。**只有每一層都實際執行且通過**才給 `NO_UNEXPLAINED_DIFFERENCE`；
+schema 不存在而跳過 Layer 2 時為 **`PARTIAL`**。
+刻意的跳過**不是失敗**，但**也不是驗證** —— 不得拿部分證據冒充完整驗證。
+
+另有 `node scripts/settlement-production-shadow.js [--json] [--samples]` ——
+**production-safe 唯讀** shadow。它**刻意能在尚未套用 settlement schema 的資料庫上執行**
+（那正是 production 尚未部署時的狀態）：Layer 1（訂單側 census ＋ 預期經濟事實）
+不需要 schema；Layer 2（結算側）在 schema 不存在時明確標記 `skipped`，
+**不假裝檢查過**。
+
+## 21B.11 外部相依的隔離（`PRE-18` 可在四者未決的情況下技術完成）
+
+| 外部項目 | **未來被擋住的具體工作** | 現況為何**沒有**預設答案 |
+| --- | --- | --- |
+| **`AD-09`** 創作者收款資料 | 收款目的地表／欄位、目的地驗證、對外揭露 | 全系統只有 `payout_items.bank_reference` —— 那是**平台自己的**轉帳憑據，不是創作者的帳戶資料；創作者 API 也**不外露**它 |
+| **`AD-10`** 代理收付定性 | 「這 20% 在會計／法律上屬於誰」的標籤 | `platform_commission` 只是 `creator_net_sales − creator_earnings` 的**算術餘額**；程式碼從未宣告其所有權或會計科目 |
+| **稅務／扣繳** | 扣繳行、稅額欄位、稅務 entry type、憑證時點 | 全系統**沒有任何稅務概念**；撥款通知信亦明文不得出現相關文字 |
+| **`O19`** 懸記終局處置 | `unattributed_suspense_entries` 的**第三個狀態** | 狀態域**恰好**是 `open` / `resolved`，程式碼只寫得出 `resolved`；「永遠無法歸屬時怎麼辦」完全沒有實作路徑 |
+
+四者都可於日後**新增**而不需重塑 ledger —— 這是本設計形狀的主要論據，
+也是 `PRE-18` 得以在它們未決時仍然技術完成的理由。
+
+> ⚠️ 「未達門檻不沒收」（`DEC-29` §1）與 `O19` **是兩件事**。
+> 前者講的是**已歸屬**創作者的餘額，後者講的是**永遠無法歸屬**的金額。
+> 不要因為兩者都出現「沒收」二字就混為一談。
+
+## 21B.12 部分 hold 的金額換算 —— exact-or-fail-closed
 
 `DEC-31` 只授權兩種取整：品項折扣分攤的 **floor**，與分潤的 **round-half-up**。
 把買方案件金額（`refund_remedy_cases.approved_amount`）換算成創作者 payable 時，
@@ -3193,20 +3273,6 @@ repo **沒有** canonical 的「合作關係終止」狀態 ——
 反之「多凍一點點」需要一條沒有人批准的取整規則。
 `settlement_holds` 的**解除不可逆**（`released_at` write-once），
 否則同一筆錢可能同時被父切片與子切片各算一次未解除 hold。
-
-## 21B.7 `orders.refund_window_end` 不受旗標約束
-
-它是 `DEC-26` 要求的**持久化期限**，於付款核准時以 `paid_at` 為錨點算一次後寫入，
-**write-once**。**歷史列一律不 backfill**（`DEC-27` §K1）——
-沒有期限的已付訂單走 legacy reconciliation，`opening` 分錄與正常結算結構上可區分。
-
-## 21B.8 撥款
-
-系統**不匯錢**。`payout_items` 由期間關閉產生，Admin 於平台外完成匯款後標記已付；
-`bank_reference` 是 `status = 'paid'` 的 **DB 層必要條件**。
-標記已付時同一 transaction 內寫入 `payout_allocations`（逐切片）＋
-`payout_consumption` 分錄。撥款金額大於可消耗應付 → **fail closed，整筆回滾**。
-通知在 transaction 之外（`DEC-20` C4：通知失敗不得回滾）。
 
 ---
 
