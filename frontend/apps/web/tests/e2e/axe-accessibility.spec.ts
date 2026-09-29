@@ -184,6 +184,14 @@ test.describe("UI-QA-AXE — axe-core 標準規則（critical／serious 阻擋�
 
       /* 假綠防線：掃描的必須是目標頁，不是被導去的 `/login` 或 `/403`。 */
       expect(new URL(page.url()).pathname, "掃描前停留的路由").toBe(rc.path);
+      /*
+       * 第二道：URL 對了，頁面也可能已經落到 `app/error.tsx`（500）或 `app/not-found.tsx`（404）——
+       * 例如 mock payload 形狀不對讓頁面崩潰。那時掃到的是錯誤頁，不是目標頁。
+       */
+      await expect(
+        page.getByRole("heading", { level: 1, name: /^(500|404)$/ }),
+        "目標頁不得落到錯誤頁或 404"
+      ).toHaveCount(0);
 
       const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 

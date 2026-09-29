@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
 import { signInAs } from "./helpers/auth";
+import { installCoreApiMocks } from "./helpers/mock-api";
 
 /**
  * `Wave UI-4A` 的回歸護欄 —— `UI-CONS-13`（typography scale 未收斂）。
@@ -45,6 +46,10 @@ async function stubApi(page: Page) {
  * 量的是 **`<main>` 裡的** h1：頁面會先在外殼之外掛載一次再移進外殼（`app/layout.tsx` 的
  * `<Suspense fallback={children}>`，`UI-QA-CI`）。量到將被卸載的那一份時，
  * `getComputedStyle` 對已脫離文件的節點回傳空字串，於是整組值都是 `""`。
+ *
+ * 呼叫端一律用 `expect.poll`：`<main>` 內的 h1 也可能在載入狀態與內容之間被換掉一次
+ * （`/me/orders/:id`，CI 首次實跑以 flaky 出現）。poll 只是等頁面穩定，
+ * **斷言本身不變** —— 穩定後的值仍必須逐欄等於 `PAGE_TITLE`。
  */
 async function h1Typography(page: Page) {
   const h1 = page.locator("main h1").first();
@@ -67,7 +72,7 @@ test.describe("UI-CONS-13 — application page title 只有一個字級", () => 
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(route, { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-      expect(await h1Typography(page), `${route} 的 h1`).toEqual(PAGE_TITLE);
+      await expect.poll(() => h1Typography(page), { message: `${route} 的 h1` }).toEqual(PAGE_TITLE);
     });
   }
 
@@ -79,10 +84,18 @@ test.describe("UI-CONS-13 — application page title 只有一個字級", () => 
   test("卡片內的買家頁面標題與 PageHeader 同字級", async ({ page }) => {
     await signInAs(page, "parent", { email: "parent-e2e@example.com" });
     await stubApi(page);
+    /*
+     * 訂單詳情需要真的訂單 payload。先前這裡用不存在的 `ord_typography_probe`，
+     * `stubApi` 對它回的是清單形狀（`{ items: [] }`），頁面因此落到 500 錯誤頁 ——
+     * 測試只有在「崩潰前」量到 h1 時才會過（`UI-QA-CI`，2026-09-29 CI 首次實跑以 flaky 暴露）。
+     * 改用共用 fixture `ord_mock_001`（後註冊先處理；沒處理的仍落回 `stubApi`）。
+     */
+    await installCoreApiMocks(page);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/me/orders/ord_typography_probe", { waitUntil: "domcontentloaded" });
+    await page.goto("/me/orders/ord_mock_001", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("main").getByText("系統發生未預期錯誤")).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    expect(await h1Typography(page), "/me/orders/:id 的 h1").toEqual(PAGE_TITLE);
+    await expect.poll(() => h1Typography(page), { message: "/me/orders/:id 的 h1" }).toEqual(PAGE_TITLE);
   });
 });
 
