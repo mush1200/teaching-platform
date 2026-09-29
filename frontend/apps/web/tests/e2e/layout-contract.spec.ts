@@ -52,7 +52,7 @@ async function stubApi(page: Page, role: string) {
 async function gutterOf(page: Page) {
   return page.evaluate(() => {
     const main = document.querySelector("main");
-    const h1 = document.querySelector("h1");
+    const h1 = main?.querySelector("h1") ?? null;
     if (!main || !h1) return null;
     let total = 0;
     let layers = 0;
@@ -103,7 +103,12 @@ for (const vp of VIEWPORTS) {
         if (c.role !== "guest") await signInAs(page, c.role, { email: `${c.role}-e2e@example.com` });
         await stubApi(page, c.role === "guest" ? "parent" : c.role);
         await page.goto(c.route, { waitUntil: "domcontentloaded" });
-        await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+        /*
+         * 等的是 **`<main>` 裡的** `<h1>`：`app/layout.tsx` 以 `<Suspense fallback={children}>`
+         * 包住 `RoleShell`，頁面會先在外殼**之外**掛載一次、再移進外殼（`UI-QA-CI`，2026-09-29 查證）。
+         * 只等「任一 h1」會量到即將被卸載的那一份 —— production build 夠快時就穩定紅燈。
+         */
+        await expect(page.locator("main h1").first()).toBeVisible();
 
         const m = await gutterOf(page);
         expect(m, `${c.route} 必須同時有 <main> 與 <h1>`).not.toBeNull();
@@ -127,7 +132,7 @@ test("gutter 量法能偵測到多出來的一層內距", async ({ browser }) =>
   await signInAs(page, "parent", { email: "parent-e2e@example.com" });
   await stubApi(page, "parent");
   await page.goto("/favorites", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  await expect(page.locator("main h1").first()).toBeVisible();
 
   const before = await gutterOf(page);
   expect(before!.gutter).toBe(32);

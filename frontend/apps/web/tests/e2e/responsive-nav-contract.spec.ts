@@ -74,6 +74,12 @@ async function open(page: Page, s: Surface, width: number) {
   await stubApi(page, s.role);
   await page.setViewportSize({ width, height: width <= 430 ? 844 : 900 });
   await page.goto(s.route, { waitUntil: "domcontentloaded" });
+  /*
+   * 先等外殼真的包住頁面（`<main>` 出現）：頁面會先在外殼之外掛載一次（`app/layout.tsx` 的
+   * `<Suspense fallback={children}>`），Creator 的載入狀態偶爾會撐過下面固定的 1200ms，
+   * 量到的就是「沒有側欄、沒有 main」（`UI-QA-CI`，2026-09-29 以 `--repeat-each=4` 重現 3/176）。
+   */
+  await expect(page.locator("main").first()).toBeVisible();
   /* 等 hydration 完成 —— 太早點 hamburger 會是 no-op，測試會誤紅。 */
   await page.waitForTimeout(1200);
 }

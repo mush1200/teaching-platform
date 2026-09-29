@@ -1,23 +1,16 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Inter, Noto_Sans_TC } from "next/font/google";
+/*
+ * 字型自架（`UI-QA-FONT`）：不再用 `next/font/google` 在建置／dev 時向 Google 抓檔。
+ * 堆疊與理由見 `lib/font-stack.ts`。
+ */
+import "@fontsource-variable/inter";
+import "@fontsource-variable/noto-sans-tc";
 import "./globals.css";
 import { AppProviders } from "./providers";
 import { RoleShell } from "../components/layout/RoleShell";
 import { GlobalToastHost } from "../components/ui/GlobalToastHost";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const notoSansTc = Noto_Sans_TC({
-  variable: "--font-noto",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
+import { CANONICAL_FONT_STACK } from "../lib/font-stack";
 
 export const metadata: Metadata = {
   title: "EduMarket | 教具平台",
@@ -34,11 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-Hant" className={`${inter.variable} ${notoSansTc.variable} t_light`} suppressHydrationWarning>
-      <body
-        className={`${notoSansTc.className} antialiased`}
-        style={{ fontFamily: "var(--font-noto), var(--font-inter), ui-sans-serif, system-ui, sans-serif" }}
-      >
+    <html lang="zh-Hant" className="t_light" suppressHydrationWarning>
+      <body className="antialiased" style={{ fontFamily: CANONICAL_FONT_STACK }}>
         <AppProviders>
           <Suspense fallback={children}>
             <RoleShell>{children}</RoleShell>

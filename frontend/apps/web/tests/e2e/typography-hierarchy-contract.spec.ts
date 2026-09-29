@@ -39,9 +39,17 @@ async function stubApi(page: Page) {
   );
 }
 
-/** 回傳 h1 實際算出來的字體三元組。 */
+/**
+ * 回傳 h1 實際算出來的字體三元組。
+ *
+ * 量的是 **`<main>` 裡的** h1：頁面會先在外殼之外掛載一次再移進外殼（`app/layout.tsx` 的
+ * `<Suspense fallback={children}>`，`UI-QA-CI`）。量到將被卸載的那一份時，
+ * `getComputedStyle` 對已脫離文件的節點回傳空字串，於是整組值都是 `""`。
+ */
 async function h1Typography(page: Page) {
-  return page.getByRole("heading", { level: 1 }).first().evaluate((el) => {
+  const h1 = page.locator("main h1").first();
+  await expect(h1).toBeVisible();
+  return h1.evaluate((el) => {
     const s = getComputedStyle(el);
     return { fontSize: s.fontSize, lineHeight: s.lineHeight, fontWeight: s.fontWeight };
   });

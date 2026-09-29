@@ -1,0 +1,163 @@
+# UI Quality gate —— `UI-QA-CI`（2026-09-29）
+#
+# ## 這份 workflow 存在的理由
+#
+# 在它之前，repo 的 GitHub Actions 只有三個維運 workflow（備份／還原驗證／synthetic monitor），
+# **沒有任何東西在 push／PR 時執行 `verify:web` 或 E2E** —— 432 條 Playwright test 全靠人記得跑。
+# 實測後果：建立這份 workflow 時，既有 UI contract spec 在 production build 上有 40 條穩定紅燈
+# （測試在頁面移進外殼之前就量測），而且沒有任何人知道。
+#
+# 分層定義見 `docs/ui-quality-system.md`。本檔是 **L1 — Rule Checks** 的自動執行者。
+#
+# ## PR gate 內容（任一失敗即紅）
+#
+#   backend-unit   `npm run test:unit --prefix Backend`（無 DB；含 UI Review 與 CI DB 的 fail-closed 護欄）
+#   ui-quality     1. `verify:web`（lint ＋ typecheck ＋ production build）
+#                  2. `test:e2e:ui-quality`：UI contract specs ＋ axe（critical／serious 阻擋），
+#                     desktop 1440 與 mobile 390 兩個 project
+#                  3. `test:e2e:ci`：critical-acceptance 的 `| CI |` 子集（既有腳本，全 mock）
+#
+# ## 刻意**不**在這裡的（仍為人工 release gate，理由見 `docs/ui-quality-system.md` §6）
+#
+#   - 完整 E2E（`npm run test:e2e`）、`npm run smoke`、`npm run postman` —— 需要 `TEST_ADMIN_*`
+#     等真實測試帳號憑證；`CLAUDE.md` §7 禁止改成 fallback 或寫死，CI 也不持有它們。
+#   - `npm run test:db --prefix Backend`、UI Review 環境、Lighthouse、WebKit／Firefox。
+#
+# ## 資料庫安全
+#
+#   - 資料庫是本 job 的 `postgres:17` service container —— job 結束即銷毀。
+#   - 名稱是 `teaching_platform_security_test`，因為 E2E harness **只接受**這個名稱
+#     （`tests/e2e/helpers/backend-prerequisite.ts`）；它與任何開發者機器上的同名資料庫無關。
+#   - `Backend/scripts/ci/prepare-e2e-db.js` 在寫入前檢查：`CI_DISPOSABLE_DB=1`、無 `DATABASE_URL`、
+#     loopback host、連線後 `current_database()`／`inet_server_addr()`、以及 `public` schema **必須是空的**。
+#   - 不使用、也不需要任何 repository secret。`JWT_SECRET` 每次執行隨機產生。
+#   - 不連 production、不讀 production 設定、不寫 Render／B2。
+
+name: UI Quality
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-unit:
+    name: Backend unit tests (no database)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 與 production 一致（`render.yaml` 兩個 service 皆釘 NODE_VERSION=22）。
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix Backend
+
+      - name: Unit tests
+        run: npm run test:unit --prefix Backend
+
+  ui-quality:
+    name: verify:web + UI rule checks + axe
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: disposable_ci_e2e_target_not_production
+          POSTGRES_DB: teaching_platform_security_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # 離散的 loopback 設定；**沒有** DATABASE_URL（prepare-e2e-db.js 會拒絕它）。
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: disposable_ci_e2e_target_not_production
+      PGDATABASE: teaching_platform_security_test
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            Backend/package-lock.json
+
+      - name: Generate a per-run JWT secret (never stored)
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::${secret}"
+          echo "JWT_SECRET=${secret}" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix Backend
+          npm ci --prefix frontend
+
+      - name: verify:web (lint + typecheck + production build)
+        working-directory: frontend
+        run: npm run verify:web
+
+      - name: Prepare the disposable E2E database
+        env:
+          CI_DISPOSABLE_DB: "1"
+        run: node Backend/scripts/ci/prepare-e2e-db.js
+
+      - name: Install Playwright Chromium
+        working-directory: frontend/apps/web
+        run: npx playwright install --with-deps chromium
+
+      # production build（`verify:web` 剛寫進 `.next-verify` 的那一份）上執行 ——
+      # harness 會自己啟動 backend（pin 到上面的測試資料庫）與 `next start`。
+      - name: UI rule checks + axe (desktop 1440 / mobile 390)
+        working-directory: frontend/apps/web
+        env:
+          E2E_SERVER: production
+        # `playwright.config.ts` 在 CI 預設 workers=1；這組 spec 全 mock、彼此獨立，2 個 worker 即可。
+        run: npm run test:e2e:ui-quality -- --workers=2
+
+      - name: Critical acceptance (CI subset)
+        working-directory: frontend/apps/web
+        env:
+          E2E_SERVER: production
+        run: npm run test:e2e:ci
+
+      - name: Upload Playwright failure context
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

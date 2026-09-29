@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { CANONICAL_FONT_STACK } from "./lib/font-stack";
 
 const config: Config = {
   content: [
@@ -171,6 +172,13 @@ const config: Config = {
        *
        * 其餘全部 ADOPT（實測 consumer）：h2=2、h3=4、title=36、body=83、meta=134、caption=48。
        */
+      /*
+       * `UI-QA-FONT`：shell 根節點的 `font-sans` 先前是 Tailwind 預設的 `ui-sans-serif, system-ui …`，
+       * 使 145 個可見文字節點落到作業系統字型。改指向唯一的 canonical 堆疊（`lib/font-stack.ts`）。
+       */
+      fontFamily: {
+        sans: [CANONICAL_FONT_STACK],
+      },
       fontSize: {
         h2: ["1.5rem", { lineHeight: "2rem", fontWeight: "700" }],
         h3: ["1.25rem", { lineHeight: "1.75rem", fontWeight: "700" }],

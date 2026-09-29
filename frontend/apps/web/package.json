@@ -13,10 +13,13 @@
     "test:e2e:critical": "playwright test tests/e2e/critical-acceptance.spec.ts --workers=1",
     "test:e2e:critical:mobile": "playwright test tests/e2e/critical-acceptance.spec.ts --project=chromium-mobile --workers=1",
     "test:e2e:ci": "playwright test tests/e2e/critical-acceptance.spec.ts --project=chromium-desktop --grep \"\\| CI \\|\" --workers=1",
+    "test:e2e:ui-quality": "playwright test tests/e2e/axe-accessibility.spec.ts tests/e2e/accessibility-contract.spec.ts tests/e2e/contrast-contract.spec.ts tests/e2e/focus-visible.spec.ts tests/e2e/layout-contract.spec.ts tests/e2e/page-heading-and-nav-semantics.spec.ts tests/e2e/responsive-nav-contract.spec.ts tests/e2e/shell-consistency.spec.ts tests/e2e/typography-hierarchy-contract.spec.ts tests/e2e/interaction-contract.spec.ts tests/e2e/ui-primitives.spec.ts tests/e2e/ui-composites.spec.ts tests/e2e/hydration-guard.spec.ts tests/e2e/buyer-shell-dead-affordance.spec.ts",
     "test:e2e:nightly": "playwright test tests/e2e/critical-acceptance.spec.ts --grep \"\\| NIGHTLY \\|\" --workers=1",
     "test:e2e:nightly:mobile": "playwright test tests/e2e/critical-acceptance.spec.ts --project=chromium-mobile --grep \"\\| NIGHTLY \\|\" --workers=1"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/noto-sans-tc": "5.3.0",
     "@tamagui/config": "^2.0.0-rc.41",
     "@tamagui/core": "^2.0.0-rc.41",
     "@tamagui/next-theme": "^2.0.0-rc.41",
@@ -33,6 +36,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.55.0",
     "@types/node": "^20",
     "@types/react": "^19",

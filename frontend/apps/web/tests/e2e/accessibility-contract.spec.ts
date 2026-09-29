@@ -89,7 +89,8 @@ test.describe("UI-CONS-18 — 主要行動端互動的觸控目標 ≥ 44×44", 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/login", { waitUntil: "domcontentloaded" });
 
-    const toggle = page.getByRole("button", { name: /顯示密碼|隱藏密碼/ }).first();
+    /* 取 `<main>` 裡的那一顆：外殼之外先掛載的那份會被卸載，量到的尺寸是 0（`UI-QA-CI`）。 */
+    const toggle = page.locator("main").getByRole("button", { name: /顯示密碼|隱藏密碼/ }).first();
     await expect(toggle).toBeVisible();
     const box = await toggle.evaluate((el) => {
       const r = el.getBoundingClientRect();
