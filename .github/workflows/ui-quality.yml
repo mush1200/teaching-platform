@@ -29,7 +29,8 @@
 #   - 名稱是 `teaching_platform_security_test`，因為 E2E harness **只接受**這個名稱
 #     （`tests/e2e/helpers/backend-prerequisite.ts`）；它與任何開發者機器上的同名資料庫無關。
 #   - `Backend/scripts/ci/prepare-e2e-db.js` 在寫入前檢查：`CI_DISPOSABLE_DB=1`、無 `DATABASE_URL`、
-#     loopback host、連線後 `current_database()`／`inet_server_addr()`、以及 `public` schema **必須是空的**。
+#     loopback host、連線後 `current_database()`、server 位址為本機或私有網段（service container 經 Docker
+#     埠映射時自報 bridge 位址，首次實跑為 172.18.0.2），以及 `public` schema **必須是空的**。
 #   - 不使用、也不需要任何 repository secret。`JWT_SECRET` 每次執行隨機產生。
 #   - 不連 production、不讀 production 設定、不寫 Render／B2。
 

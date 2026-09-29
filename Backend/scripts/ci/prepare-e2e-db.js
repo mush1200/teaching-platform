@@ -24,7 +24,7 @@
  *   - `CI_DISPOSABLE_DB=1` —— 呼叫端明示「這是本 job 剛建立的拋棄式資料庫」
  *   - `NODE_ENV` 不是 `production`；`DATABASE_URL` **未設定**（只允許離散的 `PG*` loopback 設定）
  *   - `PGDATABASE` 恰為 `teaching_platform_security_test`；`PGHOST` 為 loopback
- *   - 連線後 `current_database()` 相符、`inet_server_addr()` 為 loopback
+ *   - 連線後 `current_database()` 相符、`inet_server_addr()` 為本機或私有網段（見 `isLocalServerAddress`）
  *   - `public` schema 內**沒有任何資料表** —— 只接受全新的空資料庫。
  *     開發者機器上真正的 security test DB 一定有表，因此即使有人在本機誤跑也會被擋下。
  *
@@ -66,11 +66,25 @@ function staticRefusal(env) {
   return null;
 }
 
-function isLoopbackAddress(addr) {
-  // `inet_server_addr()` 在 Unix socket 連線時為 NULL —— 那也只可能是本機。
+/**
+ * 連線後 server 自報的位址是否屬於「本機可達的拋棄式 server」。
+ *
+ * 只接受 loopback、Unix socket（`inet_server_addr()` 為 NULL）與 **RFC 1918 私有位址**。
+ * 私有位址是必要的：GitHub Actions 的 service container 經 Docker 埠映射連上
+ * `127.0.0.1:5432`，但 server 回報的是它自己在 bridge 網路上的位址
+ * （首次實跑實測 `172.18.0.2`），只收 loopback 會把正確的 CI 環境擋掉。
+ *
+ * 放寬這一條不會打開通往真實資料庫的路：client 端仍必須連 loopback 的 `PGHOST`
+ * （`staticRefusal`），而且 `public` schema 必須是空的 —— 任何真實資料庫都有表。
+ */
+function isLocalServerAddress(addr) {
   if (addr === null || addr === undefined) return true;
   const a = String(addr);
-  return a === "::1" || a.startsWith("127.");
+  if (a === "::1" || a.startsWith("127.")) return true;
+  const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(a);
+  if (!m) return false;
+  const [o1, o2] = [Number(m[1]), Number(m[2])];
+  return o1 === 10 || (o1 === 172 && o2 >= 16 && o2 <= 31) || (o1 === 192 && o2 === 168);
 }
 
 async function main() {
@@ -91,7 +105,7 @@ async function main() {
     console.log(`prepare-e2e-db: target db=${live.db} server=${live.addr ?? "unix-socket"} public tables=${live.tables}`);
 
     if (live.db !== EXPECTED_DB) refuse(`連線後的 current_database() 是 ${live.db}。`);
-    if (!isLoopbackAddress(live.addr)) refuse(`連線後的 inet_server_addr() 不是 loopback：${live.addr}。`);
+    if (!isLocalServerAddress(live.addr)) refuse(`連線後的 inet_server_addr() 不是本機或私有位址：${live.addr}。`);
     if (live.tables !== 0) refuse(`public schema 已有 ${live.tables} 張表 —— 這不是剛建立的拋棄式資料庫。`);
 
     await ensureCoreTables();
@@ -127,4 +141,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { staticRefusal, isLoopbackAddress, EXPECTED_DB };
+module.exports = { staticRefusal, isLocalServerAddress, EXPECTED_DB };
