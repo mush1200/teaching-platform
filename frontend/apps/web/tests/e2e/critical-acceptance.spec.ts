@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { clickWhenHydrated } from "./helpers/hydration";
+import { clickWhenHydrated, waitForHydration } from "./helpers/hydration";
 import { installCoreApiMocks } from "./helpers/mock-api";
 import { getTestCookieUrl } from "./helpers/base-url";
 
@@ -104,6 +104,9 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
   test("ORDER | CI | 6) checkout creates order and redirects to upload-proof", async ({ page }) => {
     await setAuthState(page, "parent", "e2e-parent-token");
     await page.goto("/checkout");
+    /* 先等欄位被 React 接管再填：頁面會先在外殼之外掛載一次（`UI-QA-SHELL-MOUNT`），填進那一份的值會隨卸載消失，
+       表單停在 step 1 —— 2026-09-29 以 `--repeat-each=8` 重現 1／16（`TEST-03` 所列的同一族間歇失敗）。 */
+    await waitForHydration(page.getByLabel("姓名"));
     await page.getByLabel("姓名").fill("測試家長");
     await page.getByLabel("Email").fill("parent@example.com");
     // `DX-21`：同一個 goto→click 曝險，第一次點擊必須等 hydration。
@@ -117,6 +120,9 @@ test.describe("Critical Acceptance E2E (16 checks)", () => {
   test("ORDER | CI | 6-1) checkout promo feedback and dynamic CTA amount", async ({ page }) => {
     await setAuthState(page, "parent", "e2e-parent-token");
     await page.goto("/checkout");
+    /* 先等欄位被 React 接管再填：頁面會先在外殼之外掛載一次（`UI-QA-SHELL-MOUNT`），填進那一份的值會隨卸載消失，
+       表單停在 step 1 —— 2026-09-29 以 `--repeat-each=8` 重現 1／16（`TEST-03` 所列的同一族間歇失敗）。 */
+    await waitForHydration(page.getByLabel("姓名"));
     await page.getByLabel("姓名").fill("測試家長");
     await page.getByLabel("Email").fill("parent@example.com");
     // `DX-21`：同上。
