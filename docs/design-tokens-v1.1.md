@@ -18,7 +18,7 @@ Source aligned with:
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `brand.primary` | `#6C63FF` | Brand color, active nav, action accent |
+| `brand.primary` | `#5C4EEA` | Brand color, active nav, action accent. **2026-09-29（`UI-QA-A11Y-01`，Owner 選 B）由 `#6C63FF` 改為 `#5C4EEA`**：白字 4.32 → 5.63:1 |
 | `brand.cta` | `#FF6B73` | Primary flow CTA |
 | `brand.cta-hover` | `#FF5964` | Flow CTA hover/active |
 
@@ -27,7 +27,7 @@ Source aligned with:
 | Token | Value | Usage |
 | --- | --- | --- |
 | `intent.flow` | `#FF6B73` | Checkout, create order, submit proof, login/register |
-| `intent.action` | `#6C63FF` | Filter, review, publish, management actions |
+| `intent.action` | `#5C4EEA` | Filter, review, publish, management actions（token 仍獨立，值與 `brand.primary` 相同；2026-09-29 由 `#655CFF` 對齊） |
 | `intent.neutral` | `#FFFFFF` | Back, cancel, helper actions |
 | `intent.danger` | `#EF4444` | Reject, delete, disable actions |
 
@@ -60,7 +60,7 @@ Tailwind prefix: `ds` (e.g. `bg-ds-page`, `text-ds-heading`, `rounded-ds-card`).
 | `ds.text.body` | `--ds-text-body` | `#374151` | Body copy |
 | `ds.text.muted` | `--ds-text-muted` | `#6B7280` | Secondary labels |
 | `ds.text.subtle` | `--ds-text-subtle` | `#9CA3AF` | Meta / helper text |
-| `ds.focus` | `--ds-focus-ring` | `#6C63FF` | Focus ring (same as brand primary) |
+| `ds.focus` | `--ds-focus-ring` | `#5C4EEA` | Focus ring (same as brand primary — `var(--color-brand-primary)`) |
 | `ds.radius.card` | `--ds-radius-card` | `20px` | **Canonical** card radius for `Card` / `SurfaceCard` |
 | `ds.shadow.card` | `--ds-shadow-card` | see `globals.css` | Default card shadow |
 | `ds.shadow.card-soft` | `--ds-shadow-card-soft` | see `globals.css` | Flat / soft elevation |
@@ -79,19 +79,19 @@ Tailwind prefix: `ds` (e.g. `bg-ds-page`, `text-ds-heading`, `rounded-ds-card`).
 | `pending_payment` | `#FFE4E6` | `#FF6B73` |
 | `approved` | `#ECFDF5` | `#047857` |
 | `rejected` | `#FEE2E2` | `#B91C1C` |
-| `reviewed` | `#EDE9FE` | `#6C63FF` |
+| `reviewed` | `#EDE9FE` | `#554BFF` |
 
 ### 2.5 Feedback (Loading/Empty/Error)
 
 | Token | Value | Usage |
 | --- | --- | --- |
 | `feedback.loading.text` | `#6B7280` | Loading label text |
-| `feedback.loading.spinner-primary` | `#6C63FF` | Spinner active color |
+| `feedback.loading.spinner-primary` | `#5C4EEA` | Spinner active color（`var(--color-brand-primary)`） |
 | `feedback.loading.spinner-track` | `#DDEBFA` | Spinner track color |
 | `feedback.empty.icon-bg` | `#EDE9FE` | Empty illustration/icon background |
 | `feedback.empty.title` | `#1F2937` | Empty title text |
 | `feedback.empty.description` | `#6B7280` | Empty description text |
-| `feedback.empty.action` | `#6C63FF` | Empty action link/button |
+| `feedback.empty.action` | `#5C4EEA` | Empty action link/button（`var(--color-brand-primary)`） |
 | `feedback.error.bg` | `#FEF2F2` | Error panel background |
 | `feedback.error.border` | `#FECACA` | Error panel border |
 | `feedback.error.text` | `#B91C1C` | Error text |

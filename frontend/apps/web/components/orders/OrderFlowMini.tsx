@@ -102,7 +102,7 @@ export function OrderFlowMini({ status, progressState = "", paymentProofPendingR
       return "border-0 bg-edu-primary text-[13px] font-bold text-white shadow-sm";
     }
     if (active) {
-      return "border-0 bg-edu-primary text-[13px] font-bold text-white shadow-[0_0_0_4px_rgba(108,99,255,0.22)]";
+      return "border-0 bg-edu-primary text-[13px] font-bold text-white shadow-[0_0_0_4px_rgba(92,78,234,0.22)]";
     }
     return "border-0 bg-[#d9d9e5] text-[13px] font-bold text-ds-textSubtle";
   }

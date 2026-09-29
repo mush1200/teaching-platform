@@ -13,7 +13,7 @@ export function CategoryIcon({ label, emoji, active, onClick }: Props) {
       onClick={onClick}
       className={`flex min-w-[4.5rem] flex-col items-center gap-1.5 rounded-2xl border px-3 py-2 text-center transition-colors ${
         active
-          ? "border-[#6C63FF] bg-white shadow-[0_6px_20px_rgba(108,99,255,0.15)]"
+          ? "border-edu-primary bg-white shadow-[0_6px_20px_rgba(92,78,234,0.15)]"
           : "border-transparent bg-white/60 hover:border-[#E5E7EB] hover:bg-white"
       }`}
     >

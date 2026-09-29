@@ -6,7 +6,7 @@ type Props = {
 
 export function MaterialHero({ onExplore }: Props) {
   return (
-    <section className="rounded-3xl border border-[#E5E7EB]/60 bg-gradient-to-r from-[#EDE9FE] to-[#F4F1FF] p-5 shadow-[0_12px_40px_rgba(108,99,255,0.08)] sm:p-6 md:p-8">
+    <section className="rounded-3xl border border-[#E5E7EB]/60 bg-gradient-to-r from-[#EDE9FE] to-[#F4F1FF] p-5 shadow-[0_12px_40px_rgba(92,78,234,0.08)] sm:p-6 md:p-8">
       <div className="mx-auto flex max-w-4xl flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="max-w-lg space-y-2">
           <h2 className="text-2xl font-bold tracking-tight text-[#1F2937] sm:text-3xl">探索優質教材</h2>

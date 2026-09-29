@@ -16,7 +16,15 @@
    * **hover 必須比 base 更暗**：舊的 `#ff5964` 比新的 base `#ea000d` **更亮**，
    * 若不一起改，hover 會變成「滑過去反而變淺」，而且白字只有 3.06:1 仍不合格。
    */
-  --color-brand-primary: #6c63ff;
+  /*
+   * `UI-QA-A11Y-01`（2026-09-29，**Owner 決定：候選 B**）：由 #6c63ff 改為 #5c4eea。
+   * 白字 4.32 → **5.63:1**（AA 一般字級）。產生方式：OKLCH 固定色相（−80.2°）與彩度（0.224），
+   * 只降亮度 —— 同一個品牌紫、只是更深。候選比較頁：`/dev/ui-review/brand-purple`。
+   * 本變數是品牌紫的 **canonical 來源**；`--ds-focus-ring`、spinner、empty action 直接參照它。
+   * `tailwind.config.ts` 的 `edu.primary` 必須是同值的 hex（Tailwind 3 的 `/opacity` 修飾子
+   * 無法作用在 `var()` 上，而 `bg-edu-primary/[0.12]` 等用法依賴它）—— 雙來源，改一處就要改另一處。
+   */
+  --color-brand-primary: #5c4eea;
   --color-brand-cta: #ea000d;
   --color-brand-cta-hover: #d1000c;
 
@@ -25,11 +33,15 @@
    * `UI-CONS-01`（2026-09-07 closeout，Owner 核准）：
    *   flow   #ff6b73 → #ea000d   白字 2.76 → 4.66:1
    *   action #6c63ff → #655cff   白字 4.32 → 4.64:1
+   *   action #655cff → #5c4eea   白字 4.64 → 5.63:1（2026-09-29 `UI-QA-A11Y-01`）
+   *     `#655cff` 的由來是「品牌紫壓暗到剛好過 AA」；品牌紫本身已改為過 AA 的 #5c4eea，
+   *     action 若停在 #655cff，canonical `Button` 會比品牌紫**更淺**、與手寫的
+   *     `bg-edu-primary` 按鈕並排時出現兩種紫。**token 仍獨立**（語意是「action 填色」），只是值與品牌一致。
    * 兩者皆保持色相（flow 356.8°→357.5°、action 243.5°→243.4°），只降明度。
    * `tailwind.config.ts` 的 `intent.*` 是**寫死的 hex**，必須同步（雙來源，見 §4.3 B11）。
    */
   --color-intent-flow: #ea000d;
-  --color-intent-action: #655cff;
+  --color-intent-action: #5c4eea;
   --color-intent-neutral: #ffffff;
   /*
    * `UI-CONS-01`（2026-09-08 closeout，Owner 核准 #EF4444 → #E81414）。
@@ -86,12 +98,12 @@
 
   /* Feedback */
   --color-feedback-loading-text: #6b7280;
-  --color-feedback-loading-spinner-primary: #6c63ff;
+  --color-feedback-loading-spinner-primary: var(--color-brand-primary);
   --color-feedback-loading-spinner-track: #ddebfa;
   --color-feedback-empty-icon-bg: #ede9fe;
   --color-feedback-empty-title: #1f2937;
   --color-feedback-empty-description: #6b7280;
-  --color-feedback-empty-action: #6c63ff;
+  --color-feedback-empty-action: var(--color-brand-primary);
   --color-feedback-error-bg: #fef2f2;
   --color-feedback-error-border: #fecaca;
   --color-feedback-error-text: #b91c1c;
@@ -118,7 +130,7 @@
   --shadow-card-elevated: 0 18px 60px rgba(15, 23, 42, 0.1);
   --shadow-card-default: 0 10px 40px rgba(15, 23, 42, 0.06);
   --shadow-button-flow: 0 8px 24px rgba(255, 107, 115, 0.28);
-  --shadow-button-action: 0 6px 20px rgba(108, 99, 255, 0.22);
+  --shadow-button-action: 0 6px 20px rgba(92, 78, 234, 0.22);
 
   /*
    * Design system — account / library / order commerce surfaces.
@@ -175,8 +187,14 @@
    *
    * **`edu-primary` 與 `intent-action` 都維持原值** —— 品牌 token 仍是品牌 token，
    * 填色與裝飾用途不受本次文字補救影響。
+   *
+   * **2026-09-29（`UI-QA-A11Y-01`）：#5045ff → #4e42ff，依本段同一條規則重算。**
+   * 品牌紫改為 #5c4eea 後，導覽 active 的 12% tint 變深（over `edu-page` ＝ #E2DDFC），
+   * 舊值在上面只剩 **4.40:1**。保持本 token 自己的色相（243.5°）再壓暗到剛好 4.5：
+   *   白 5.92／#F4F1FF 5.32／#F4F5FA 5.44／tint-over-white #EBEAFC 4.99／tint-over-page #E2DDFC 4.51
+   * 它仍是**文字角色**的 token，與品牌紫刻意分開 —— 品牌紫在 tint-over-page 上不到 4.5。
    */
-  --ds-text-accent: #5045ff;
+  --ds-text-accent: #4e42ff;
 
   /*
    * `UI-CONS-15` / WCAG **1.4.11 non-text contrast**（2026-09-09，Owner 批准）——

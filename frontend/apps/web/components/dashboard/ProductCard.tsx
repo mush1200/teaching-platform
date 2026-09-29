@@ -15,7 +15,7 @@ export function ProductCard({ material, subtitle }: Props) {
 
   return (
     <article className="group">
-      <div className="overflow-hidden rounded-3xl border border-[#E5E7EB]/80 bg-white shadow-[0_10px_40px_rgba(15,23,42,0.06)] transition duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_18px_48px_rgba(108,99,255,0.15)]">
+      <div className="overflow-hidden rounded-3xl border border-[#E5E7EB]/80 bg-white shadow-[0_10px_40px_rgba(15,23,42,0.06)] transition duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_18px_48px_rgba(92,78,234,0.15)]">
         <div className={`relative aspect-[4/3] bg-gradient-to-br ${material.coverGradient}`}>
           <Link href={href} className="absolute inset-0 z-0" aria-label={material.title} />
           <IconButton

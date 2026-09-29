@@ -130,7 +130,7 @@
 | Sidebar 背景 | `#FFFFFF`（`bg-white`） |
 | 右邊框 | `#EEF0F6` |
 | 主內容區背景 | `#F4F1FF`（`ParentAppShell`） |
-| 品牌紫 | `edu-primary`（`#6C63FF`） |
+| 品牌紫 | `edu-primary`（`#5C4EEA`；2026-09-29 前為 `#6C63FF`） |
 | Icon 預設色 | `slate-500` |
 | Nav 圓角 | `10px` |
 

@@ -35,7 +35,12 @@ const config: Config = {
         edu: {
           page: "#F4F1FF",
           card: "#FFFFFF",
-          primary: "#6C63FF",
+          /*
+           * `UI-QA-A11Y-01`（2026-09-29，Owner 選 B）：與 `--color-brand-primary` 同值。
+           * 刻意保留 hex 而非 `var()`：`bg-edu-primary/[0.12]`、`border-edu-primary/40` 等
+           * opacity 修飾子在 Tailwind 3 無法作用於 `var()` 色值。
+           */
+          primary: "#5C4EEA",
           /*
            * `UI-CONS-15`（2026-09-09）：**dual-source drift 修正。**
            * `UI-CONS-01` 已把 `--color-brand-cta` 改為 `#EA000D`（白字 4.66），
@@ -79,7 +84,7 @@ const config: Config = {
         intent: {
           /* `UI-CONS-01`（2026-09-07）：與 `globals.css` 的 `--color-intent-*` 同步。 */
           flow: "#EA000D",
-          action: "#655CFF",
+          action: "#5C4EEA",
           neutral: "#FFFFFF",
           /* `UI-CONS-01`（2026-09-08）：與 `--color-intent-danger` 同步（見 globals.css 註解）。 */
           danger: "#DE1313",
@@ -104,12 +109,12 @@ const config: Config = {
         },
         feedback: {
           loadingText: "#6B7280",
-          loadingSpinnerPrimary: "#6C63FF",
+          loadingSpinnerPrimary: "var(--color-feedback-loading-spinner-primary)",
           loadingSpinnerTrack: "#DDEBFA",
           emptyIconBg: "#EDE9FE",
           emptyTitle: "#1F2937",
           emptyDescription: "#6B7280",
-          emptyAction: "#6C63FF",
+          emptyAction: "var(--color-feedback-empty-action)",
           errorBg: "#FEF2F2",
           errorBorder: "#FECACA",
           errorText: "#B91C1C",
@@ -140,7 +145,7 @@ const config: Config = {
         "ds-card-soft": "var(--ds-shadow-card-soft)",
         "ds-card-hover": "var(--ds-shadow-card-hover)",
         "button-flow": "0 8px 24px rgba(255, 107, 115, 0.28)",
-        "button-action": "0 6px 20px rgba(108, 99, 255, 0.22)",
+        "button-action": "var(--shadow-button-action)",
       },
       maxWidth: {
         wide: "1280px",

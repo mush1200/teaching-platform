@@ -132,7 +132,7 @@ const styles: Record<Intent, Record<Variant, string>> = {
           → 補上 `intent="neutral"`，外觀不變。
     */
     outline:
-      "border border-[var(--color-surface-border)] bg-white text-[var(--color-text-primary)] shadow-sm hover:border-[#6C63FF]/40 hover:text-ds-textAccent",
+      "border border-[var(--color-surface-border)] bg-white text-[var(--color-text-primary)] shadow-sm hover:border-edu-primary/40 hover:text-ds-textAccent",
     /* `UI-CONS-15`：`--color-text-secondary` 是 #6B7280 —— `--ds-text-muted` 在 `UI-CONS-01`
        被改為 #686F7D 之前的舊值。ghost 按鈕常落在 `edu-page`(#F4F1FF) 上，舊值只有 4.34。
        改指 canonical `ds-textMuted`：白 4.94／#F4F1FF 4.54，皆過 AA。 */

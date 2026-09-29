@@ -195,7 +195,7 @@ export default function RegisterPage() {
                     onClick={() => setRole("parent")}
                     className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus focus-visible:ring-2 focus-visible:ring-edu-primary/35 ${
                       role === "parent"
-                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
+                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(92,78,234,0.25)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#C4B5FD]"
                     }`}
                   >
@@ -210,7 +210,7 @@ export default function RegisterPage() {
                     onClick={() => setRole("creator")}
                     className={`rounded-[20px] border px-4 py-4 text-left transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus focus-visible:ring-2 focus-visible:ring-edu-primary/35 ${
                       role === "teacher" || role === "creator"
-                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(109,92,255,0.25)]"
+                        ? "border-edu-primary bg-[#F4F1FF] shadow-[0_10px_24px_rgba(92,78,234,0.25)]"
                         : "border-[#E5E7EB] bg-white hover:border-[#C4B5FD]"
                     }`}
                   >
@@ -289,7 +289,7 @@ export default function RegisterPage() {
           </div>
         </section>
 
-        <aside className="relative hidden overflow-hidden rounded-[32px] p-12 shadow-[0_24px_60px_rgba(109,92,255,0.18)] lg:block">
+        <aside className="relative hidden overflow-hidden rounded-[32px] p-12 shadow-[0_24px_60px_rgba(92,78,234,0.18)] lg:block">
           <div
             className="absolute inset-0"
             style={{

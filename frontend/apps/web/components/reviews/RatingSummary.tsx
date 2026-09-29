@@ -33,7 +33,7 @@ export function RatingSummary({ average, reviewCount, distribution }: Props) {
                 <div key={stars} className="flex items-center gap-2 text-xs">
                   <span className="w-8 shrink-0 text-ds-textMuted">{stars} 星</span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#F3F4F6]">
-                    <div className="h-full rounded-full bg-[#6C63FF]/70" style={{ width: `${row.percent * 100}%` }} />
+                    <div className="h-full rounded-full bg-edu-primary/70" style={{ width: `${row.percent * 100}%` }} />
                   </div>
                   <span className="w-10 shrink-0 text-right text-ds-textSubtle">{Math.round(row.percent * 100)}%</span>
                 </div>

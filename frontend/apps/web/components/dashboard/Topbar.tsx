@@ -90,7 +90,7 @@ export function Topbar({ onMenuClick, cartBadge = 2, menuButtonRef, drawerId, dr
               if (e.key === "Enter") pushQuery(q);
             }}
             placeholder="搜尋教材、主題、年齡..."
-            className="w-full rounded-full border border-ds-borderControl bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition focus:border-[#6C63FF]/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+            className="w-full rounded-full border border-ds-borderControl bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition focus:border-edu-primary/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
           />
         </label>
       </div>

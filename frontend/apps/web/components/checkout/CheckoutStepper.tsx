@@ -24,7 +24,7 @@ export function CheckoutStepper({ activeStep }: Props) {
               <span
                 className={`flex size-9 items-center justify-center rounded-full text-xs font-bold ${
                   done
-                    ? "bg-[#6C63FF] text-white"
+                    ? "bg-edu-primary text-white"
                     : current
                       ? "bg-[#FF6B73] text-white shadow-[var(--shadow-button-flow)] ring-4 ring-[#FF6B73]/20"
                       : "border border-[#E5E7EB] bg-white text-ds-textSubtle"

@@ -87,7 +87,7 @@ export default function Home() {
                 </Link>
                 <Link
                   href="/login"
-                  className="inline-flex items-center justify-center rounded-2xl border border-[var(--color-surface-border)] bg-white px-5 py-3 text-sm font-semibold text-[#1F2937] shadow-sm transition hover:border-[#6C63FF]/40 hover:text-ds-textAccent"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[var(--color-surface-border)] bg-white px-5 py-3 text-sm font-semibold text-[#1F2937] shadow-sm transition hover:border-edu-primary/40 hover:text-ds-textAccent"
                 >
                   登入帳號
                 </Link>

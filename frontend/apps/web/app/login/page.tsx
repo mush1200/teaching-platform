@@ -300,7 +300,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <aside className="relative hidden overflow-hidden rounded-[32px] p-12 shadow-[0_24px_60px_rgba(109,92,255,0.18)] lg:block">
+        <aside className="relative hidden overflow-hidden rounded-[32px] p-12 shadow-[0_24px_60px_rgba(92,78,234,0.18)] lg:block">
           <div
             className="absolute inset-0"
             style={{

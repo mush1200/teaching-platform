@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -24,7 +25,16 @@ import { join } from "node:path";
 
 const WEB_ROOT = join(__dirname, "..", "..");
 const REPO_ROOT = join(WEB_ROOT, "..", "..", "..");
-const PAGE_PATH = join(WEB_ROOT, "app", "dev", "ui-review", "page.tsx");
+const DEV_ROOT = join(WEB_ROOT, "app", "dev");
+
+/**
+ * `app/dev/**` 底下**每一個** `page.tsx` 都要守同一組規則 —— 不只索引頁。
+ * 以掃描取得而不是寫死清單：日後新增的 dev 頁面自動納管，漏掛護欄就會紅
+ * （例如 2026-09-29 的 `/dev/ui-review/brand-purple` 品牌色比較頁）。
+ */
+const DEV_PAGES = (readdirSync(DEV_ROOT, { recursive: true }) as string[])
+  .filter((p) => p.replace(/\\/g, "/").endsWith("page.tsx"))
+  .map((p) => join(DEV_ROOT, p));
 
 test.describe("UI Review dev 頁面的 production 護欄", () => {
   test("render.yaml 不宣告 NEXT_PUBLIC_UI_REVIEW_MODE", async () => {
@@ -39,40 +49,48 @@ test.describe("UI Review dev 頁面的 production 護欄", () => {
     ).toBe(false);
   });
 
-  test("頁面同時保有兩個 fail-closed 條件，且 NODE_ENV 在前", async () => {
-    const source = await readFile(PAGE_PATH, "utf8");
-
-    const prodGuard = 'if (process.env.NODE_ENV === "production") notFound();';
-    const flagGuard = 'if (process.env.NEXT_PUBLIC_UI_REVIEW_MODE !== "1") notFound();';
-
-    expect(source.includes(prodGuard), "缺少 NODE_ENV production 護欄").toBe(true);
-    expect(source.includes(flagGuard), "缺少 UI_REVIEW_MODE 旗標護欄").toBe(true);
-
-    // 順序有意義：production 的判斷不得被旗標的判斷繞過。
-    expect(
-      source.indexOf(prodGuard),
-      "NODE_ENV 護欄必須在旗標護欄之前"
-    ).toBeLessThan(source.indexOf(flagGuard));
+  test("app/dev 底下確實有被納管的頁面", () => {
+    expect(DEV_PAGES.length, "找不到任何 dev 頁面 —— 掃描路徑可能錯了，下面的測試會形同虛設").toBeGreaterThanOrEqual(2);
   });
 
-  test("頁面不含任何登入繞道", async () => {
-    const source = await readFile(PAGE_PATH, "utf8");
+  for (const pagePath of DEV_PAGES) {
+    const rel = pagePath.slice(WEB_ROOT.length + 1).replace(/\\/g, "/");
 
-    // 逐項檢查，失敗訊息要指得出是哪一種繞道。
-    const forbidden: [RegExp, string][] = [
-      [/document\s*\.\s*cookie/, "直接寫 cookie"],
-      [/localStorage/, "寫 localStorage（tp_token / tp_role 的儲存位置）"],
-      [/sessionStorage/, "寫 sessionStorage"],
-      [/\bfetch\s*\(/, "發出 API 請求"],
-      [/tp_token|tp_role/, "直接操作 session 識別值"],
-      [/signIn|loginAs|impersonat/i, "登入／冒用輔助函式"],
-      [/jsonwebtoken|jwt\.sign/, "自行簽發 token"],
-    ];
+    test(`${rel}：同時保有兩個 fail-closed 條件，且 NODE_ENV 在前`, async () => {
+      const source = await readFile(pagePath, "utf8");
 
-    for (const [pattern, label] of forbidden) {
-      expect(pattern.test(source), `/dev/ui-review 不得${label}`).toBe(false);
-    }
-  });
+      const prodGuard = 'if (process.env.NODE_ENV === "production") notFound();';
+      const flagGuard = 'if (process.env.NEXT_PUBLIC_UI_REVIEW_MODE !== "1") notFound();';
+
+      expect(source.includes(prodGuard), "缺少 NODE_ENV production 護欄").toBe(true);
+      expect(source.includes(flagGuard), "缺少 UI_REVIEW_MODE 旗標護欄").toBe(true);
+
+      // 順序有意義：production 的判斷不得被旗標的判斷繞過。
+      expect(
+        source.indexOf(prodGuard),
+        "NODE_ENV 護欄必須在旗標護欄之前"
+      ).toBeLessThan(source.indexOf(flagGuard));
+    });
+
+    test(`${rel}：不含任何登入繞道`, async () => {
+      const source = await readFile(pagePath, "utf8");
+
+      // 逐項檢查，失敗訊息要指得出是哪一種繞道。
+      const forbidden: [RegExp, string][] = [
+        [/document\s*\.\s*cookie/, "直接寫 cookie"],
+        [/localStorage/, "寫 localStorage（tp_token / tp_role 的儲存位置）"],
+        [/sessionStorage/, "寫 sessionStorage"],
+        [/\bfetch\s*\(/, "發出 API 請求"],
+        [/tp_token|tp_role/, "直接操作 session 識別值"],
+        [/signIn|loginAs|impersonat/i, "登入／冒用輔助函式"],
+        [/jsonwebtoken|jwt\.sign/, "自行簽發 token"],
+      ];
+
+      for (const [pattern, label] of forbidden) {
+        expect(pattern.test(source), `${rel} 不得${label}`).toBe(false);
+      }
+    });
+  }
 
   test("UI Review 啟動器不會把旗標寫進一般 dev 或驗收流程", async () => {
     const launcher = await readFile(

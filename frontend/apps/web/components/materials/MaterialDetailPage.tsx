@@ -257,7 +257,7 @@ export function MaterialDetailPage({ materialId }: Props) {
               type="button"
               data-testid="material-report-trigger"
               onClick={() => setReportOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-2xl px-2 py-1 text-sm text-ds-textMuted transition-colors hover:text-[var(--color-intent-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6C63FF]"
+              className="inline-flex items-center gap-1.5 rounded-2xl px-2 py-1 text-sm text-ds-textMuted transition-colors hover:text-[var(--color-intent-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               <span aria-hidden>⚑</span>
               檢舉這個教材

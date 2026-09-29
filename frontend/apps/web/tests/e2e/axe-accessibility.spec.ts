@@ -104,19 +104,9 @@ function exceptionsFor(
 
 const KNOWN_EXCEPTIONS: KnownException[] = [
   /*
-   * `UI-QA-A11Y-01`：`bg-edu-primary text-white`（#FFFFFF on #6C63FF ＝ 4.31:1）。
-   * canonical `Button` 已達 AA（`contrast-contract` 有測），這些是**繞過 Button 的手寫 class**，
-   * 共 15 處；修法涉及品牌色 token 的選用，屬 Owner 設計決定。
+   * `UI-QA-A11Y-01`（白字 on 舊品牌紫 #6C63FF ＝ 4.31:1）的 7 條例外已於 2026-09-29 移除：
+   * Owner 選定品牌紫 #5C4EEA（白字 5.63:1），所有 `bg-edu-primary text-white` 表面改由 token 取值後通過。
    */
-  ...exceptionsFor("UI-QA-A11Y-01", "color-contrast", BOTH, [
-    ["/admin", ".bg-edu-primary"],
-    ["/admin/orders", ".bg-edu-primary"],
-    ["/admin/payment-proofs", 'button[data-testid="payment-proof-open"]'],
-    ["/admin/payment-proofs", 'button[type="submit"]'],
-    ["/admin/reports", 'button[data-testid="report-case-open"]'],
-    ["/admin/reports", 'button[type="submit"]'],
-    ["/creator/sales", ".bg-edu-primary"],
-  ]),
   /* `UI-QA-A11Y-02`：買家側欄分組標題 `text-slate-400/80`（2.07:1），`components/dashboard/Sidebar.tsx:237`。 */
   ...exceptionsFor("UI-QA-A11Y-02", "color-contrast", DESKTOP, [
     ["/dashboard", ".mt-0"],

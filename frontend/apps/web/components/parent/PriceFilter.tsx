@@ -31,7 +31,7 @@ export function PriceFilter({ mode, onModeChange, priceMin, priceMax, onPriceMin
             className={[
               "rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors",
               mode === k
-                ? "border-[#6C63FF] bg-[#EDE9FE] text-ds-textAccent"
+                ? "border-edu-primary bg-[#EDE9FE] text-ds-textAccent"
                 : "border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#FAF8FF]",
             ].join(" ")}
             onClick={() => onModeChange(k)}

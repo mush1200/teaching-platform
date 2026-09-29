@@ -188,7 +188,7 @@ export function MaterialReportDialog({ open, materialId, materialTitle, role, on
               rows={5}
               onChange={(event) => setReason(event.target.value)}
               placeholder="請描述你遇到的問題…"
-              className="mt-2 w-full resize-y rounded-2xl border border-ds-borderControl bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition-shadow focus:border-[#6C63FF]/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
+              className="mt-2 w-full resize-y rounded-2xl border border-ds-borderControl bg-[#F9FAFB] px-4 py-3 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition-shadow focus:border-edu-primary/50 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             />
             <div className="mt-1 flex items-center justify-between gap-3">
               <p id="material-report-error" role="alert" className="text-xs text-feedback-errorText">

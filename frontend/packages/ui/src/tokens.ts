@@ -1,10 +1,10 @@
 export const designTokens = {
   colors: {
-    primary: "#6c63ff",
+    primary: "#5c4eea",
     primaryHover: "#5b52ee",
     cta: "#ff6b73",
     ctaHover: "#ff5964",
-    action: "#6c63ff",
+    action: "#5c4eea",
     neutral: "#ffffff",
     success: "#16a34a",
     warning: "#d97706",
@@ -40,12 +40,12 @@ export const designTokens = {
     },
     feedback: {
       loadingText: "#6b7280",
-      spinnerPrimary: "#6c63ff",
+      spinnerPrimary: "#5c4eea",
       spinnerTrack: "#ddebfa",
       emptyIconBg: "#ede9fe",
       emptyTitle: "#1f2937",
       emptyDescription: "#6b7280",
-      emptyAction: "#6c63ff",
+      emptyAction: "#5c4eea",
       errorBg: "#fef2f2",
       errorBorder: "#fecaca",
       errorText: "#b91c1c",

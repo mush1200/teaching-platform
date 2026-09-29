@@ -53,7 +53,8 @@ E2E_SERVER=production npm run test:e2e:ui-quality
 | **axe**（`tests/e2e/axe-accessibility.spec.ts`） | **標準化**無障礙規則的廣度覆蓋：WCAG 2.0／2.1／2.2 A＋AA 與 best-practice | name／role／value、label、landmark、aria 屬性合法性、**實際渲染**的對比 |
 
 兩者重疊的只有「對比」：contract spec 驗**設計 token 本身**合格；axe 驗**畫面上實際出現的組合** ——
-`UI-QA-A11Y-01` 正是 token 合格、但有 15 處繞過 `Button` 手寫 `bg-edu-primary text-white` 的情形。
+`UI-QA-A11Y-01` 正是 token 合格、但有 15 處繞過 `Button` 手寫 `bg-edu-primary text-white` 的情形
+（2026-09-29 已解決：品牌紫改為 `#5C4EEA`，白字 5.63:1，例外移除）。
 
 `test:e2e:ui-quality` 的 spec 清單是**唯一來源**（`frontend/apps/web/package.json`），CI 與本機都跑同一份。
 
@@ -76,7 +77,8 @@ E2E_SERVER=production npm run test:e2e:ui-quality
   **路由 ＋ rule ＋ 節點 selector ＋ project** 的精確組合，並**必須**附 tracker ID。
 - **禁止**全域停用規則、禁止整條路由略過、禁止沒有 tracker ID 的條目。
 - 例外若已不再發生，test 會**失敗**（stale exception）—— 修好缺陷後必須刪掉對應條目。
-- 現有例外全部是**已立案的既有缺陷**（`UI-QA-A11Y-01`／`-02`／`-03`），不是「可以接受」。
+- 現有例外全部是**已立案的既有缺陷**（`UI-QA-A11Y-02`／`-03`），不是「可以接受」。
+  `UI-QA-A11Y-01` 的 7 條例外已於 2026-09-29 隨品牌紫改色移除 —— 例外機制如設計般運作：修好即刪。
 
 ### 2.5 L1 的已知覆蓋缺口
 
@@ -165,3 +167,4 @@ UI Review 的 axe sweep 目前是**一次性的證據**，不是常設工具（�
 | 日期 | 變更 |
 | --- | --- |
 | 2026-09-29 | 建立。L1 CI gate（`UI-QA-CI`）、字型自架（`UI-QA-FONT`）、axe gate（`UI-QA-AXE`） |
+| 2026-09-29 | 品牌紫 `#6C63FF` → `#5C4EEA`（Owner 選 B）；`UI-QA-A11Y-01` 例外移除 |

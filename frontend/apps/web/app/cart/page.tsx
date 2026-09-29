@@ -88,7 +88,7 @@ export default function CartPage() {
             intent="flow"
             fullWidth
             size="lg"
-            className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(108,99,255,0.28)] hover:shadow-[0_16px_30px_rgba(108,99,255,0.32)]"
+            className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(92,78,234,0.28)] hover:shadow-[0_16px_30px_rgba(92,78,234,0.32)]"
           >
             前往結帳 · NT${total.toLocaleString()}
             <IconArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
@@ -173,7 +173,7 @@ export default function CartPage() {
                 intent="flow"
                 fullWidth
                 size="lg"
-                className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(108,99,255,0.28)] hover:shadow-[0_16px_30px_rgba(108,99,255,0.32)]"
+                className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(92,78,234,0.28)] hover:shadow-[0_16px_30px_rgba(92,78,234,0.32)]"
               >
                 前往結帳 · NT${total.toLocaleString()}
                 <IconArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />

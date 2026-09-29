@@ -21,7 +21,7 @@ export function CartItem({ item, selected, onToggle, onQtyChange, onRemove }: Pr
           type="checkbox"
           checked={selected}
           onChange={() => onToggle(item.id)}
-          className="row-span-2 size-4 shrink-0 rounded border-[#D1D5DB] text-ds-textAccent focus:ring-[#6C63FF]/30"
+          className="row-span-2 size-4 shrink-0 rounded border-[#D1D5DB] text-ds-textAccent focus:ring-edu-primary/30"
           aria-label={`選取 ${item.title}`}
         />
         <div

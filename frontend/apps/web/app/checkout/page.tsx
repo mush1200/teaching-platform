@@ -263,7 +263,7 @@ export default function CheckoutPage() {
                   {s.step < 3 ? (
                     <span
                       className={`absolute left-[calc(50%+16px)] top-4 h-[2px] w-[calc(100%-32px)] ${
-                        step > (s.step as Step) ? "bg-[#6C63FF]" : "bg-[#E5E7EB]"
+                        step > (s.step as Step) ? "bg-edu-primary" : "bg-[#E5E7EB]"
                       }`}
                       aria-hidden
                     />
@@ -271,9 +271,9 @@ export default function CheckoutPage() {
                   <span
                     className={`mx-auto flex size-8 items-center justify-center rounded-full text-sm font-bold ${
                       done
-                        ? "bg-[#6C63FF] text-white"
+                        ? "bg-edu-primary text-white"
                         : active
-                          ? "bg-[#6C63FF] text-white shadow-[0_0_0_3px_rgba(108,99,255,0.16)]"
+                          ? "bg-edu-primary text-white shadow-[0_0_0_3px_rgba(92,78,234,0.16)]"
                           : "border border-[#D1D5DB] bg-white text-ds-textSubtle"
                     }`}
                   >
@@ -382,7 +382,7 @@ export default function CheckoutPage() {
               onClick={() => setPaymentMode("manual_transfer")}
               className={`w-full rounded-2xl border p-4 text-left ${
                 paymentMode === "manual_transfer"
-                  ? "border-[#6C63FF] bg-[#F7F4FF] shadow-[0_0_0_2px_rgba(108,99,255,0.18)]"
+                  ? "border-edu-primary bg-[#F7F4FF] shadow-[0_0_0_2px_rgba(92,78,234,0.18)]"
                   : "border-[#E5E7EB]"
               }`}
             >
@@ -452,7 +452,7 @@ export default function CheckoutPage() {
                 <p className="text-sm text-[#4B5563]">商品小計：NT${subtotal.toLocaleString()}</p>
                 <p
                   className={`mt-1 rounded-lg px-2 py-1 text-sm text-[#4B5563] transition ${
-                    discount > 0 ? "bg-[#f2ecff] shadow-[0_0_0_1px_rgba(108,99,255,0.12)]" : ""
+                    discount > 0 ? "bg-[#f2ecff] shadow-[0_0_0_1px_rgba(92,78,234,0.12)]" : ""
                   }`}
                 >
                   優惠折扣：-{discount > 0 ? `NT$${discount.toLocaleString()}` : "NT$0"}

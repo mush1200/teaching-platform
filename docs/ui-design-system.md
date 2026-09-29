@@ -183,6 +183,15 @@ app  →  layout  →  domain  →  ds  →  ui
 
 ### 4.2.0 [規則] 品牌色 ≠ 文字色（`UI-CONS-15`，2026-09-09，Owner 批准）
 
+> **2026-09-29 更新（`UI-QA-A11Y-01`，Owner 選定候選 B）：品牌紫改為 `#5C4EEA`。**
+> 白字 4.32 → **5.63:1**；OKLCH 固定色相與彩度、只降亮度（比較頁 `/dev/ui-review/brand-purple`）。
+> - `--color-intent-action` 由 `#655CFF` 對齊為 `#5C4EEA`（token 仍獨立；`#655CFF` 的由來就是「品牌紫壓暗到剛好過 AA」）。
+> - `--ds-text-accent` 依本節**同一條規則**由 `#5045FF` 重算為 `#4E42FF`：品牌紫變深後，導覽 active 的 12% tint
+>   over `edu-page` 變為 `#E2DDFC`，舊值在上面只剩 4.40。新值在該面 4.51、白 5.92、`edu-page` 5.32。
+> - **本規則仍成立**：`#5C4EEA` 作為文字在 tint-over-page 上仍不到 4.5 —— 文字一律用 `ds-textAccent`。
+> - Focus indicator（`--ds-focus-ring` ＝ 品牌紫）對白由 4.32 提升為 5.63。
+> - 下方表格與段落保留 2026-09-09 當時的數值，作為決策紀錄。
+
 **`edu-primary`（`#6C63FF`）是品牌／強調的視覺 token，不是可用的文字色。**
 實測它當作文字時在本站**每一種**背景上都不到 AA：
 
@@ -300,7 +309,7 @@ Focus indicator（`#6C63FF` 對白 **4.32**）已通過 3:1，Wave UI-7 的 focu
 | B1 | **兩套視覺語言並存**：`edu`（探索／行銷，page bg `#F4F1FF`）vs `ds`（commerce／account，page bg `#F4F5FA`） | `tailwind.config.ts` 同時定義 `edu.page` 與 `ds.page` |
 | B2 | **三套 page background**（原記四套）：`globals.css` `body` 的 `#FFF8EF→#FFFDF9` 漸層、`AppShell` 的 `#F4F1FF→#FAF8FF→#F4F1FF`、`AdminShell` 的 `#F4F1FF→white→#F4F1FF` | 3 個 shell 各寫各的。第四套（`AuthSplitLayout` 的 `#F4F1FF→#FAF8FF→#FFF8EF`）**已隨該檔於 2026-09-04 `UI-CONS-22` 刪除** |
 | B3 | **`--background` / `--foreground`（`#fffaf5` / `#4f3a2d`）是孤兒 token**：`globals.css` 定義但幾乎無人使用，`body` 反而寫死漸層 | `globals.css` |
-| B4 | **三種品牌紫**：`#6C63FF`（**52 次 / 27 檔**，code-only）、`#6D5CFF`（**29 次**，僅 login/register 兩檔）、CTA 漸層 `#7C3AED→#6366F1` | login/register 自成一套視覺。**注意：`status.reviewed-text` 已於 `UI-CONS-01`（2026-09-07）由 `#6C63FF` 改為 `#554BFF`；`--color-intent-action` 仍是 `#6C63FF`**〔M〕〔M3〕 |
+| B4 | **（2026-09-29 更新：`#6C63FF` 的寫死副本已全部改用 token 或新值 `#5C4EEA`；`#6D5CFF` 的殘留陰影 rgba 已對齊；CTA 漸層仍為 Owner 保留項）** **三種品牌紫**：`#6C63FF`（**52 次 / 27 檔**，code-only）、`#6D5CFF`（**29 次**，僅 login/register 兩檔）、CTA 漸層 `#7C3AED→#6366F1` | login/register 自成一套視覺。**注意：`status.reviewed-text` 已於 `UI-CONS-01`（2026-09-07）由 `#6C63FF` 改為 `#554BFF`；`--color-intent-action` 仍是 `#6C63FF`**〔M〕〔M3〕 |
 | B5 | **Radius 尺度失控**：canonical `rounded-ds-card`(20px) **58 次**；`rounded-xl`(12) **199 次**、`rounded-full` **69 次**、`rounded-2xl`(16) **67 次**、`rounded-3xl`(24) **18 次**、`rounded-lg` 19、`rounded-md` 6，另有 **10 種**相異的 `rounded-[…]` 任意值（`10px/14px/16px/18px/20px/28px/32px` 等） | 全 app grep〔M〕 |
 | B6 | **Shadow 尺度失控**：`shadow-sm` **31 次**、`ds` 三顆合計 **36 次**（`-soft` 22 / `shadow-ds-card` 11 / `-hover` 3），另有 **40 種**相異的任意 `shadow-[…]` | 全 app grep〔M〕 |
 | B7 | **[部分收斂 `UI-CONS-07`／Wave UI-4B]** 置中 page container 已分四類（§7.4），gutter 已統一為 16/24/32 且**每頁只有一層**；但 **`max-w-*` 名稱仍未收斂**（`max-w-6xl`／`7xl` 與 `max-w-wide` 同概念兩套寫法），記為 semantic debt。原盤點：**content max-width 無共識**：token alias `max-w-wide` 僅 **3 次**（`max-w-narrow` / `max-w-normal` / `max-w-mobile` 皆 **0**），實際主力是 `max-w-2xl`(**12**)、`max-w-6xl`(**10**)、`max-w-7xl`(**10**)、`max-w-3xl`(7)、`max-w-xl`(6)、`max-w-4xl`(6)、`max-w-5xl`(4)，另有 **16 種**相異的 `max-w-[…]` 任意值（`720px` / `1440px` / `820px` / `620px` / `960px` / `90vw` 等） | 全 app grep〔M〕 |
