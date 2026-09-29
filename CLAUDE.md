@@ -174,12 +174,16 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
 
 | 改動範圍 | 必跑 |
 | --- | --- |
-| Web UI / frontend | `npm run verify:web`（在 `frontend/`） |
+| Web UI / frontend | `npm run verify:web`（在 `frontend/`）；UI 規則／a11y 另跑 `E2E_SERVER=production npm run test:e2e:ui-quality`（在 `frontend/apps/web`） |
 | Backend / auth / DB | 依 scope 跑 `npm run smoke --prefix Backend` 與／或 `npm run postman` |
 
 - **smoke / Postman 只能指向 `teaching_platform_security_test`**，啟動前先做 `PGDATABASE` assertion。
 - 兩者都必須**全綠**才算完整回歸（smoke exit 0；Postman 0 failed assertions）。
 - 憑證（`TEST_ADMIN_*`）來自 git-ignored 的 `Backend/.env`，缺值時測試會明確失敗 —— **不要**改成 fallback 或 hard-code。
+- **CI（`.github/workflows/ui-quality.yml`）**在每個 PR／push to `main` 自動跑 `verify:web`、Backend unit tests、
+  `test:e2e:ui-quality`（contract specs ＋ axe）與 `test:e2e:ci`，資料庫是 job 內的拋棄式 container。
+  **完整 E2E、smoke、Postman 仍是人工 gate**（需要真實測試帳號憑證）。分層與例外政策見 `docs/ui-quality-system.md`。
+  axe 例外只能逐條加在 `KNOWN_EXCEPTIONS` 並附 tracker ID，**不得**全域停用規則。
 
 ### Ports
 
@@ -272,6 +276,7 @@ Backend **3000**（`npm run dev`，專案根目錄）／Frontend **3010**（`npm
 | `docs/material-file-storage-and-delivery.md` | **教材本體檔案**：private storage、審核隔離、買家授權與交付、型別／大小政策、security invariants |
 | `docs/admin-information-architecture.md` | **Admin IA**：每頁的 JTBD、sidebar 分組、Dashboard／Activity Log 責任、Refresh rule、Review Workspace pattern |
 | `docs/ui-design-system.md` | **Web UI 入口**：canonical stack、component 狀態、UI 工作規則、Visual QA / DoD |
+| `docs/ui-quality-system.md` | **UI 品質分層（L0～L4）**：CI gate、axe 政策與例外、字型 determinism、截圖基準的前置條件與未來工具 |
 | `docs/frontend-ui-architecture.md` | 元件分層、token 選用（細節文件） |
 | `docs/design-tokens-v1.1.md` | Token 數值 |
 | `docs/technical-go-no-go-gate.md` | **Technical Go/No-Go gate**（`PRE-16`）：判準、可重跑的證據來源、證據強度分級、blocker 定義，以及「Technical GO ≠ Launch GO」的分界。**狀態仍只在 tracker 維護** |

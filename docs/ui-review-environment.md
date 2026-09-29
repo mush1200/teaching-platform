@@ -137,7 +137,7 @@ canonical source：`Backend/scripts/ui-review/guard.js`。
 
 | 限制 | 影響 | 是不是產品缺陷 |
 | --- | --- | --- |
-| **Google Fonts 下載失敗** —— dev server 記錄 `Failed to download 'Noto Sans TC' … Using fallback font instead` | 所有中文字採**備援字型**渲染，字重、字寬、行高與 production 不同 | ❌ **不是** —— 這是本機無法取用 Google Fonts。**任何純字型外觀的觀察都不得據此判為產品缺陷**；間距／換行／溢位仍然有效 |
+| ~~**Google Fonts 下載失敗**~~ —— ✅ **2026-09-29 已解決（`UI-QA-FONT`）**：字型改為自架（`@fontsource-variable/*`），dev／build／測試都不再連 Google。實測 `/materials` 所有可見文字使用同一個堆疊、字型 CDN 請求 0。**2026-09-29 之前**的截圖與字型觀察仍受此限制，判讀舊紀錄時請注意 | 修正前：中文採作業系統字型（不是只有 dev fallback —— 見 `docs/ui-quality-system.md` §5） | ❌ 不是產品缺陷（已解決） |
 | `next dev` 逐路由即時編譯 | 首次進入某路由較慢 | ❌ 不是 |
 | 封面圖為 `/uploads/ui-review/*.svg` 佔位路徑，檔案不存在 | 卡片會走 **broken image／無圖** 分支 | ⚠️ 這**正好**是「無圖 fallback」的檢視情境，但不得被誤記為「圖片壞掉」的產品缺陷 |
 

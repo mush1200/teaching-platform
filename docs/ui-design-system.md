@@ -30,6 +30,7 @@
 | `docs/buyer-sidebar-ui-spec.md` | Buyer 桌面側欄展開／收合 | 頁面級 spec |
 | `docs/materials-detail-spec.md` | 教材詳情頁 | 頁面級 spec |
 | `docs/ui-role-naming-checklist.md` | UI 文案角色命名 | **每個 UI 任務必查** |
+| `docs/ui-quality-system.md` | UI 品質的四層檢查（L0～L4）：CI gate、axe、字型 determinism、未來的截圖基準 | **誰檢查什麼、擋不擋**；本文件的 §13／§14 是它的人工部分 |
 | `docs/mvp_rules.md` | §A 前端資料來源政策、授權邊界 | **UI 任務的硬約束**，見 §11.8 |
 | `CLAUDE.md` | 專案總規則（auth 邊界、DB、git、驗收） | 上位規則，衝突時以 `CLAUDE.md` 為準 |
 
@@ -57,7 +58,7 @@
 | Framework | Next.js 15 App Router + React 19 + TypeScript | `frontend/apps/web/package.json` |
 | Styling（canonical） | **Tailwind CSS 3.4.17** + PostCSS + autoprefixer | `tailwind.config.ts`、`postcss.config.mjs` |
 | Token 來源 | `app/globals.css` `:root` CSS variables + `tailwind.config.ts` `theme.extend` | 兩檔 |
-| 字型 | `Noto Sans TC`（主）+ `Inter`（fallback），`next/font/google` | `app/layout.tsx` |
+| 字型 | **自架** `@fontsource-variable/inter` + `@fontsource-variable/noto-sans-tc`（`UI-QA-FONT`，2026-09-29；先前為 `next/font/google`）。Inter 負責拉丁字母、Noto Sans TC 負責中文 | `lib/font-stack.ts`（唯一堆疊）、`app/layout.tsx`（CSS import） |
 | Breakpoints | **Tailwind 預設**（`sm 640 / md 768 / lg 1024 / xl 1280 / 2xl 1536`）— config **未**自訂 `screens` | `tailwind.config.ts` |
 | 圖示 | `lucide-react`（**4 檔**）+ 手寫 SVG `components/ui/icons.tsx` | 兩套並存 |
 | Legacy UI 套件 | **Tamagui v2-rc + `@teaching-platform/ui`，仍安裝且仍在 root 掛載** | `app/providers.tsx`、`tamagui.config.ts`、`next.config.ts` |
@@ -376,7 +377,8 @@ canonical 的頁面標題是 24px（`text-h2`），全 app 41 個 `<PageHeader>`
 `text-h2` 是頁面標題的**字級**，`<h1>` 是它的**語意**，兩者不對應是刻意的。
 重新命名整組 scale（`h2`→`title-lg` 之類）屬 churn，未排程。
 
-- 字型堆疊：`var(--font-noto), var(--font-inter), ui-sans-serif, system-ui, sans-serif`（`app/layout.tsx` inline style）。
+- 字型堆疊：`"Inter Variable", "Noto Sans TC Variable", ui-sans-serif, system-ui, sans-serif` —— **唯一來源** `lib/font-stack.ts`，`<body>`、Tailwind `font-sans`、Tamagui `body`／`heading` 都指向它（`UI-QA-FONT`）。
+  先前 `TamaguiProvider` 的 `span.font_body` 與 Tailwind 預設 `font-sans` 各自覆蓋了 `<body>` 的字型，中文實際落到作業系統字型；詳見 `docs/ui-quality-system.md` §5。
 
 ### 5.2 [規則] Typography hierarchy contract
 

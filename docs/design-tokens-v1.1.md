@@ -164,10 +164,14 @@ Core spacing follows Tailwind scale and project aliases:
 | `type.meta` | `12px` | `18px` | 500 | Meta labels |
 | `type.caption` | `11px` | `16px` | 500 | Dense helper text |
 
-Font stack:
+Font stack（`UI-QA-FONT`，2026-09-29 更新 —— 單一來源 `frontend/apps/web/lib/font-stack.ts`）:
 
-- Primary: `Noto Sans TC`
-- Fallback: `Inter`, `ui-sans-serif`, `system-ui`
+- Latin / digits: `Inter Variable`（self-hosted, `@fontsource-variable/inter`）
+- CJK: `Noto Sans TC Variable`（self-hosted, `@fontsource-variable/noto-sans-tc`）
+- Last resort: `ui-sans-serif`, `system-ui`, `sans-serif`（emoji 等兩者都沒有的字元）
+
+> 先前本節寫「Primary: Noto Sans TC」，但實測該字型從未被畫出來（`docs/ui-quality-system.md` §5）。
+> 拉丁字母採 Inter 是為了維持修正前畫面上已經在用的拉丁字型；若要改由 Noto 負責拉丁字母，對調堆疊前兩項即可。
 
 ## 7. Component Specs
 
