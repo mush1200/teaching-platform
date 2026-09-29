@@ -66,7 +66,9 @@ E2E_SERVER=production npm run test:e2e:ui-quality
   creator `/creator/materials`、`/creator/sales`、`/creator/cases`；
   admin `/admin`、`/admin/orders`、`/admin/reports`、`/admin/payment-proofs`、`/admin/remedy-cases`。
 - 資料：client 端 API 以 mock 供應（deterministic）；`/materials/:id` 是 server component，讀 migration seed。
-- **假綠防線：** 每條路由都斷言掃描時停留的 URL 就是目標路由（被導向 `/login` 不算通過）。
+- **假綠防線：** 每條路由都斷言掃描時停留的 URL 就是目標路由（被導向 `/login` 不算通過），
+  而且畫面**不是** `app/error.tsx`（500）或 `app/not-found.tsx`（404）—— mock payload 形狀不對時，
+  URL 仍然正確但頁面已崩潰（CI 首次實跑在 typography contract 上實際發生過）。
 
 ### 2.4 例外政策
 
