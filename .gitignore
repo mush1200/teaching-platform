@@ -22,3 +22,6 @@ Backend/.ui-review-credentials.txt
 
 # UI Review 量測輸出（可重新產生的執行產物）
 frontend/apps/web/tests/ui-review/out/
+# canonical 視覺基準只有 Linux（CI 產生）；本機的 -win32／-darwin 截圖不得進版控（UI-QA-VISUAL-BASELINE）
+frontend/apps/web/tests/visual/__screenshots__/**/*-win32.png
+frontend/apps/web/tests/visual/__screenshots__/**/*-darwin.png

@@ -1,0 +1,55 @@
+{
+  "_comment": "UI Review 的唯一路由清單。measure-layout.mjs（診斷用截圖矩陣）與 tests/visual/*.spec.ts（canonical 視覺回歸）都從這裡讀。visual=true 的路由才進 toHaveScreenshot 基準。role=null 代表不登入。",
+  "accounts": {
+    "buyer": "buyer@ui-review.local",
+    "buyerEmpty": "buyer-empty@ui-review.local",
+    "creator": "creator@ui-review.local",
+    "creatorEmpty": "creator-empty@ui-review.local",
+    "admin": "admin@ui-review.local"
+  },
+  "routes": [
+    { "role": null, "path": "/", "label": "首頁", "visual": true },
+    { "role": null, "path": "/materials", "label": "教材列表", "visual": true },
+    { "role": null, "path": "/materials/uir_mat_baseline", "label": "教材詳情 — 基準", "visual": true },
+    { "role": null, "path": "/materials/uir_mat_long_title_zh", "label": "教材詳情 — 超長中文標題" },
+    { "role": null, "path": "/materials/uir_mat_long_title_en", "label": "教材詳情 — 超長英文標題／無封面" },
+    { "role": null, "path": "/materials/uir_mat_baseline/reviews", "label": "教學回饋列表" },
+    { "role": null, "path": "/login", "label": "登入", "visual": true },
+    { "role": null, "path": "/register", "label": "註冊" },
+    { "role": null, "path": "/support", "label": "聯絡平台" },
+    { "role": null, "path": "/terms", "label": "服務條款" },
+    { "role": null, "path": "/403", "label": "403" },
+
+    { "role": "buyer", "path": "/dashboard", "label": "購買者總覽", "visual": true },
+    { "role": "buyer", "path": "/explore", "label": "探索教材" },
+    { "role": "buyer", "path": "/favorites", "label": "收藏清單", "visual": true },
+    { "role": "buyer", "path": "/cart", "label": "購物車", "visual": true },
+    { "role": "buyer", "path": "/checkout", "label": "結帳", "visual": true },
+    { "role": "buyer", "path": "/me/orders", "label": "我的訂單", "visual": true },
+    { "role": "buyer", "path": "/me/orders/uir_ord_approved", "label": "訂單詳情 — 已核准" },
+    { "role": "buyer", "path": "/me/materials", "label": "我的教材", "visual": true },
+    { "role": "buyer", "path": "/downloads", "label": "下載" },
+    { "role": "buyer", "path": "/my-reviews", "label": "我的教學回饋" },
+    { "role": "buyer", "path": "/me/complaints", "label": "我的申訴" },
+
+    { "role": "buyerEmpty", "path": "/favorites", "label": "收藏清單 — 空" },
+    { "role": "buyerEmpty", "path": "/me/orders", "label": "我的訂單 — 空" },
+    { "role": "buyerEmpty", "path": "/me/materials", "label": "我的教材 — 空" },
+
+    { "role": "creator", "path": "/creator/materials", "label": "教材管理", "visual": true },
+    { "role": "creator", "path": "/creator/materials/new", "label": "新增教材" },
+    { "role": "creator", "path": "/creator/sales", "label": "我的銷售", "visual": true },
+    { "role": "creator", "path": "/creator/cases", "label": "我的案件", "visual": true },
+    { "role": "creatorEmpty", "path": "/creator/materials", "label": "教材管理 — 空" },
+
+    { "role": "admin", "path": "/admin", "label": "Admin Dashboard", "visual": true },
+    { "role": "admin", "path": "/admin/materials", "label": "教材審核" },
+    { "role": "admin", "path": "/admin/orders", "label": "訂單管理", "visual": true },
+    { "role": "admin", "path": "/admin/payment-proofs", "label": "付款憑證審核" },
+    { "role": "admin", "path": "/admin/reports", "label": "檢舉案件", "visual": true },
+    { "role": "admin", "path": "/admin/remedy-cases", "label": "退款／補救案件" },
+    { "role": "admin", "path": "/admin/users", "label": "用戶管理" },
+    { "role": "admin", "path": "/admin/activity-logs", "label": "活動紀錄" },
+    { "role": "admin", "path": "/admin/settings", "label": "系統設定" }
+  ]
+}

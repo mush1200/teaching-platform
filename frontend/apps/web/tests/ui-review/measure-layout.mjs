@@ -39,60 +39,15 @@ const VIEWPORTS = [
   { name: "390", width: 390, height: 844 },
 ];
 
+/**
+ * 路由與 fixture 帳號的**唯一來源**是 `routes.json`（`tests/visual/` 的 canonical 視覺回歸也讀同一份）。
+ * 本腳本是**診斷用**的截圖矩陣 ＋ 版面量測：截圖寫到 git-ignored 的 `out/`，不作為任何基準。
+ * canonical 視覺基準只有 `tests/visual/`（`toHaveScreenshot`，Linux 產生）。
+ */
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(HERE, "routes.json"), "utf8"));
 /** `role: null` = 不登入。 */
-const ROUTES = [
-  { role: null, path: "/", label: "首頁" },
-  { role: null, path: "/materials", label: "教材列表" },
-  { role: null, path: "/materials/uir_mat_baseline", label: "教材詳情 — 基準" },
-  { role: null, path: "/materials/uir_mat_long_title_zh", label: "教材詳情 — 超長中文標題" },
-  { role: null, path: "/materials/uir_mat_long_title_en", label: "教材詳情 — 超長英文標題／無封面" },
-  { role: null, path: "/materials/uir_mat_baseline/reviews", label: "教學回饋列表" },
-  { role: null, path: "/login", label: "登入" },
-  { role: null, path: "/register", label: "註冊" },
-  { role: null, path: "/support", label: "聯絡平台" },
-  { role: null, path: "/terms", label: "服務條款" },
-  { role: null, path: "/403", label: "403" },
-
-  { role: "buyer", path: "/dashboard", label: "購買者總覽" },
-  { role: "buyer", path: "/explore", label: "探索教材" },
-  { role: "buyer", path: "/favorites", label: "收藏清單" },
-  { role: "buyer", path: "/cart", label: "購物車" },
-  { role: "buyer", path: "/checkout", label: "結帳" },
-  { role: "buyer", path: "/me/orders", label: "我的訂單" },
-  { role: "buyer", path: "/me/orders/uir_ord_approved", label: "訂單詳情 — 已核准" },
-  { role: "buyer", path: "/me/materials", label: "我的教材" },
-  { role: "buyer", path: "/downloads", label: "下載" },
-  { role: "buyer", path: "/my-reviews", label: "我的教學回饋" },
-  { role: "buyer", path: "/me/complaints", label: "我的申訴" },
-
-  { role: "buyerEmpty", path: "/favorites", label: "收藏清單 — 空" },
-  { role: "buyerEmpty", path: "/me/orders", label: "我的訂單 — 空" },
-  { role: "buyerEmpty", path: "/me/materials", label: "我的教材 — 空" },
-
-  { role: "creator", path: "/creator/materials", label: "教材管理" },
-  { role: "creator", path: "/creator/materials/new", label: "新增教材" },
-  { role: "creator", path: "/creator/sales", label: "我的銷售" },
-  { role: "creator", path: "/creator/cases", label: "我的案件" },
-  { role: "creatorEmpty", path: "/creator/materials", label: "教材管理 — 空" },
-
-  { role: "admin", path: "/admin", label: "Admin Dashboard" },
-  { role: "admin", path: "/admin/materials", label: "教材審核" },
-  { role: "admin", path: "/admin/orders", label: "訂單管理" },
-  { role: "admin", path: "/admin/payment-proofs", label: "付款憑證審核" },
-  { role: "admin", path: "/admin/reports", label: "檢舉案件" },
-  { role: "admin", path: "/admin/remedy-cases", label: "退款／補救案件" },
-  { role: "admin", path: "/admin/users", label: "用戶管理" },
-  { role: "admin", path: "/admin/activity-logs", label: "活動紀錄" },
-  { role: "admin", path: "/admin/settings", label: "系統設定" },
-];
-
-const ACCOUNTS = {
-  buyer: "buyer@ui-review.local",
-  buyerEmpty: "buyer-empty@ui-review.local",
-  creator: "creator@ui-review.local",
-  creatorEmpty: "creator-empty@ui-review.local",
-  admin: "admin@ui-review.local",
-};
+const ROUTES = MANIFEST.routes;
+const ACCOUNTS = MANIFEST.accounts;
 
 function readPassword() {
   const f = path.join(HERE, "..", "..", "..", "..", "..", "Backend", ".ui-review-credentials.txt");

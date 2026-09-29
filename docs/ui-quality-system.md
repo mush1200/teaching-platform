@@ -12,7 +12,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | **L0 Reference & Rules** | 設計從哪裡來 | `docs/ui-design-system.md`、`docs/design-tokens-v1.1.md`、`globals.css`／`tailwind.config.ts`、`lib/font-stack.ts`；Mobbin 等外部參考 | 設計與實作**之前** | **不是 gate**（輸入） | Owner | 規則文件本身 |
 | **L1 Rule Checks** | 可機械判定的規則不得退步 | 既有 Playwright contract specs ＋ `@axe-core/playwright` | **每個 PR 與 push to `main`**（`.github/workflows/ui-quality.yml`） | ✅ **merge-blocking** | Claude／開發者維護 | CI 綠燈；失敗時的 `test-results/` artifact |
-| **L2 Visual Regression** | 看得到的變化必須被人批准 | Playwright `toHaveScreenshot`（**未實作**） | 未來：每個 PR | 未來：差異須批准 | Owner 批准差異 | 未來：基準 PNG ＋ diff |
+| **L2 Visual Regression** | 看得到的變化必須被人批准 | Playwright `toHaveScreenshot`（`tests/visual/`，Linux 基準） | 每個 PR 與 push to `main`（`ui-quality.yml` 的 `visual` job） | ✅ 有差異即紅；更新基準須人工審閱 | Owner 批准差異 | `*-linux.png` 基準 ＋ 失敗時的 diff artifact |
 | **L3 Human Product Review** | 美感、層次、舒適度、品牌感 | Local UI Review 環境（`docs/ui-review-environment.md`）＋ `tests/ui-review/measure-layout.mjs` 截圖；AI 僅作 triage | UI 批次完成時 | Owner 決定 | **Owner** | `docs/ui-review-findings-*.md`、tracker 條目 |
 | **L4 Release Verification** | 發布前在真實條件下確認 | 未來：Lighthouse（release-only）、WebKit／Firefox smoke、真機 iOS Safari；**現在**：完整 E2E、`smoke`、`postman` | 重要發布之前 | release checklist | Owner | release 紀錄 |
 
@@ -77,30 +77,87 @@ E2E_SERVER=production npm run test:e2e:ui-quality
   **路由 ＋ rule ＋ 節點 selector ＋ project** 的精確組合，並**必須**附 tracker ID。
 - **禁止**全域停用規則、禁止整條路由略過、禁止沒有 tracker ID 的條目。
 - 例外若已不再發生，test 會**失敗**（stale exception）—— 修好缺陷後必須刪掉對應條目。
-- 現有例外全部是**已立案的既有缺陷**（`UI-QA-A11Y-02`／`-03`），不是「可以接受」。
-  `UI-QA-A11Y-01` 的 7 條例外已於 2026-09-29 隨品牌紫改色移除 —— 例外機制如設計般運作：修好即刪。
+- 現有例外**只剩 `UI-QA-A11Y-03`**（待 Owner 選定的粉色強調色，1 條），它不是「可以接受」，是等待決定。
+  `UI-QA-A11Y-01` 的 7 條（品牌紫）與 `UI-QA-A11Y-02` 的 12 條（買家側欄標題）已於 2026-09-29 隨修正移除 ——
+  兩次都是 gate 先把例外判為 stale 才刪除，例外機制如設計般運作：修好即刪。
 
 ### 2.5 L1 的已知覆蓋缺口
 
 mock 資料不會產生每一種真實狀態。2026-09-29 以 Local UI Review fixture（真實資料、真實登入）
-另跑一次 axe，找到 gate 目前**掃不到**的 serious 違規，已立案為 `UI-QA-A11Y-04`～`-06`。
-UI Review 的 axe sweep 目前是**一次性的證據**，不是常設工具（見 tracker）。
+另跑 axe，找到 gate **掃不到**的 serious 違規（`UI-QA-A11Y-04`～`-06`，皆已修正）。
+修正後同一 sweep（20 路由 × 1440／390）只剩 `UI-QA-A11Y-03` 的待決粉色。
+UI Review 的 axe sweep 仍是**人工執行的證據**，不是 CI gate（見 tracker `UI-QA-A11Y-SWEEP`）。
 
-## 3. L2 — Visual Regression（未實作）
+**另一種假綠（2026-09-29 修正）：** axe gate 的 catch-all mock 曾把教材詳情的 client 端請求回成空清單，
+使該路由掃到的是「找不到教材」狀態。現在 seed 教材放行到真實 backend，且每次掃描前都要求
+`<main>` 內已有頁面標題、不是 500／404 頁。
 
-**尚未建立任何 screenshot 基準，也沒有 committed PNG。** 前置條件：
+## 3. L2 — Visual Regression（`UI-QA-VISUAL-BASELINE`）
 
-1. **P1 版面缺陷先修** —— 否則基準會把已知缺陷鎖進去。現況需先處理 `UI-REV-A`（教材列表零 gutter、
-   `/dashboard` gutter 不隨斷點、`/terms`／`/403` 固定 16px、gutter ownership 契約矛盾）。
-2. **字型渲染必須 deterministic** —— `UI-QA-FONT` 已完成（§5）。
+### 3.1 架構
 
-核准的做法：
+| 項目 | 內容 |
+| --- | --- |
+| spec | `frontend/apps/web/tests/visual/ui-review-visual.spec.ts`（`toHaveScreenshot`） |
+| config | `frontend/apps/web/playwright.visual.config.ts`（`npm run test:visual`） |
+| 資料 | Local UI Review fixture（`teaching_platform_ui_review`，`npm run ui-review:reset`），真實登入 |
+| 拓撲 | `next start`（production build）:3111 → UI Review backend :3100 → UI Review DB |
+| 範圍 | `tests/ui-review/routes.json` 中 `visual: true` 的 **16 條路由 × 390／768／1440 ＝ 48 張**，第一屏（viewport） |
+| 基準 | `tests/visual/__screenshots__/*-linux.png` —— **只在 Linux（GitHub Actions）產生與比對** |
+| 容忍度 | `maxDiffPixelRatio: 0.002`（同一 runner 上的反鋸齒）；動畫停用、游標隱藏、`locale zh-TW`、`timezone Asia/Taipei` |
+| 重試 | **0** —— 不穩定的截圖要讓它紅，而不是被重試蓋掉 |
 
-- Playwright `toHaveScreenshot`，**基準只在固定的 Linux 容器／CI 環境產生**。
-  Playwright 會依作業系統區分基準檔名，Windows 上截的圖不得作為 canonical 基準。
-- 起始範圍有界：**約 15 條關鍵路由 × 3 個寬度（390／768／1440）**，不是全部路由 × 全部寬度。
-- 路由清單沿用 `tests/ui-review/measure-layout.mjs` 的 route manifest，**不另建第二套截圖系統**。
-- 會變的區域（日期、訂單編號）必須 mask。
+**路由清單只有一份**：`tests/ui-review/routes.json`。`measure-layout.mjs` 讀同一份，
+但它是**診斷用**的截圖矩陣與版面量測（輸出到 git-ignored 的 `out/`），**不是基準**。
+canonical 基準只有 `tests/visual/`。
+
+**為什麼 CI 用 runner 預裝的 PostgreSQL**：UI Review 的四層護欄要求連線後 `inet_server_addr()` 為 loopback，
+而 service container 經 Docker 埠映射會回報 bridge 位址。護欄刻意沒有後門，因此改環境而不是改護欄。
+
+### 3.2 何時才截圖（頁面已穩定的證據，全部成立）
+
+1. 停留的 URL 就是目標路由
+2. `<main>` 內已有頁面標題（頁面會先在外殼之外掛載一次，見 tracker `UI-QA-SHELL-MOUNT`）
+3. 不是 500／404 頁
+4. network idle、`<main>` 內沒有「載入中」、字型載入完成、**第一屏內**的圖片 `load`／`error` 完成
+5. `toHaveScreenshot` 自己再要求連續兩張相同
+
+每個階段是具名 `test.step`、各自有遠小於 test 逾時的上限 —— 失敗時看得出卡在哪一步。
+
+### 3.3 正規化與遮罩（只處理真正會變的東西）
+
+| 對象 | 處理 | 理由 |
+| --- | --- | --- |
+| 日期／時間文字 | **正規化**：數字換成 `0`（`2026/09/29` → `0000/00/00`） | fixture 時間以 seed 當下為基準的相對偏移，絕對日期每天不同。**不用遮罩** —— 以 `getByText` 遮罩曾命中整個容器（Admin 總覽兩整塊面板被塗滿），等於不驗那一區 |
+| 待 Owner 決定的粉色（`#FF6B73`／`#FF6B7A`） | **遮罩**（只遮該元素） | 不把已知不合格的顏色鎖進基準；選定並套用後 class 消失、遮罩自動失效，屆時依 §3.5 重新產生基準 |
+| 外部圖片（backend 為無封面教材補的 `picsum.photos`） | 以本機固定灰圖取代；其他外部請求一律中止 | 基準不得依賴外部服務 |
+
+**不遮大區塊**：若某區不穩定是因為產品本身不穩定，修產品，不遮罩。
+
+### 3.4 差異審閱政策
+
+visual job 紅燈時，下列任何一種差異都**必須**由人（Owner）看過 diff 才能接受：
+版面位移、間距、字級／字重／字型、顏色、元件尺寸、內容層級、響應式行為（斷點、側欄、抽屜）。
+**沒有「自動更新基準」**：config 的 `updateSnapshots` 為 `none`；失敗時上傳 `visual-diffs` artifact
+（expected／actual／diff 三張圖）。
+
+### 3.5 基準更新流程（刻意的人工步驟）
+
+1. 確認差異是**預期的**（例如 Owner 核准的設計變更）
+2. 在 GitHub Actions 手動執行 `UI Quality`，勾選 `update_visual_baselines`
+3. 下載 `visual-baselines-linux` artifact，**逐張審閱**後覆蓋 `tests/visual/__screenshots__/`
+4. 以 `visual_repeat_each` ≥ 3 再跑一次比對，確認新基準穩定
+5. 以獨立 commit 進版控，commit message 說明是哪一個核准的變更
+
+**本機（Windows／macOS）**：spec 預設 skip；`VISUAL_ALLOW_NON_LINUX=1` 可在本機做穩定度檢查，
+產生的 `-win32`／`-darwin` 檔已被 `.gitignore` 排除，**不得**作為基準。
+
+### 3.6 建立時的穩定度證據（2026-09-29）
+
+- 本機（Windows，與 CI 同為 2 workers、0 retry）：48 張 × 5 次重複 ＝ **240／240**
+- 建立過程修掉的不穩定根因（皆為 spec 端，非產品）：第一屏外 lazy 圖片永遠不載入；
+  `<img>` 沒有 `loadend` 事件（曾在負載下間歇逾時）；日期遮罩命中整個容器
+- Linux 基準與 CI 重複比對結果見 tracker `UI-QA-VISUAL-BASELINE`
 
 ## 4. L3 — Human Product Review
 
@@ -152,7 +209,7 @@ UI Review 的 axe sweep 目前是**一次性的證據**，不是常設工具（�
 
 | 工具 | 狀態 | 何時重新考慮 |
 | --- | --- | --- |
-| Playwright screenshot 基準 | **下一步（L2）**，blocked on `UI-REV-A` | P1 版面缺陷修完之後 |
+| Playwright screenshot 基準 | ✅ **已建立（L2，§3）** | 粉色選定後重新產生基準 |
 | WebKit ／ Firefox critical-path smoke | LATER | L2 建立之後；以 Playwright project 實作，不用 SaaS |
 | 真機 iOS Safari 抽查 | 重要發布前 | 人工 |
 | Lighthouse CI | LATER，**release-only，不跑每個 PR** | 目標 `/`、`/materials`、`/materials/:id`、`/login`；accessibility／best-practices 可 assert，performance 先 warning-only |
@@ -168,3 +225,4 @@ UI Review 的 axe sweep 目前是**一次性的證據**，不是常設工具（�
 | --- | --- |
 | 2026-09-29 | 建立。L1 CI gate（`UI-QA-CI`）、字型自架（`UI-QA-FONT`）、axe gate（`UI-QA-AXE`） |
 | 2026-09-29 | 品牌紫 `#6C63FF` → `#5C4EEA`（Owner 選 B）；`UI-QA-A11Y-01` 例外移除 |
+| 2026-09-29 | L2 建立：`toHaveScreenshot` 48 張 Linux 基準、`visual` CI job、差異審閱與基準更新政策；`UI-QA-A11Y-02` 例外移除 |

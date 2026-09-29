@@ -184,6 +184,9 @@ C2C 數位教材市集：上架者建立教材 → 管理員審核上架 → 購
   `test:e2e:ui-quality`（contract specs ＋ axe）與 `test:e2e:ci`，資料庫是 job 內的拋棄式 container。
   **完整 E2E、smoke、Postman 仍是人工 gate**（需要真實測試帳號憑證）。分層與例外政策見 `docs/ui-quality-system.md`。
   axe 例外只能逐條加在 `KNOWN_EXCEPTIONS` 並附 tracker ID，**不得**全域停用規則。
+- **視覺回歸（`visual` job，`npm run test:visual`）**：基準是 `tests/visual/__screenshots__/*-linux.png`，
+  **只在 Linux／CI 產生**。有差異即紅；**不得自動更新基準** —— 依 `docs/ui-quality-system.md` §3.5 的人工流程。
+  新頁面的水平 gutter 一律用 `components/ds/PageContainer`（`docs/ui-design-system.md` §7.3）。
 
 ### Ports
 

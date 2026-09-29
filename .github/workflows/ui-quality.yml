@@ -21,7 +21,17 @@
 #
 #   - 完整 E2E（`npm run test:e2e`）、`npm run smoke`、`npm run postman` —— 需要 `TEST_ADMIN_*`
 #     等真實測試帳號憑證；`CLAUDE.md` §7 禁止改成 fallback 或寫死，CI 也不持有它們。
-#   - `npm run test:db --prefix Backend`、UI Review 環境、Lighthouse、WebKit／Firefox。
+#   - `npm run test:db --prefix Backend`、Lighthouse、WebKit／Firefox。
+#
+# ## `visual` job（L2 視覺回歸，`UI-QA-VISUAL-BASELINE`）
+#
+#   UI Review fixture（`teaching_platform_ui_review`）→ production build → `toHaveScreenshot`
+#   比對 `frontend/apps/web/tests/visual/__screenshots__/*-linux.png`。
+#   資料庫用 runner **預裝的 PostgreSQL**（loopback），而不是 service container ——
+#   UI Review 的護欄要求 `inet_server_addr()` 為 loopback，Docker 埠映射會回報 bridge 位址；
+#   護欄刻意沒有後門，因此改環境而不是改護欄。
+#   `workflow_dispatch` 勾選 `update_visual_baselines` 時改為重新產生基準並上傳 artifact，
+#   **不會自動 commit** —— 基準更新必須由人審閱（`docs/ui-quality-system.md` §3）。
 #
 # ## 資料庫安全
 #
@@ -47,6 +57,15 @@ on:
       - "docs/**"
       - "**/*.md"
   workflow_dispatch:
+    inputs:
+      update_visual_baselines:
+        description: "Regenerate the Linux visual baselines and upload them as an artifact for review (never auto-committed)"
+        type: boolean
+        default: false
+      visual_repeat_each:
+        description: "Stability check: run every visual test N times against the committed baselines"
+        type: number
+        default: 1
 
 permissions:
   contents: read
@@ -159,6 +178,89 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results
+          path: frontend/apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  visual:
+    name: Visual regression (Linux baselines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: disposable_ci_visual_target_not_production
+      PGDATABASE: teaching_platform_ui_review
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            Backend/package-lock.json
+
+      - name: Generate a per-run JWT secret (never stored)
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::${secret}"
+          echo "JWT_SECRET=${secret}" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix Backend
+          npm ci --prefix frontend
+
+      - name: Start the runner's preinstalled PostgreSQL (loopback, disposable)
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER postgres PASSWORD '${PGPASSWORD}';"
+          sudo -u postgres createdb teaching_platform_ui_review
+
+      - name: Seed UI Review fixtures (four-layer fail-closed guard)
+        run: npm run ui-review:reset
+
+      - name: Production build
+        working-directory: frontend
+        env:
+          NEXT_DIST_DIR: .next-verify
+        run: npm run build:web
+
+      - name: Install Playwright Chromium
+        working-directory: frontend/apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Visual regression
+        if: ${{ !inputs.update_visual_baselines }}
+        working-directory: frontend/apps/web
+        run: npm run test:visual -- --repeat-each=${{ inputs.visual_repeat_each || 1 }}
+
+      - name: Regenerate visual baselines (review before committing)
+        if: ${{ inputs.update_visual_baselines }}
+        working-directory: frontend/apps/web
+        env:
+          VISUAL_UPDATE: "1"
+        run: npm run test:visual
+
+      - name: Upload regenerated baselines
+        if: ${{ inputs.update_visual_baselines }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: frontend/apps/web/tests/visual/__screenshots__/*-linux.png
+          retention-days: 7
+
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
           path: frontend/apps/web/test-results/
           retention-days: 7
           if-no-files-found: ignore
