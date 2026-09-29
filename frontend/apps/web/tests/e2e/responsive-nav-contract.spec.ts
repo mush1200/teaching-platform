@@ -255,7 +255,12 @@ test.describe("UI-CONS-18 — 導覽觸發鈕的觸控目標", () => {
     expect(menu.w).toBeGreaterThanOrEqual(44);
     expect(menu.h).toBeGreaterThanOrEqual(44);
 
+    /*
+     * 限定在頂欄 `<header>` 內：768 下側欄是關閉的抽屜，裡面也有一個「購物車」連結（0×0）。
+     * 不限定時 `.first()` 取到哪一個取決於渲染順序 —— 2026-09-29 以 0×0 間歇失敗（`UI-QA-CI`）。
+     */
     const cart = await page
+      .locator("header")
       .getByRole("link", { name: "購物車" })
       .first()
       .evaluate((el) => {

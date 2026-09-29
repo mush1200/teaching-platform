@@ -207,7 +207,9 @@ export default function DownloadsPage() {
                           {item.authorName?.trim() ? item.authorName : "授課創作者"}
                         </p>
 
-                        <dl className="mt-4 space-y-1 border-t border-ds-borderMuted pt-4 text-[12px] leading-relaxed text-ds-textSubtle">
+                        {/* `UI-QA-A11Y-04`：`<dl>` 只能直接包 `dt`／`dd` 群組；提示文字 `<p>` 移到 `<dl>` 之後（間距不變）。 */}
+                        <div className="mt-4 border-t border-ds-borderMuted pt-4 text-[12px] leading-relaxed text-ds-textSubtle">
+                        <dl className="space-y-1">
                           {purchased ? (
                             <div className="flex justify-between gap-2">
                               <dt className="shrink-0 text-ds-textSubtle">購買日期</dt>
@@ -220,10 +222,11 @@ export default function DownloadsPage() {
                               <dd className="text-right font-medium text-ds-textMuted">{updated}</dd>
                             </div>
                           ) : null}
-                          {updateHint ? (
-                            <p className="pt-0.5 text-[11px] font-medium text-ds-textAccent">{updateHint}</p>
-                          ) : null}
                         </dl>
+                          {updateHint ? (
+                            <p className="mt-1 pt-0.5 text-[11px] font-medium text-ds-textAccent">{updateHint}</p>
+                          ) : null}
+                        </div>
 
                         <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
                           <Button intent="flow" fullWidth type="button" onClick={() => router.push(href)}>

@@ -234,7 +234,9 @@ function SectionTitle({ collapsed, label, first }: { collapsed: boolean; label: 
   if (collapsed) return null;
   return (
     <p
-      className={`mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-400/80 ${
+      /* `UI-QA-A11Y-02`：`text-slate-400/80`（#A9B5C6 on 白 ＝ 2.07:1）→ canonical `ds-textSubtle`（#666F7F，5.1:1）。
+         分組標題與導覽項目的層次靠字級（11px）、大寫與字距維持，不靠把字變淡。 */
+      className={`mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-ds-textSubtle ${
         first ? "mt-0" : "mt-7"
       }`}
     >

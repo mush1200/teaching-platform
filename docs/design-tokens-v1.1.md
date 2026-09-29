@@ -14,19 +14,23 @@ Source aligned with:
 
 ## 2. Color Tokens
 
+> **本節的 Value 欄是現行值**（2026-09-29 `DOC-02` 逐列對照 `app/globals.css`／`tailwind.config.ts` 更正）。
+> 數值的**變更歷程**（例如 `UI-CONS-01` 的 AA 修正、`UI-QA-A11Y-01` 的品牌紫）記在各列的說明與
+> `docs/ui-design-system.md` §4，本表不保留舊值。
+
 ### 2.1 Brand
 
 | Token | Value | Usage |
 | --- | --- | --- |
 | `brand.primary` | `#5C4EEA` | Brand color, active nav, action accent. **2026-09-29（`UI-QA-A11Y-01`，Owner 選 B）由 `#6C63FF` 改為 `#5C4EEA`**：白字 4.32 → 5.63:1 |
-| `brand.cta` | `#FF6B73` | Primary flow CTA |
-| `brand.cta-hover` | `#FF5964` | Flow CTA hover/active |
+| `brand.cta` | `#EA000D` | Primary flow CTA（`UI-CONS-01` 由 `#FF6B73` 改；白字 4.66） |
+| `brand.cta-hover` | `#D1000C` | Flow CTA hover/active（必須比 base 暗） |
 
 ### 2.2 Intent (Button Intent)
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `intent.flow` | `#FF6B73` | Checkout, create order, submit proof, login/register |
+| `intent.flow` | `#EA000D` | Checkout, create order, submit proof, login/register（與 `brand.cta` 同值） |
 | `intent.action` | `#5C4EEA` | Filter, review, publish, management actions（token 仍獨立，值與 `brand.primary` 相同；2026-09-29 由 `#655CFF` 對齊） |
 | `intent.neutral` | `#FFFFFF` | Back, cancel, helper actions |
 | `intent.danger` | `#EF4444` | Reject, delete, disable actions |
@@ -76,7 +80,7 @@ Tailwind prefix: `ds` (e.g. `bg-ds-page`, `text-ds-heading`, `rounded-ds-card`).
 | `pending_review` | `#FEF3C7` | `#B45309` |
 | `published` | `#ECFDF5` | `#047857` |
 | `unpublished` | `#F3F4F6` | `#4B5563` |
-| `pending_payment` | `#FFE4E6` | `#FF6B73` |
+| `pending_payment` | `#FFE4E6` | `#BE123C` |
 | `approved` | `#ECFDF5` | `#047857` |
 | `rejected` | `#FEE2E2` | `#B91C1C` |
 | `reviewed` | `#EDE9FE` | `#554BFF` |

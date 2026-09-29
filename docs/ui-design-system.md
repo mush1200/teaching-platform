@@ -516,6 +516,14 @@ canonical 的頁面標題是 24px（`text-h2`），全 app 41 個 `<PageHeader>`
 兩者數值相同，且**每頁只有一層**由 `tests/e2e/layout-contract.spec.ts` 實測
 （`<h1>` 到 `<main>` 的逐層 `padding-left` 累加 ＋ 負向控制）。
 
+**`UI-REV-A`（2026-09-29）：page ownership 的單一實作是 `components/ds/PageContainer`。**
+在這之前每頁手寫同一串 `px-page-mobile sm:px-page-tablet lg:px-page-desktop`（29 個檔案），
+忘了寫的頁面就是 0 gutter —— `/materials`、`/explore`、`/dashboard` 實測 0px（卡片貼齊側欄），
+`/403` 與 404（含未發布的 `/terms`）寫死 16px、法律文件寫死 20px。這些頁面已改用 `PageContainer`；
+**新頁面一律用它**（`width`：`narrow`／`standard`／`wide`／`full`，見 §7.4）。既有手寫同值 class 的頁面不必立刻遷移。
+`RoleShell` 先前的註解寫「`ParentAppShell` 供應 gutter」—— 與實作矛盾，已更正：**只有 `AdminShell` 供應**。
+layout contract 現在同時實測「零層」與「兩層」，並以 `FULL_BLEED_ROUTES` 明文宣告刻意滿版的 `/` 與 `/materials/:id`。
+
 ### 7.4 [規則] Content width categories
 
 **[現況]** 置中容器實測 **15 種** max-width（`app/**/page.tsx`，單位＝容器數，共 49 個）。

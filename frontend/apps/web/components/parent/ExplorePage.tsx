@@ -16,7 +16,7 @@ import { MaterialGrid } from "./MaterialGrid";
  * 有傳 `onPageSizeChange` ＋ `pageSize` 時才渲染 —— 這裡不傳，因此不會多出控制項。
  * 唯一的可見差異是**多了頁碼**，那是 ds 版的既有能力，不是為了合併而改的 UX。
  */
-import { EmptyState, ErrorState, Pagination } from "../ds";
+import { EmptyState, ErrorState, PageContainer, Pagination } from "../ds";
 import { RatingFilter } from "./RatingFilter";
 import { SortDropdown } from "./SortDropdown";
 import { Button } from "../ui/Button";
@@ -127,7 +127,8 @@ export function ExplorePage() {
   }, [pathname, router]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
+    <PageContainer width="wide" className="space-y-4">
+      {/* `UI-REV-A`：此頁在 `RoleShell`／`ParentAppShell` 之下，兩者都不供應 gutter —— 由 `PageContainer` 供應唯一一層（先前 0px，卡片貼齊側欄）。 */}
       <section aria-label="分類與控制列">
         <div className="flex items-center justify-between gap-3 overflow-x-auto">
           <CategoryChips
@@ -168,7 +169,11 @@ export function ExplorePage() {
 
       {!error && (loading || items.length > 0) ? (
         <>
-          <section id="edu-materials-grid" aria-label="教材列表">
+          <section id="edu-materials-grid" aria-labelledby="edu-materials-grid-heading">
+            {/* `UI-QA-A11Y-07`：卡片標題是 `<h3>`，頁面只有 `<h1>` —— 補上不可見的 `<h2>` 讓標題層級不跳號（無視覺變化）。 */}
+            <h2 id="edu-materials-grid-heading" className="sr-only">
+              教材列表結果
+            </h2>
             <MaterialGrid materials={items} trackRecent className={loading ? "opacity-60" : ""} />
           </section>
           {!loading && items.length > 0 ? (
@@ -233,6 +238,6 @@ export function ExplorePage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </PageContainer>
   );
 }

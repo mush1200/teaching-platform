@@ -31,7 +31,8 @@ export function MaterialDetailHeroInfo({ material, heroFeatureChips, onScrollToF
           onScrollToFeedback();
         }}
         className={`inline-flex items-center gap-1.5 text-sm font-semibold transition-colors hover:text-ds-textAccent ${
-          material.reviewCount > 0 ? "text-amber-600" : "text-ds-textMuted"
+          /* `UI-QA-A11Y-05`：`amber-600`（#D97706）在 ds-page 上只有 2.93 → 同色系 `amber-700`（#B45309）：白 5.02／ds-page 4.61／edu-page 4.51。 */
+          material.reviewCount > 0 ? "text-amber-700" : "text-ds-textMuted"
         }`}
       >
         {material.reviewCount > 0 ? (

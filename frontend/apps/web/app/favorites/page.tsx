@@ -90,6 +90,8 @@ export default function FavoritesPage() {
               繼續探索
             </Link>
           </div>
+          {/* `UI-QA-A11Y-07`：卡片標題是 `<h3>`，補上不可見的 `<h2>` 讓標題層級不跳號（無視覺變化）。 */}
+          <h2 className="sr-only">收藏的教材</h2>
           <MaterialGrid materials={items} trackRecent />
         </>
       ) : null}

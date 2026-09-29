@@ -71,14 +71,13 @@ export default function CartPage() {
             <dt>小計</dt>
             <dd className="font-semibold text-[#374151]">NT${subtotal.toLocaleString()}</dd>
           </div>
-          <div className="border-t border-[#E5E7EB] pt-4">
-            <div className="flex justify-between gap-4">
-              <dt className="text-base font-semibold text-[#1F2937]">總金額</dt>
-              <dd className="text-[28px] font-bold leading-none text-[#111827]">NT${total.toLocaleString()}</dd>
-            </div>
-            <p className="mt-1 text-xs text-ds-textSubtle">共 {count} 項商品</p>
+          {/* `UI-QA-A11Y-04`：群組 `<div>` 只能直接包 `dt`／`dd`；原本多一層 `<div>` 且夾著 `<p>`。 */}
+          <div className="flex justify-between gap-4 border-t border-[#E5E7EB] pt-4">
+            <dt className="text-base font-semibold text-[#1F2937]">總金額</dt>
+            <dd className="text-[28px] font-bold leading-none text-[#111827]">NT${total.toLocaleString()}</dd>
           </div>
         </dl>
+        <p className="mt-1 text-xs text-ds-textSubtle">共 {count} 項商品</p>
         <div className="mt-4 flex items-center gap-2 text-xs text-ds-textSubtle">
           <span>🔒 安全付款保障</span>
         </div>

@@ -46,16 +46,23 @@ import { expect, type Locator } from "@playwright/test";
 export async function waitForHydration(locator: Locator, timeout = 15_000): Promise<void> {
   await expect(locator).toBeVisible({ timeout });
 
-  const handle = await locator.elementHandle({ timeout });
-  try {
-    await locator.page().waitForFunction(
-      (el) => !!el && Object.keys(el).some((key) => key.startsWith("__reactProps$")),
-      handle,
-      { timeout }
-    );
-  } finally {
-    await handle?.dispose();
-  }
+  /*
+   * **每次輪詢都重新解析 locator**，而不是先抓一個 element handle 再等它。
+   *
+   * `app/layout.tsx` 的 `<Suspense fallback={children}>` 讓頁面先在外殼之外掛載一次、再移進外殼
+   * （tracker `UI-QA-SHELL-MOUNT`）。先抓 handle 時，可能抓到那份**即將被卸載**的節點 ——
+   * React 永遠不會把 props 掛到它上面，於是等到逾時（2026-09-29 `/login` @mobile 實測）。
+   * 語意不變：等的仍是「locator 此刻指到的那一個節點已被 React 接管」；永遠不會 hydrate 的節點照樣逾時。
+   */
+  await expect
+    .poll(
+      () =>
+        locator
+          .evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactProps$")))
+          .catch(() => false),
+      { timeout, message: "等待該節點被 React hydrate" }
+    )
+    .toBe(true);
 }
 
 /**

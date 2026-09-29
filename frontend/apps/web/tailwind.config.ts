@@ -49,7 +49,8 @@ const config: Config = {
            * 用途：5 個 text ＋ 1 個 bg ＋ 1 個 fill，白字於填色上 4.66 亦通過。
            */
           cta: "#EA000D",
-          ctaHover: "#FF5964",
+          /* `DOC-02`（2026-09-29）：與 `--color-brand-cta-hover` 對齊；舊值 #FF5964 比 base 更淺（UI-CONS-01 規則要求 hover 更暗）。0 consumer，只是防止日後被誤用。 */
+          ctaHover: "#D1000C",
           text: "#1F2937",
           /*
            * `UI-CONS-15`（2026-09-09）：這是 `--ds-text-muted` 在 `UI-CONS-01` 被改為

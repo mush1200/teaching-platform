@@ -249,6 +249,9 @@ export default function CheckoutPage() {
     <AppShell withBottomNav>
       <MobileHeader title="結帳" backHref="/cart" right="none" />
       <div className="mx-auto w-full max-w-6xl space-y-4 px-page-mobile sm:px-page-tablet lg:px-page-desktop pb-28 pt-4">
+        {/* `UI-QA-A11Y-07`：頁面沒有任何 `<h1>` —— `MobileHeader` 的「結帳」是 `<span>`。
+            視覺標題已由 `MobileHeader` 呈現，這裡只補語意（與 `/cart` 的 `UI-CONS-03` 同一個問題）。 */}
+        <h1 className="sr-only">結帳</h1>
         <Card level="flat" padding="md" className="mx-auto w-full max-w-[720px]">
           <ol className="grid grid-cols-3 gap-2 text-center">
             {[

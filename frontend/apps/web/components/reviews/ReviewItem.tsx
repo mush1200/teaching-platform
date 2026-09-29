@@ -37,7 +37,8 @@ export function ReviewItem({ review, materialTitle, compact = false, showRoleBad
   return (
     <article className={`border border-[#E5E7EB] bg-white ${compact ? "rounded-2xl p-5" : "rounded-[16px] p-5"} shadow-sm`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="flex text-amber-400" aria-label={`${review.rating} 星`}>
+        {/* `UI-QA-A11Y-05`：`aria-label` 不得放在沒有 role 的 `<span>` 上；星等是一個圖像，以 `role="img"` 承載名稱。 */}
+        <span role="img" className="flex text-amber-400" aria-label={`${review.rating} 星`}>
           {Array.from({ length: 5 }).map((_, i) => (
             <IconStar key={i} className={`size-3.5 ${i < review.rating ? "opacity-100" : "opacity-20"}`} />
           ))}

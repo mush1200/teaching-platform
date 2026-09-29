@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ErrorState } from "../ds";
+import { ErrorState, PageContainer } from "../ds";
 import { getRecentMaterialIds } from "../../lib/recent-materials";
 import {
   listMaterialsPreview,
@@ -59,7 +59,8 @@ export function ParentHomePage() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <PageContainer width="wide">
+      {/* `UI-REV-A`：此頁在 `RoleShell`／`ParentAppShell` 之下，兩者都不供應 gutter —— 由 `PageContainer` 供應唯一一層（先前 0px，卡片貼齊側欄）。 */}
       <Hero />
 
       <div className="mt-7 space-y-9 md:space-y-10 lg:space-y-11">
@@ -107,6 +108,6 @@ export function ParentHomePage() {
           </p>
         ) : null}
       </div>
-    </div>
+    </PageContainer>
   );
 }

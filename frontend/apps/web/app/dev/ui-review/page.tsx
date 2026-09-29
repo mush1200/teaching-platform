@@ -130,7 +130,11 @@ export default function UiReviewIndexPage() {
         </p>
         <p className="mt-2 text-sm">
           <Link href="/dev/ui-review/brand-purple" className="text-ds-textAccent underline">
-            品牌紫候選色比較（UI-QA-A11Y-01）→
+            品牌紫候選色比較（UI-QA-A11Y-01，已決定）→
+          </Link>
+          <span className="mx-2 text-ds-textSubtle">·</span>
+          <Link href="/dev/ui-review/pink-accent" className="text-ds-textAccent underline">
+            粉色強調色候選比較（UI-QA-A11Y-03，待 Owner 選擇）→
           </Link>
         </p>
       </header>

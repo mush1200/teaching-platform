@@ -74,7 +74,6 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-
 
 type Project = "chromium-desktop" | "chromium-mobile";
 const BOTH: Project[] = ["chromium-desktop", "chromium-mobile"];
-const DESKTOP: Project[] = ["chromium-desktop"];
 
 type KnownException = {
   /** 精確路由（與 `ROUTES[].path` 相同）。 */
@@ -107,21 +106,10 @@ const KNOWN_EXCEPTIONS: KnownException[] = [
    * `UI-QA-A11Y-01`（白字 on 舊品牌紫 #6C63FF ＝ 4.31:1）的 7 條例外已於 2026-09-29 移除：
    * Owner 選定品牌紫 #5C4EEA（白字 5.63:1），所有 `bg-edu-primary text-white` 表面改由 token 取值後通過。
    */
-  /* `UI-QA-A11Y-02`：買家側欄分組標題 `text-slate-400/80`（2.07:1），`components/dashboard/Sidebar.tsx:237`。 */
-  ...exceptionsFor("UI-QA-A11Y-02", "color-contrast", DESKTOP, [
-    ["/dashboard", ".mt-0"],
-    ["/dashboard", "div:nth-child(2) > .mb-1\\.5.uppercase.tracking-\\[0\\.05em\\]"],
-    ["/dashboard", "div:nth-child(3) > .mb-1\\.5.uppercase.tracking-\\[0\\.05em\\]"],
-    ["/favorites", ".mt-0"],
-    ["/favorites", "div:nth-child(2) > .mt-7.mb-1\\.5.text-\\[11px\\]"],
-    ["/favorites", "div:nth-child(3) > .mt-7.mb-1\\.5.text-\\[11px\\]"],
-    ["/me/materials", ".mt-0"],
-    ["/me/materials", "div:nth-child(2) > .mt-7.mb-1\\.5.uppercase"],
-    ["/me/materials", "div:nth-child(3) > .mt-7.mb-1\\.5.uppercase"],
-    ["/me/orders", ".mt-0"],
-    ["/me/orders", "div:nth-child(2) > .mt-7.mb-1\\.5.uppercase"],
-    ["/me/orders", "div:nth-child(3) > .mt-7.mb-1\\.5.uppercase"],
-  ]),
+  /*
+   * `UI-QA-A11Y-02`（買家側欄分組標題 2.07:1）的 12 條例外已於 2026-09-29 移除：
+   * 改用 `ds-textSubtle`（5.07:1）後 gate 將它們判為 stale —— 例外機制如設計般運作。
+   */
   /* `UI-QA-A11Y-03`：買家總覽 Hero CTA 寫死 `bg-[#FF6B73] text-white`（2.76:1），`components/parent/Hero.tsx:24`。 */
   ...exceptionsFor("UI-QA-A11Y-03", "color-contrast", BOTH, [["/dashboard", ".min-h-11"]]),
 ];
@@ -139,9 +127,18 @@ async function prepare(page: Page, role: Role) {
    *   2. `installCoreApiMocks` —— 共用 fixture
    *   3. 最後註冊的 `auth/me` —— 依角色回應，優先權最高
    */
-  await page.route("**/api/backend/**", (route) =>
-    route.request().method() === "GET" ? json(route, EMPTY_LIST) : route.fallback()
-  );
+  await page.route("**/api/backend/**", (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api\/backend\//, "");
+    /*
+     * 教材詳情是 client 端抓 `materials/:id`：回空清單會讓頁面落到「找不到教材」狀態，
+     * 掃到的就不是詳情頁（2026-09-29 發現：先前的 moderate `page-has-heading-one` 正是這個假象）。
+     * seed 教材一律放行到 harness 的真實 backend。
+     */
+    if (path === `materials/${SEED_MATERIAL_ID}` || path.startsWith(`materials/${SEED_MATERIAL_ID}/`)) {
+      return route.fallback();
+    }
+    return route.request().method() === "GET" ? json(route, EMPTY_LIST) : route.fallback();
+  });
   await installCoreApiMocks(page);
 
   if (role === "public") return;
@@ -182,6 +179,8 @@ test.describe("UI-QA-AXE — axe-core 標準規則（critical／serious 阻擋�
         page.getByRole("heading", { level: 1, name: /^(500|404)$/ }),
         "目標頁不得落到錯誤頁或 404"
       ).toHaveCount(0);
+      /* 第三道：已渲染完成的頁面在 `<main>` 裡一定有頁面標題（可為 sr-only）。沒有就代表還在載入或落到空狀態。 */
+      await expect(page.locator("main h1").first(), "掃描前 <main> 內必須已有頁面標題").toBeAttached();
 
       const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 

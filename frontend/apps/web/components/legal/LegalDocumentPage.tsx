@@ -1,3 +1,4 @@
+import { PageContainer } from "../ds/PageContainer";
 import { notFound } from "next/navigation";
 import { getServerApiBaseUrl } from "../../lib/server-api-base-url";
 
@@ -73,7 +74,8 @@ export async function LegalDocumentPage({ type }: { type: LegalDocumentType }) {
   return (
     // `RoleShell` 已提供唯一的 <main> landmark（`COR-06`）；這裡再包一層
     // 會產生巢狀 landmark，因此用 <div>。
-    <div className="mx-auto w-full max-w-[820px] px-5 py-10 md:py-14">
+    // `UI-REV-A`：gutter 改由 `PageContainer` 供應（先前寫死 `px-5`，不隨斷點）；820px 閱讀寬度不變。
+    <PageContainer width="none" className="max-w-[820px] py-10 md:py-14">
       <article>
         <h1 className="text-2xl font-bold text-[#0F172A] md:text-3xl">
           {LEGAL_DOCUMENT_TITLES[type]}
@@ -102,6 +104,6 @@ export async function LegalDocumentPage({ type }: { type: LegalDocumentType }) {
           {doc.body}
         </div>
       </article>
-    </div>
+    </PageContainer>
   );
 }

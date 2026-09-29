@@ -343,7 +343,9 @@ export function RoleShell({ children }: { children: ReactNode }) {
 
   const creatorBadges = {
     "teacher-status-pending": { value: creatorStatusCounts.pending_review, tone: "bg-[#FEF3EC] text-edu-warning" },
-    "teacher-status-published": { value: creatorStatusCounts.published, tone: "bg-[#ECFDF3] text-edu-success" },
+    /* `UI-QA-A11Y-06`：`#178640 on #ECFDF3` 只有 4.40 → canonical 成功狀態配對 `status.approved*`（#047857 on #ECFDF5 ＝ 5.21），仍為綠色。
+       不改 `edu-success` 本身 —— 它同時是白字實心按鈕的填色（4.65）。 */
+    "teacher-status-published": { value: creatorStatusCounts.published, tone: "bg-status-approvedBg text-status-approvedText" },
     "teacher-status-unpublished": { value: creatorStatusCounts.unpublished, tone: "bg-[#F3F4F6] text-ds-textMuted" },
     // 只有真的有待回覆案件才顯示徽章；`0` 徽章只是視覺噪音。
     ...(creatorCaseCount > 0
@@ -431,10 +433,14 @@ export function RoleShell({ children }: { children: ReactNode }) {
           不是 spacing 收斂。
 
           因此 gutter 的擁有者規則是**「每頁恰好一層」**，而不是「永遠是外殼」：
-            - `AdminShell`／`ParentAppShell` 供應 gutter → 其下的頁面**不得**再供應；
-            - 本外殼不供應 → 頁面用自己**唯一**的外層容器供應 canonical gutter
-              （`px-page-mobile sm:px-page-tablet lg:px-page-desktop`）。
-          兩種模式的數值相同，且 `tests/e2e/layout-contract.spec.ts` 實測「不會有兩層」。
+            - **只有 `AdminShell`** 供應 gutter → 其下的頁面**不得**再供應；
+            - 本外殼與 `ParentAppShell` **都不供應** → 頁面用自己**唯一**的外層容器供應
+              canonical gutter —— 新頁面一律用 `components/ds/PageContainer`
+              （既有頁面手寫的 `px-page-mobile sm:px-page-tablet lg:px-page-desktop` 同值）。
+          `UI-REV-A`（2026-09-29）更正：本段先前寫「`ParentAppShell` 供應 gutter」，與該檔
+          `<main>` 的實作（無水平內距）及其自身註解矛盾 —— 那正是 `/materials`、`/dashboard`
+          漏掉 gutter 而沒人發現的原因。`tests/e2e/layout-contract.spec.ts` 現在同時實測
+          「不會有兩層」與「不會是零層」。
         */}
         <main className="min-h-dvh">{children}</main>
       </div>
