@@ -157,7 +157,10 @@ visual job 紅燈時，下列任何一種差異都**必須**由人（Owner）看
 - 本機（Windows，與 CI 同為 2 workers、0 retry）：48 張 × 5 次重複 ＝ **240／240**
 - 建立過程修掉的不穩定根因（皆為 spec 端，非產品）：第一屏外 lazy 圖片永遠不載入；
   `<img>` 沒有 `loadend` 事件（曾在負載下間歇逾時）；日期遮罩命中整個容器
-- Linux 基準與 CI 重複比對結果見 tracker `UI-QA-VISUAL-BASELINE`
+- Linux：基準由 CI run `36604515083` 產生、逐張審閱後進版控；run `36605420000` 以 `--repeat-each=3` 比對 **144／144**
+- 審閱基準時另發現並修正：購物車手機版標題被擠成一個字（`UI-REV-D`）、中文日期未正規化；
+  另立 `UI-REV-E`（公開 `/materials` 行動版兩條頂欄）—— 已納入基準現況，修正後依 §3.5 更新
+- visual job 約 4 分鐘、與其他 job 並行 —— 每個 PR 都跑，不需要切子集
 
 ## 4. L3 — Human Product Review
 
