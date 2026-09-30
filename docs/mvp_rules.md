@@ -3024,6 +3024,8 @@ canonical source：`Backend/utils/materialDeliverability.js`（`isDeliverable()`
   `REMEDIATION_OPEN`（exact > 0 —— 依 status 回報，**不改資料**，交 Owner）／`REVIEW_MANUAL_PICSUM`（有 picsum 但非啟動模式 ——
   人工分類，**不自動刪除**）。對 production 由 operator 以自己 shell 的 `DATABASE_URL` 執行；回歸見
   `coverPlaceholderCensus.test.js`（`test:unit`）與 `coverPlaceholderCensus.db.test.js`（`test:db`，含「transaction 內寫入被資料庫拒絕」）。
+- **結案（2026-09-30）**：production census（operator 執行、Owner 回報）`bootstrap_written_exact` 0、`bootstrap_shape_other_id` 0、`picsum_any` 0、
+  `cover_missing` 0、verdict `CLOSE` —— 未發現歷史影響，不需清理。預防與回歸測試持續有效。
 
 ## 21A.2 儲存
 
