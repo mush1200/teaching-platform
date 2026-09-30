@@ -40,13 +40,21 @@ const { ensureCoreTables } = require("../../models/bootstrapModel");
 const CREDENTIALS_FILE = path.join(__dirname, "..", "..", ".ui-review-credentials.txt");
 const VERIFY_ONLY = process.argv.includes("--verify");
 
-/** 相對於執行時刻的固定偏移，維持 determinism。 */
+/**
+ * 相對於執行時刻的固定偏移，維持 determinism。
+ *
+ * 以**台北日曆日**的 `hour` 點為錨（台北無日光節約，固定 UTC+8），與執行機器的時區無關。
+ * 報表趨勢圖以台北日分組（`adminTrends.service.js`）；若依機器本地日（CI 為 UTC），
+ * 在 UTC 16:00–24:00 執行時每一筆都會落到前一個 bucket，視覺基準就會隨執行時段翻動
+ * （UI-QA-VISUAL-BASELINE，2026-09-30）。
+ */
 const SEEDED_AT = new Date();
+const TPE_OFFSET_HOURS = 8;
 function at(daysAgo, hour = 10) {
-  const d = new Date(SEEDED_AT);
-  d.setDate(d.getDate() - daysAgo);
-  d.setHours(hour, 0, 0, 0);
-  return d;
+  const tpe = new Date(SEEDED_AT.getTime() + TPE_OFFSET_HOURS * 3600 * 1000);
+  return new Date(
+    Date.UTC(tpe.getUTCFullYear(), tpe.getUTCMonth(), tpe.getUTCDate() - daysAgo, hour - TPE_OFFSET_HOURS)
+  );
 }
 
 /**
