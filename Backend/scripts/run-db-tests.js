@@ -34,6 +34,7 @@ const TEST_FILES = [
   path.join("tests", "materialFile.db.test.js"),
   path.join("tests", "materialMedia.db.test.js"),
   path.join("tests", "bootstrapNoContentBackfill.db.test.js"),
+  path.join("tests", "coverPlaceholderCensus.db.test.js"),
   path.join("tests", "paymentProofPrivateStorage.db.test.js"),
   path.join("tests", "buyerOrderProgress.db.test.js"),
   path.join("tests", "orderItemEntitlement.db.test.js"),

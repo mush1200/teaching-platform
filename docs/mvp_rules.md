@@ -3019,6 +3019,11 @@ canonical source：`Backend/utils/materialDeliverability.js`（`isDeliverable()`
 - **既有已被改寫的列不在啟動時處理**；是否清理、清理成什麼，必須先唯讀取證、再由 Owner 明確決定（tracker `SEC-04`）。
 - 回歸：`Backend/tests/bootstrapNoContentBackfill.test.js`（靜態，`test:unit`／CI）與
   `Backend/tests/bootstrapNoContentBackfill.db.test.js`（真資料庫，`test:db`）。
+- **唯讀取證工具**：`Backend/scripts/cover-placeholder-census.js`（`READ ONLY` transaction ＋ 查詢前斷言、一律 `ROLLBACK`、
+  無任何寫入語句；以完整網址等值比對 `tp-md5(id)` 證明來源為啟動寫入）。判定：`CLOSE`（exact = 0 且 picsum = 0）／
+  `REMEDIATION_OPEN`（exact > 0 —— 依 status 回報，**不改資料**，交 Owner）／`REVIEW_MANUAL_PICSUM`（有 picsum 但非啟動模式 ——
+  人工分類，**不自動刪除**）。對 production 由 operator 以自己 shell 的 `DATABASE_URL` 執行；回歸見
+  `coverPlaceholderCensus.test.js`（`test:unit`）與 `coverPlaceholderCensus.db.test.js`（`test:db`，含「transaction 內寫入被資料庫拒絕」）。
 
 ## 21A.2 儲存
 
