@@ -150,6 +150,12 @@ export default function UiReviewIndexPage() {
           <span className="mx-2 text-ds-textSubtle">·</span>
           /materials 頂欄：已決定方案 B 並已實作（UI-REV-E，比較頁已移除）
         </p>
+        <p className="mt-1 text-sm">
+          <strong className="text-ds-heading">待 Owner 選擇：</strong>{" "}
+          <Link href="/dev/ui-review/commerce-color-2" className="text-ds-textAccent underline">
+            價格／數量徽章／折扣 配色（各選 A／B／C，UI-QA-COMMERCE-COLOR-2）→
+          </Link>
+        </p>
       </header>
 
       <section className="mb-10 rounded-2xl border border-black/[0.06] bg-white/70 p-5">
