@@ -201,7 +201,8 @@ export default function OrangeCtaTextOptionsPage() {
         <p className="text-caption font-semibold uppercase tracking-wider text-ds-textAccent">DEV ONLY · UI-QA-COMMERCE-COLOR</p>
         <h1 className="mt-1 text-2xl font-bold text-ds-heading">立即購買（橘）文字色方案比較</h1>
         <p className="mt-2 max-w-3xl text-sm text-ds-body">
-          請在 A／B／C／D 之中選一個 <code>{ORANGE}</code> 上的文字色。底色、加入購物車（紫 <code>{PURPLE}</code> ＋ 白字）與字型都已鎖定，
+          <strong>已決定並已實作（Owner，2026-09-30）：方案 C <code>#111827</code>。</strong>產品按鈕現在用 <code>Button intent=&quot;purchase&quot;</code>；本頁保留作為決策紀錄。
+          原題：請在 A／B／C／D 之中選一個 <code>{ORANGE}</code> 上的文字色。底色、加入購物車（紫 <code>{PURPLE}</code> ＋ 白字）與字型都已鎖定，
           本頁不會改變它們。每個候選在底色、hover（<code>{ORANGE_HOVER}</code>）與按下（<code>{ORANGE_ACTIVE}</code>）三種狀態都通過 WCAG AA。
           按鈕都是真的元件：滑過、按下、Tab 聚焦都可以直接試。
         </p>

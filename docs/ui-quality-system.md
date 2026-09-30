@@ -78,7 +78,8 @@ E2E_SERVER=production npm run test:e2e:ui-quality
   **路由 ＋ rule ＋ 節點 selector ＋ project** 的精確組合，並**必須**附 tracker ID。
 - **禁止**全域停用規則、禁止整條路由略過、禁止沒有 tracker ID 的條目。
 - 例外若已不再發生，test 會**失敗**（stale exception）—— 修好缺陷後必須刪掉對應條目。
-- 現有例外**只剩 `UI-QA-A11Y-03`**（待 Owner 選定的粉色強調色，1 條），它不是「可以接受」，是等待決定。
+- **現有例外：0 條**（mock gate 與真實資料 gate 皆然）。最後一條 `UI-QA-A11Y-03`（Hero CTA 寫死舊 flow 色）於 2026-09-30
+  隨商業配色落地（`UI-QA-COMMERCE-COLOR`）修正後移除。
   `UI-QA-A11Y-01` 的 7 條（品牌紫）與 `UI-QA-A11Y-02` 的 12 條（買家側欄標題）已於 2026-09-29 隨修正移除 ——
   兩次都是 gate 先把例外判為 stale 才刪除，例外機制如設計般運作：修好即刪。
 
@@ -86,7 +87,7 @@ E2E_SERVER=production npm run test:e2e:ui-quality
 
 mock 資料不會產生每一種真實狀態。2026-09-29 以 Local UI Review fixture（真實資料、真實登入）
 另跑 axe，找到 gate **掃不到**的 serious 違規（`UI-QA-A11Y-04`～`-06`，皆已修正）。
-修正後同一 sweep（20 路由 × 1440／390）只剩 `UI-QA-A11Y-03` 的待決粉色。
+修正後同一 sweep（20 路由 × 1440／390）只剩 `UI-QA-A11Y-03` 的待決粉色（2026-09-30 亦已修正）。
 **2026-09-30 起真實資料 axe 已是 CI gate（`UI-QA-A11Y-SWEEP`）**：`tests/visual/ui-review-a11y.spec.ts`，
 跑在 `visual` job，`routes.json` 中 `a11y !== false` 的 **38 條路由 × 1440／390 ＝ 76 次掃描**（約 2.5 分鐘），
 與 mock gate 共用 `tests/shared/axe-policy.ts`（規則集、critical／serious 阻擋、精確例外與 stale 檢查），
@@ -236,4 +237,5 @@ visual job 紅燈時，下列任何一種差異都**必須**由人（Owner）看
 | 2026-09-29 | 建立。L1 CI gate（`UI-QA-CI`）、字型自架（`UI-QA-FONT`）、axe gate（`UI-QA-AXE`） |
 | 2026-09-29 | 品牌紫 `#6C63FF` → `#5C4EEA`（Owner 選 B）；`UI-QA-A11Y-01` 例外移除 |
 | 2026-09-29 | L2 建立：`toHaveScreenshot` 48 張 Linux 基準、`visual` CI job、差異審閱與基準更新政策；`UI-QA-A11Y-02` 例外移除 |
+| 2026-09-30 | 商業配色落地（`Button intent="purchase"`，橘 `#FE8742` ＋ `#111827`）；`UI-QA-A11Y-03` 例外移除，axe 例外 0 條；購買路徑相關視覺基準重產 |
 | 2026-09-30 | 真實資料 axe 進 CI（`UI-QA-A11Y-SWEEP`）；axe 政策抽出為 `tests/shared/axe-policy.ts`、UI Review harness 抽出為 `tests/visual/ui-review-harness.ts`；`SEC-04` 移除啟動時的封面補值後視覺基準重產 |

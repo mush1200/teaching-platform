@@ -26,7 +26,7 @@ export function CheckoutStepper({ activeStep }: Props) {
                   done
                     ? "bg-edu-primary text-white"
                     : current
-                      ? "bg-[#FF6B73] text-white shadow-[var(--shadow-button-flow)] ring-4 ring-[#FF6B73]/20"
+                      ? "bg-intent-purchase text-intent-purchaseText shadow-button-purchase ring-4 ring-intent-purchase/20"
                       : "border border-[#E5E7EB] bg-white text-ds-textSubtle"
                 }`}
                 aria-current={current ? "step" : undefined}

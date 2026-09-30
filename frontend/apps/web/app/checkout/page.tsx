@@ -364,7 +364,7 @@ export default function CheckoutPage() {
               </label>
             </div>
             <Button
-              intent="flow"
+              intent="purchase"
               fullWidth
               onClick={() => {
                 const error = validateStep1();
@@ -408,7 +408,7 @@ export default function CheckoutPage() {
                 —— 讓訂單先成立只會製造一張沒人能結掉的 pending_payment。
               */}
               <Button
-                intent="flow"
+                intent="purchase"
                 fullWidth
                 disabled={bankInfo.status !== "ready"}
                 onClick={() => goToStep(3)}
@@ -520,7 +520,7 @@ export default function CheckoutPage() {
                   返回修改
                 </Button>
                 <Button
-                  intent="flow"
+                  intent="purchase"
                   fullWidth
                   disabled={submitDisabled}
                   onClick={() => void placeOrder()}
@@ -557,7 +557,7 @@ export default function CheckoutPage() {
 
         {step === 3 ? (
           <div className="fixed inset-x-0 bottom-[58px] z-20 border-t border-[#ececf2] bg-white/95 p-3 backdrop-blur md:hidden">
-            <Button intent="flow" fullWidth disabled={submitDisabled} onClick={() => void placeOrder()}>
+            <Button intent="purchase" fullWidth disabled={submitDisabled} onClick={() => void placeOrder()}>
               {submitting ? "處理中…" : `確認送出訂單 · NT$${payable.toLocaleString()}`}
             </Button>
           </div>

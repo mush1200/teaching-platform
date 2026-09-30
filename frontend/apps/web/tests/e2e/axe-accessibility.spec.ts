@@ -70,22 +70,12 @@ const ROUTES: RouteCase[] = [
 
 /* 規則集、阻擋門檻與例外比對統一在 `tests/shared/axe-policy.ts`（與 UI Review 真實資料的 axe 共用）。 */
 
-type Project = "chromium-desktop" | "chromium-mobile";
-const BOTH: Project[] = ["chromium-desktop", "chromium-mobile"];
-
 /**
  * 逐條、精確的暫時例外 —— 每一條都是**已立案的既有缺陷**，不是「可以接受」。
  * 政策見 `docs/ui-quality-system.md` §L1「例外政策」。修好之後對應條目會變成 stale 而讓本檔失敗，
  * 屆時刪掉即可。**不得**新增沒有 tracker ID 的條目，也**不得**以 rule 或路由為單位整批略過。
+ * 條目格式：`{ path, ruleId, target, scopes: ["chromium-desktop" | "chromium-mobile", …], ref: "<tracker ID>" }`。
  */
-function exceptionsFor(
-  ref: string,
-  ruleId: string,
-  projects: Project[],
-  entries: Array<[path: string, target: string]>
-): AxeException[] {
-  return entries.map(([path, target]) => ({ path, ruleId, target, scopes: projects, ref }));
-}
 
 const KNOWN_EXCEPTIONS: AxeException[] = [
   /*
@@ -96,8 +86,11 @@ const KNOWN_EXCEPTIONS: AxeException[] = [
    * `UI-QA-A11Y-02`（買家側欄分組標題 2.07:1）的 12 條例外已於 2026-09-29 移除：
    * 改用 `ds-textSubtle`（5.07:1）後 gate 將它們判為 stale —— 例外機制如設計般運作。
    */
-  /* `UI-QA-A11Y-03`：買家總覽 Hero CTA 寫死 `bg-[#FF6B73] text-white`（2.76:1），`components/parent/Hero.tsx:24`。 */
-  ...exceptionsFor("UI-QA-A11Y-03", "color-contrast", BOTH, [["/dashboard", ".min-h-11"]]),
+  /*
+   * `UI-QA-A11Y-03`（買家總覽 Hero CTA 寫死 `#FF6B73`，2.76:1）的例外已於 2026-09-30 移除：
+   * `UI-QA-COMMERCE-COLOR` 落地時 Hero 改用 canonical flow token（4.66:1），結帳步驟改用購買 token。
+   * 目前沒有任何例外。
+   */
 ];
 
 function json(route: Route, payload: unknown, status = 200) {

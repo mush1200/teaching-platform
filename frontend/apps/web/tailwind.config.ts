@@ -89,6 +89,11 @@ const config: Config = {
           /* `UI-CONS-01`（2026-09-07）：與 `globals.css` 的 `--color-intent-*` 同步。 */
           flow: "#EA000D",
           action: "#5C4EEA",
+          /* `UI-QA-COMMERCE-COLOR`（2026-09-30）：與 `globals.css` 的 `--color-intent-purchase*` 同步。 */
+          purchase: "#FE8742",
+          purchaseHover: "#FE7512",
+          purchaseActive: "#F16D02",
+          purchaseText: "#111827",
           neutral: "#FFFFFF",
           /* `UI-CONS-01`（2026-09-08）：與 `--color-intent-danger` 同步（見 globals.css 註解）。 */
           danger: "#DE1313",
@@ -150,6 +155,7 @@ const config: Config = {
         "ds-card-hover": "var(--ds-shadow-card-hover)",
         "button-flow": "0 8px 24px rgba(255, 107, 115, 0.28)",
         "button-action": "var(--shadow-button-action)",
+        "button-purchase": "var(--shadow-button-purchase)",
       },
       maxWidth: {
         wide: "1280px",

@@ -30,7 +30,8 @@ Source aligned with:
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| `intent.flow` | `#EA000D` | Checkout, create order, submit proof, login/register（與 `brand.cta` 同值） |
+| `intent.flow` | `#EA000D` | Non-purchase primary actions: submit proof, create material, explore, login/register（與 `brand.cta` 同值）。**購買路徑已改用 `intent.purchase`**（2026-09-30） |
+| `intent.purchase` | `#FE8742`（hover `#FE7512`、active `#F16D02`） | **Direct purchase only**：立即購買、前往結帳、結帳下一步、確認送出訂單、結帳步驟目前格。文字 `intent.purchaseText` `#111827`（7.40／6.56／5.85:1）；**不得**用白字（2.40）。Owner 決定（`UI-QA-COMMERCE-COLOR`，2026-09-30） |
 | `intent.action` | `#5C4EEA` | Filter, review, publish, management actions（token 仍獨立，值與 `brand.primary` 相同；2026-09-29 由 `#655CFF` 對齊） |
 | `intent.neutral` | `#FFFFFF` | Back, cancel, helper actions |
 | `intent.danger` | `#EF4444` | Reject, delete, disable actions |
@@ -188,7 +189,8 @@ Font stack（`UI-QA-FONT`，2026-09-29 更新 —— 單一來源 `frontend/apps
   - Focus: visible outline in brand primary
 - Intents:
   - `flow`: background `intent.flow`, text white, shadow `shadow.button-flow`
-  - `action`: background `intent.action`, text white, shadow `shadow.button-action`
+  - `action`: background `intent.action`, text white, shadow `shadow.button-action`（加入購物車）
+  - `purchase`: background `intent.purchase`, text `intent.purchaseText` (`#111827`), shadow `shadow.button-purchase`; hover `intent.purchaseHover`, active `intent.purchaseActive`; outline/ghost use dark text (orange text on white fails AA)
   - `neutral`: white background, border `surface.border`, dark text
   - `danger`: background `intent.danger`, text white
 

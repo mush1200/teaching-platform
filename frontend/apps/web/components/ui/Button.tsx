@@ -6,7 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
  * ## API 的三個軸（互不重疊）
  *
  * ```text
- * intent   語意：這顆按鈕在流程裡是什麼   flow | action | neutral | danger
+ * intent   語意：這顆按鈕在流程裡是什麼   flow | action | purchase | neutral | danger | success
  * variant  呈現：填色 / 外框 / 無底        solid | outline | ghost
  * size     尺寸                            sm | md | lg
  * ```
@@ -61,7 +61,15 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
  * （`MaterialReviewPanel` 的「核准上架」與 `payment-proofs` 的「核准付款」），
  * 不需要任何 page-local 覆寫。
  */
-type Intent = "flow" | "action" | "neutral" | "danger" | "success";
+/*
+ * ## `purchase`（`UI-QA-COMMERCE-COLOR`，2026-09-30，Owner 決定）
+ *
+ * **直接購買**專用：立即購買、前往結帳、結帳下一步、確認送出訂單。底色 `#FE8742`、文字 `#111827`
+ * （7.40:1；hover 6.56、按下 5.85）。與 `flow` 分開是刻意的 —— `flow` 仍是非購買的主要動作
+ * （新增教材、上傳付款憑證、探索…），把購買改色**不得**連帶改變它們；加入購物車是 `action`（品牌紫）。
+ * outline／ghost 的文字一律用深色 `purchaseText`：橘色當文字在白底只有 2.1，過不了 AA。
+ */
+type Intent = "flow" | "action" | "purchase" | "neutral" | "danger" | "success";
 /** 呈現軸：與 `intent` 正交。 */
 type Variant = "solid" | "outline" | "ghost";
 type Size = "sm" | "md" | "lg";
@@ -113,6 +121,13 @@ const styles: Record<Intent, Record<Variant, string>> = {
     outline:
       "border border-[var(--color-intent-flow)] bg-transparent text-[var(--color-intent-flow)] hover:bg-[var(--color-status-pending-payment-bg)]",
     ghost: "bg-transparent text-[var(--color-intent-flow)] hover:bg-[var(--color-status-pending-payment-bg)]",
+  },
+  purchase: {
+    solid:
+      "bg-[var(--color-intent-purchase)] text-[var(--color-intent-purchase-text)] shadow-button-purchase hover:bg-[var(--color-intent-purchase-hover)] active:bg-[var(--color-intent-purchase-active)]",
+    outline:
+      "border border-[var(--color-intent-purchase)] bg-transparent text-[var(--color-intent-purchase-text)] hover:bg-[#FFF0E9]",
+    ghost: "bg-transparent text-[var(--color-intent-purchase-text)] hover:bg-[#FFF0E9]",
   },
   action: {
     solid: "bg-[var(--color-intent-action)] text-white shadow-button-action hover:brightness-95",

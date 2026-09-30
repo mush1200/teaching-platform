@@ -170,7 +170,7 @@ app  →  layout  →  domain  →  ds  →  ui
 | **Text hierarchy** | `--ds-text-heading` / `-body` / `-muted` / `-subtle` / **`-accent`** | `text-ds-heading` / `text-ds-body` / `text-ds-textMuted` / `text-ds-textSubtle` |
 | **Radius（卡片）** | `--ds-radius-card`（20px） | `rounded-ds-card` |
 | **Shadow（卡片）** | `--ds-shadow-card` / `-soft` / `-hover` | `shadow-ds-card` / `shadow-ds-card-soft` / `shadow-ds-card-hover` |
-| **Semantic — Button intent** | `intent.flow` / `action` / `neutral` / `danger` | 透過 `Button` 的 `intent` prop，**不要**直接寫 `bg-intent-*` |
+| **Semantic — Button intent** | `intent.flow` / `action` / `purchase` / `neutral` / `danger` / `success` | 透過 `Button` 的 `intent` prop，**不要**直接寫 `bg-intent-*`。**商業配色（Owner，2026-09-30）**：加入購物車 = `action`（紫 `#5C4EEA` ＋ 白字）；直接購買 = `purchase`（橘 `#FE8742` ＋ `#111827`）；`flow` 只留給非購買的主要動作 |
 | **Semantic — Status（8 組 bg/text 成對）** | `status.*Bg` / `status.*Text` | `bg-status-draftBg text-status-draftText` … |
 | **Semantic — Feedback（loading/empty/error）** | `feedback.*` | `text-feedback-loadingText`、`bg-feedback-errorBg` … |
 | **Focus** | `--ds-focus-ring`（= brand primary） | `ring-ds-focus` / `outline-ds-focus`、`ring-offset-ds` |

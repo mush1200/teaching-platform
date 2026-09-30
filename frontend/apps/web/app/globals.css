@@ -42,6 +42,21 @@
    */
   --color-intent-flow: #ea000d;
   --color-intent-action: #5c4eea;
+  /*
+   * `UI-QA-COMMERCE-COLOR`（2026-09-30，**Owner 決定**）：**直接購買**專用的商業橘。
+   * 只用於「立即購買／前往結帳／結帳下一步／確認送出訂單」與結帳步驟目前格 ——
+   * 加入購物車維持 `action`（品牌紫＋白字），非購買的主要動作維持 `flow`，warning／danger 不變。
+   * 底色 #fe8742（Owner 選 A）＋ 文字 #111827（Owner 選 C，= `--ds-text-heading`）：
+   *   base   #fe8742  6.12 → 文字 #111827 **7.40:1**
+   *   hover  #fe7512            **6.56:1**
+   *   active #f16d02            **5.85:1**
+   * 白字在這個橘上只有 2.40，**不得**改用白字。與 warning 文字（#b45309）ΔE_ok 19.0、danger 19.5。
+   * `tailwind.config.ts` 的 `intent.purchase*` 與 `boxShadow.button-purchase` 是寫死的 hex，必須同步。
+   */
+  --color-intent-purchase: #fe8742;
+  --color-intent-purchase-hover: #fe7512;
+  --color-intent-purchase-active: #f16d02;
+  --color-intent-purchase-text: #111827;
   --color-intent-neutral: #ffffff;
   /*
    * `UI-CONS-01`（2026-09-08 closeout，Owner 核准 #EF4444 → #E81414）。
@@ -131,6 +146,7 @@
   --shadow-card-default: 0 10px 40px rgba(15, 23, 42, 0.06);
   --shadow-button-flow: 0 8px 24px rgba(255, 107, 115, 0.28);
   --shadow-button-action: 0 6px 20px rgba(92, 78, 234, 0.22);
+  --shadow-button-purchase: 0 8px 24px rgba(254, 135, 66, 0.28);
 
   /*
    * Design system — account / library / order commerce surfaces.

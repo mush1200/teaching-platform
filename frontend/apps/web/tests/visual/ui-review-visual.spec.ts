@@ -26,9 +26,10 @@ import { MANIFEST, normalizeDynamicText, prepareContext, settle } from "./ui-rev
  *     截圖前把文字節點裡符合日期／時間格式的**數字**換成 `0`（`2026/09/29` → `0000/00/00`），
  *     版面、字級、位置都保留。先前以 `getByText` 遮罩時會命中整個容器（Admin 總覽兩整塊面板被塗滿），
  *     那等於不驗那一區 —— 因此改為正規化。
- *   - **待 Owner 決定的粉色強調色**（`UI-QA-A11Y-03`）：`#FF6B73`／`#FF6B7A` 的元素。
- *     不把已知不合格的顏色鎖進基準；Owner 選定並套用後這些 class 會消失，遮罩自動失效，
- *     屆時依 §3 政策重新產生基準。
+ *   - **尚未歸位的舊粉色**：`#FF6B73`／`#FF6B7A` 的元素。2026-09-30 `UI-QA-COMMERCE-COLOR` 落地後，
+ *     購買 CTA 與結帳步驟已改用購買 token、Hero 已改用 flow token（不再被遮罩、已進基準）；
+ *     剩下的只有數量徽章與折扣標籤 —— 它們的顏色尚未決定（tracker `UI-QA-COMMERCE-COLOR` 後續），
+ *     決定並套用後 class 消失、遮罩自動失效，屆時依 §3 政策重新產生基準。
  *
  * 外部網址的圖片（backend 啟動時為無封面教材補的 `picsum.photos`）一律以本機的固定圖取代 ——
  * 基準不得依賴外部服務。

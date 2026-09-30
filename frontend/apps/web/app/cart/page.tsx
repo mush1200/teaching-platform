@@ -84,10 +84,10 @@ export default function CartPage() {
         <Link href="/checkout" className="group mt-6 block">
           <Button
             type="button"
-            intent="flow"
+            intent="purchase"
             fullWidth
             size="lg"
-            className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(92,78,234,0.28)] hover:shadow-[0_16px_30px_rgba(92,78,234,0.32)]"
+            className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(254,135,66,0.30)] hover:shadow-[0_16px_30px_rgba(254,135,66,0.36)]"
           >
             前往結帳 · NT${total.toLocaleString()}
             <IconArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
@@ -169,10 +169,10 @@ export default function CartPage() {
             <Link href="/checkout" className="group w-full">
               <Button
                 type="button"
-                intent="flow"
+                intent="purchase"
                 fullWidth
                 size="lg"
-                className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(92,78,234,0.28)] hover:shadow-[0_16px_30px_rgba(92,78,234,0.32)]"
+                className="font-semibold tracking-tight shadow-[0_12px_26px_rgba(254,135,66,0.30)] hover:shadow-[0_16px_30px_rgba(254,135,66,0.36)]"
               >
                 前往結帳 · NT${total.toLocaleString()}
                 <IconArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />

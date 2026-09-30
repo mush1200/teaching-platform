@@ -111,7 +111,7 @@ function PurchaseActions({
         {!compact ? <IconCart className="size-4" /> : null}
         {compact ? "購物車" : "加入購物車"}
       </Button>
-      <Button type="button" intent="flow" fullWidth loading={busy} disabled={!purchasable} onClick={onBuyNow}>
+      <Button type="button" intent="purchase" fullWidth loading={busy} disabled={!purchasable} onClick={onBuyNow}>
         {purchasable ? "立即購買" : "暫停販售"}
       </Button>
       {!compact && feedback ? (

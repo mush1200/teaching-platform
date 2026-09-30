@@ -34,17 +34,10 @@ const WIDTHS = [
 
 /**
  * 逐條、精確的暫時例外（政策見 `docs/ui-quality-system.md` §2.4）。
- * 目前只有一條：待 Owner 選定商業色的 Hero CTA（`UI-QA-A11Y-03`）。
+ * 目前**沒有**任何例外：唯一的一條（Hero CTA，`UI-QA-A11Y-03`）已於 2026-09-30 隨
+ * `UI-QA-COMMERCE-COLOR` 落地修正（Hero 改用 canonical flow token）而移除。
  */
-const KNOWN_EXCEPTIONS: AxeException[] = [
-  {
-    path: "/dashboard",
-    ruleId: "color-contrast",
-    target: ".min-h-11",
-    scopes: ["w1440", "w390"],
-    ref: "UI-QA-A11Y-03",
-  },
-];
+const KNOWN_EXCEPTIONS: AxeException[] = [];
 
 for (const r of A11Y_ROUTES) {
   for (const vp of WIDTHS) {

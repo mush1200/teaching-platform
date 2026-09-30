@@ -19,9 +19,14 @@ export function Hero() {
             <p className="text-[14px] font-normal leading-tight text-ds-textSubtle sm:text-[15px]">為你的教學與學習提供靈感</p>
           </div>
           <div className="pt-0">
+            {/*
+              `UI-QA-A11Y-03`（2026-09-30）：原本寫死舊 flow 色 `#FF6B73`（白字 2.76:1），沒跟上 `UI-CONS-01`。
+              改用 canonical flow token（`--color-intent-flow` #EA000D，白字 4.66:1）—— 與同一個入口的
+              `HeroExplore`（`<Button intent="flow">`）一致。「立即探索」不是購買動作，**不用**商業橘。
+            */}
             <Link
               href="/explore"
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#FF6B73] px-3.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(240,85,96,0.18)] transition hover:bg-[#f05560] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B73]"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--color-intent-flow)] px-3.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(234,0,13,0.18)] transition hover:bg-[var(--color-brand-cta-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
             >
               立即探索
             </Link>

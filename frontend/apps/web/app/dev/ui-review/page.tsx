@@ -138,9 +138,9 @@ export default function UiReviewIndexPage() {
           </Link>
         </p>
         <p className="mt-1 text-sm">
-          <strong className="text-ds-heading">待 Owner 選擇：</strong>{" "}
+          <strong className="text-ds-heading">已決定：</strong>{" "}
           <Link href="/dev/ui-review/orange-cta-text" className="text-ds-textAccent underline">
-            立即購買（橘 #FE8742）文字色（A／B／C／D）→
+            立即購買文字色（已決定：方案 C #111827，已實作為 intent=&quot;purchase&quot;）→
           </Link>
         </p>
         <p className="mt-1 text-sm">
