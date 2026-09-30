@@ -237,5 +237,6 @@ visual job 紅燈時，下列任何一種差異都**必須**由人（Owner）看
 | 2026-09-29 | 建立。L1 CI gate（`UI-QA-CI`）、字型自架（`UI-QA-FONT`）、axe gate（`UI-QA-AXE`） |
 | 2026-09-29 | 品牌紫 `#6C63FF` → `#5C4EEA`（Owner 選 B）；`UI-QA-A11Y-01` 例外移除 |
 | 2026-09-29 | L2 建立：`toHaveScreenshot` 48 張 Linux 基準、`visual` CI job、差異審閱與基準更新政策；`UI-QA-A11Y-02` 例外移除 |
+| 2026-10-01 | `UI-QA-COMMERCE-COLOR-2` 落地（價格 `commerce.price`、購買相關徽章 `commerce.badgePurchase`、折扣 `DiscountChip`）；視覺基準的舊粉遮罩移除（徽章進入基準），受影響基準重產；新增 `commerce-rules.spec.ts` |
 | 2026-09-30 | 商業配色落地（`Button intent="purchase"`，橘 `#FE8742` ＋ `#111827`）；`UI-QA-A11Y-03` 例外移除，axe 例外 0 條；購買路徑相關視覺基準重產 |
 | 2026-09-30 | 真實資料 axe 進 CI（`UI-QA-A11Y-SWEEP`）；axe 政策抽出為 `tests/shared/axe-policy.ts`、UI Review harness 抽出為 `tests/visual/ui-review-harness.ts`；`SEC-04` 移除啟動時的封面補值後視覺基準重產 |

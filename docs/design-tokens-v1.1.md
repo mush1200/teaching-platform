@@ -32,6 +32,11 @@ Source aligned with:
 | --- | --- | --- |
 | `intent.flow` | `#EA000D` | Non-purchase primary actions: submit proof, create material, explore, login/register（與 `brand.cta` 同值）。**購買路徑已改用 `intent.purchase`**（2026-09-30） |
 | `intent.purchase` | `#FE8742`（hover `#FE7512`、active `#F16D02`） | **Direct purchase only**：立即購買、前往結帳、結帳下一步、確認送出訂單、結帳步驟目前格。文字 `intent.purchaseText` `#111827`（7.40／6.56／5.85:1）；**不得**用白字（2.40）。Owner 決定（`UI-QA-COMMERCE-COLOR`，2026-09-30） |
+| `commerce.price` | `#111827` | 一般價格／商業資訊（詳情價格、sticky 合計、商品卡、教材卡、購物車、結帳）。17.74 on 白。**不是** danger、warning 或 CTA（`UI-QA-COMMERCE-COLOR-2`，2026-10-01） |
+| `commerce.badgePurchase` ／ `badgePurchaseText` | `#C81E6E` ／ `#FFFFFF` | **只**用於購買相關的待處理數：購物車數量、需買家處理的訂單數（5.43） |
+| `commerce.badgeNotification` ／ `badgeNotificationText` | `#5C4EEA` ／ `#FFFFFF` | **保留**給未來的一般通知／未讀數（5.63）；目前沒有任何使用處，不得為了用它新增通知 UI |
+| `commerce.discountMild` ／ `discountMildText` | `#FFF0E9` ／ `#111827` | 折扣 **<30%**（15.96） |
+| `commerce.discountStrong` ／ `discountStrongText` | `#FFD4B8` ／ `#7C2D12` | 折扣 **≥30%**（6.85）；刻意是暖橘棕、**不是** danger 紅。門檻唯一實作 `lib/commerce.ts`，元件 `components/ds/DiscountChip` |
 | `intent.action` | `#5C4EEA` | Filter, review, publish, management actions（token 仍獨立，值與 `brand.primary` 相同；2026-09-29 由 `#655CFF` 對齊） |
 | `intent.neutral` | `#FFFFFF` | Back, cancel, helper actions |
 | `intent.danger` | `#EF4444` | Reject, delete, disable actions |

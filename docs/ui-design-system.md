@@ -171,6 +171,7 @@ app  →  layout  →  domain  →  ds  →  ui
 | **Radius（卡片）** | `--ds-radius-card`（20px） | `rounded-ds-card` |
 | **Shadow（卡片）** | `--ds-shadow-card` / `-soft` / `-hover` | `shadow-ds-card` / `shadow-ds-card-soft` / `shadow-ds-card-hover` |
 | **Semantic — Button intent** | `intent.flow` / `action` / `purchase` / `neutral` / `danger` / `success` | 透過 `Button` 的 `intent` prop，**不要**直接寫 `bg-intent-*`。**商業配色（Owner，2026-09-30）**：加入購物車 = `action`（紫 `#5C4EEA` ＋ 白字）；直接購買 = `purchase`（橘 `#FE8742` ＋ `#111827`）；`flow` 只留給非購買的主要動作 |
+| **Semantic — Commerce（2026-10-01）** | `commerce.price` / `badgePurchase` / `badgeNotification`（保留）/ `discountMild` / `discountStrong` | 價格 `text-commerce-price`；購買相關徽章 `bg-commerce-badgePurchase text-commerce-badgePurchaseText`；折扣一律用 `components/ds/DiscountChip`（門檻 30% 只在 `lib/commerce.ts`）。**不得**用 `edu-cta`／danger 表示價格或促銷 |
 | **Semantic — Status（8 組 bg/text 成對）** | `status.*Bg` / `status.*Text` | `bg-status-draftBg text-status-draftText` … |
 | **Semantic — Feedback（loading/empty/error）** | `feedback.*` | `text-feedback-loadingText`、`bg-feedback-errorBg` … |
 | **Focus** | `--ds-focus-ring`（= brand primary） | `ring-ds-focus` / `outline-ds-focus`、`ring-offset-ds` |

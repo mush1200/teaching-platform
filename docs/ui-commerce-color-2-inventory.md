@@ -170,3 +170,32 @@ Inter ＋ Noto Sans TC；`/materials` 頂欄方案 B。`UI-QA-COMMERCE-COLOR` DO
 | C | `#111827` ＋ `#FFB788`（實心） | 10.46 | 實心，對白 17.74 | 34.8／76.1 | 56.8 |
 
 審閱頁上 41 個候選／鎖定規則渲染節點 axe 0 違規。
+
+## 9. 最終規則與實作（2026-10-01，**Owner 決定，已實作**）
+
+| 語意 | 值 | 對比 | 實作 |
+| --- | --- | --- | --- |
+| 價格 | `#111827` | 白 17.74／`#F4F1FF` 15.94／`#FAF8FF` 16.84 | `commerce.price`（`text-commerce-price`） |
+| 購買相關徽章 | `#C81E6E` ＋ 白 | 5.43 | `commerce.badgePurchase`：Topbar 購物車、側欄購物車與待處理訂單 |
+| 一般通知徽章 | `#5C4EEA` ＋ 白 | 5.63 | `commerce.badgeNotification` —— **保留規則**，目前沒有使用處，未新增任何通知 UI |
+| 折扣 <30% | `#FFF0E9` ＋ `#111827` | 15.96 | `commerce.discountMild`，`DiscountChip` |
+| 折扣 ≥30% | `#FFD4B8` ＋ `#7C2D12` | 6.85 | `commerce.discountStrong`，`DiscountChip` |
+| 門檻 | 30%（含） | — | **唯一實作** `lib/commerce.ts`（以顯示的整數百分比判定） |
+
+**決策紀錄：** 原提案的強折扣 `#FFF0F1` ＋ `#B91C1C` 與錯誤樣式相同（字 ΔE 0.0、底 ΔE 0.5）而被否決；Owner 在同畫面語意比較後選方案 A（暖橘棕）。
+
+**已歸位（REVIEW／FIX → DONE）：** 價格 3 處（`text-edu-cta` → `commerce.price`），另把市集內其他價格（教材卡、購物車品項與合計、結帳品項與總金額）統一到同一 token；
+數量徽章 3 處（2.76／2.75 不合格 → 5.43）；折扣 2 處（詳情 3.92 不合格 → 門檻規則）；legacy `BadgeTone`／`badgeToneStyles`（零參照、2.30）刪除，`pendingPayment` token 標 deprecated。
+視覺基準的舊粉遮罩移除。三個比較頁移除（本文件保留決策理由），改以決定後的驗證頁 `/dev/ui-review/commerce-discount-fixture` 呈現休眠中的折扣路徑。
+
+**保持不變（KEEP）：** 錯誤／危險 64、警示／急迫 14、非購買主要動作 `intent=flow` 12、收藏愛心、頭像／標籤色塊、封面漸層、Google 標誌。
+
+**後續分類：**
+
+| 項目 | 分類 | 去處 |
+| --- | --- | --- |
+| 徽章上限 Topbar「99+」 vs 側欄「9+」（側欄徽章為 16px 圓，上限是版面選擇，無文件規範） | FOLLOW-UP（P3） | tracker `UI-REV-G` |
+| 圖表 active 長條 `fill-edu-cta`、3 處連結 hover 變紅 `hover:text-edu-cta`、flow 按鈕舊粉陰影 `shadow-button-flow`、`AccountFreezePanel` 凍結用 `flow` 而非 `danger` | FOLLOW-UP（P3） | tracker `UI-QA-RED-DECOR` |
+| 原價／折扣資料（`lib/material-mapper.ts` 的 `originalPrice: price`，後端無原價欄位）→ 折扣標籤在產品上休眠 | DEFERRED（產品／定價功能，非缺陷；未立 active TODO） | 本文件；需要時由 Owner 立案 |
+| legacy `CardBadge` 狀態對照 | DEAD → 已刪除 | — |
+| 觀察：訂單列表付款狀態 pill（`app/orders/page.tsx:77`，`orange-900` on `orange-50`）與強折扣同字色、與溫和折扣底色 ΔE 1.7 | 記錄即可（兩者不會出現在同一頁；不開新工作） | — |
