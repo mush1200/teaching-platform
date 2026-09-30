@@ -26,6 +26,7 @@
 # ## `visual` job（L2 視覺回歸，`UI-QA-VISUAL-BASELINE`）
 #
 #   UI Review fixture（`teaching_platform_ui_review`）→ production build → `toHaveScreenshot`
+#   ＋ 真實資料 axe（`tests/visual/ui-review-a11y.spec.ts`，38 路由 × 1440／390，critical／serious 阻擋）
 #   比對 `frontend/apps/web/tests/visual/__screenshots__/*-linux.png`。
 #   資料庫用 runner **預裝的 PostgreSQL**（loopback），而不是 service container ——
 #   UI Review 的護欄要求 `inet_server_addr()` 為 loopback，Docker 埠映射會回報 bridge 位址；
@@ -183,7 +184,7 @@ jobs:
           if-no-files-found: ignore
 
   visual:
-    name: Visual regression (Linux baselines)
+    name: UI Review - visual regression + real-data axe
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -236,7 +237,7 @@ jobs:
         working-directory: frontend/apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Visual regression
+      - name: Visual regression (Linux baselines) + real-data axe (UI-QA-A11Y-SWEEP)
         if: ${{ !inputs.update_visual_baselines }}
         working-directory: frontend/apps/web
         run: npm run test:visual -- --repeat-each=${{ inputs.visual_repeat_each || 1 }}

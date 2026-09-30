@@ -38,6 +38,7 @@ L1 由程式判定，L3 由 Owner 判定。
 | --- | --- | --- |
 | `backend-unit` | `npm run test:unit --prefix Backend`（含 UI Review guard 與 CI DB guard 的回歸） | 否 |
 | `ui-quality` | `verify:web` → 準備拋棄式 DB → `test:e2e:ui-quality`（desktop 1440 ／ mobile 390）→ `test:e2e:ci` | 是（service container） |
+| `visual` | UI Review fixture → production build → 視覺回歸（48 張 Linux 基準）＋ 真實資料 axe（76 次掃描） | 是（runner 預裝 PostgreSQL，loopback） |
 
 本機等價指令（在 `frontend/apps/web`，先跑過 `npm run verify:web`）：
 
@@ -86,7 +87,13 @@ E2E_SERVER=production npm run test:e2e:ui-quality
 mock 資料不會產生每一種真實狀態。2026-09-29 以 Local UI Review fixture（真實資料、真實登入）
 另跑 axe，找到 gate **掃不到**的 serious 違規（`UI-QA-A11Y-04`～`-06`，皆已修正）。
 修正後同一 sweep（20 路由 × 1440／390）只剩 `UI-QA-A11Y-03` 的待決粉色。
-UI Review 的 axe sweep 仍是**人工執行的證據**，不是 CI gate（見 tracker `UI-QA-A11Y-SWEEP`）。
+**2026-09-30 起真實資料 axe 已是 CI gate（`UI-QA-A11Y-SWEEP`）**：`tests/visual/ui-review-a11y.spec.ts`，
+跑在 `visual` job，`routes.json` 中 `a11y !== false` 的 **38 條路由 × 1440／390 ＝ 76 次掃描**（約 2.5 分鐘），
+與 mock gate 共用 `tests/shared/axe-policy.ts`（規則集、critical／serious 阻擋、精確例外與 stale 檢查），
+與視覺回歸共用 `tests/visual/ui-review-harness.ts`（登入、外部圖片攔截、「頁面已穩定」判準）。
+`/terms` 以 `a11y: false` 明文排除（UI Review 沒有已發布條文，會渲染 404 —— 掃它等於假綠）。
+首次擴大覆蓋就在未曾掃過的路由找到 3 組 serious 違規並已修正（`/register` 角色卡說明、教學回饋列表評分、
+legacy Tamagui 按鈕的舊粉色 token）。
 
 **另一種假綠（2026-09-29 修正）：** axe gate 的 catch-all mock 曾把教材詳情的 client 端請求回成空清單，
 使該路由掃到的是「找不到教材」狀態。現在 seed 教材放行到真實 backend，且每次掃描前都要求
@@ -229,3 +236,4 @@ visual job 紅燈時，下列任何一種差異都**必須**由人（Owner）看
 | 2026-09-29 | 建立。L1 CI gate（`UI-QA-CI`）、字型自架（`UI-QA-FONT`）、axe gate（`UI-QA-AXE`） |
 | 2026-09-29 | 品牌紫 `#6C63FF` → `#5C4EEA`（Owner 選 B）；`UI-QA-A11Y-01` 例外移除 |
 | 2026-09-29 | L2 建立：`toHaveScreenshot` 48 張 Linux 基準、`visual` CI job、差異審閱與基準更新政策；`UI-QA-A11Y-02` 例外移除 |
+| 2026-09-30 | 真實資料 axe 進 CI（`UI-QA-A11Y-SWEEP`）；axe 政策抽出為 `tests/shared/axe-policy.ts`、UI Review harness 抽出為 `tests/visual/ui-review-harness.ts`；`SEC-04` 移除啟動時的封面補值後視覺基準重產 |

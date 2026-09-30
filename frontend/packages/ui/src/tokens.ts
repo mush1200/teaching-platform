@@ -2,8 +2,9 @@ export const designTokens = {
   colors: {
     primary: "#5c4eea",
     primaryHover: "#5b52ee",
-    cta: "#ff6b73",
-    ctaHover: "#ff5964",
+    /* 2026-09-30：與 web canonical `--color-brand-cta`／`-hover` 對齊（`UI-CONS-01` 時漏改的 legacy 副本；舊值白字 2.76）。 */
+    cta: "#ea000d",
+    ctaHover: "#d1000c",
     action: "#5c4eea",
     neutral: "#ffffff",
     success: "#16a34a",

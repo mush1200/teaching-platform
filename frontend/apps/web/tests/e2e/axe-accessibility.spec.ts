@@ -4,6 +4,8 @@ import type { Page, Route } from "@playwright/test";
 import { signInAs } from "./helpers/auth";
 import { SEED_MATERIAL_ID } from "./helpers/backend-prerequisite";
 import { installCoreApiMocks } from "./helpers/mock-api";
+import { AXE_TAGS, assertAxeClean } from "../shared/axe-policy";
+import type { AxeException } from "../shared/axe-policy";
 
 /**
  * `UI-QA-AXE` —— L1 標準化無障礙規則掃描（`docs/ui-quality-system.md` §L1）。
@@ -66,26 +68,10 @@ const ROUTES: RouteCase[] = [
   { role: "admin", path: "/admin/remedy-cases", label: "Admin 補救案件" },
 ];
 
-/** 阻擋 merge 的嚴重度。 */
-const BLOCKING_IMPACTS = new Set(["critical", "serious"]);
-
-/** axe 規則集：WCAG 2.0／2.1／2.2 的 A 與 AA，加上 best-practice。 */
-const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
+/* 規則集、阻擋門檻與例外比對統一在 `tests/shared/axe-policy.ts`（與 UI Review 真實資料的 axe 共用）。 */
 
 type Project = "chromium-desktop" | "chromium-mobile";
 const BOTH: Project[] = ["chromium-desktop", "chromium-mobile"];
-
-type KnownException = {
-  /** 精確路由（與 `ROUTES[].path` 相同）。 */
-  path: string;
-  ruleId: string;
-  /** axe 回報的節點 selector（`node.target.join(" ")`），必須完全相等。 */
-  target: string;
-  /** 只在這些 Playwright project 出現（側欄在 390 收進抽屜，因此有些只在桌機發生）。 */
-  projects: Project[];
-  /** tracker ID —— 沒有 ID 的例外不得加入。 */
-  ref: string;
-};
 
 /**
  * 逐條、精確的暫時例外 —— 每一條都是**已立案的既有缺陷**，不是「可以接受」。
@@ -97,11 +83,11 @@ function exceptionsFor(
   ruleId: string,
   projects: Project[],
   entries: Array<[path: string, target: string]>
-): KnownException[] {
-  return entries.map(([path, target]) => ({ path, ruleId, target, projects, ref }));
+): AxeException[] {
+  return entries.map(([path, target]) => ({ path, ruleId, target, scopes: projects, ref }));
 }
 
-const KNOWN_EXCEPTIONS: KnownException[] = [
+const KNOWN_EXCEPTIONS: AxeException[] = [
   /*
    * `UI-QA-A11Y-01`（白字 on 舊品牌紫 #6C63FF ＝ 4.31:1）的 7 條例外已於 2026-09-29 移除：
    * Owner 選定品牌紫 #5C4EEA（白字 5.63:1），所有 `bg-edu-primary text-white` 表面改由 token 取值後通過。
@@ -151,14 +137,6 @@ async function prepare(page: Page, role: Role) {
   );
 }
 
-type Finding = {
-  ruleId: string;
-  impact: string;
-  help: string;
-  helpUrl: string;
-  nodes: string[];
-};
-
 test.describe("UI-QA-AXE — axe-core 標準規則（critical／serious 阻擋）", () => {
   for (const rc of ROUTES) {
     test(`${rc.label}（${rc.role}）${rc.path}`, async ({ page }, testInfo) => {
@@ -184,51 +162,14 @@ test.describe("UI-QA-AXE — axe-core 標準規則（critical／serious 阻擋�
 
       const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
-      const findings: Finding[] = results.violations.map((v) => ({
-        ruleId: v.id,
-        impact: v.impact ?? "unknown",
-        help: v.help,
-        helpUrl: v.helpUrl,
-        nodes: v.nodes.map((n) => n.target.join(" ")),
-      }));
-
-      const exceptionsHere = KNOWN_EXCEPTIONS.filter(
-        (e) => e.path === rc.path && e.projects.includes(testInfo.project.name as Project)
-      );
-      const usedExceptions = new Set<KnownException>();
-
-      const blocking: string[] = [];
-      const advisory: string[] = [];
-
-      for (const f of findings) {
-        const remaining = f.nodes.filter((node) => {
-          const hit = exceptionsHere.find((e) => e.ruleId === f.ruleId && e.target === node);
-          if (hit) usedExceptions.add(hit);
-          return !hit;
-        });
-        if (remaining.length === 0) continue;
-
-        const shown = remaining.slice(0, 3).join(" | ");
-        const more = remaining.length > 3 ? ` (+${remaining.length - 3} more)` : "";
-        const line = `[${f.impact}] ${f.ruleId} ×${remaining.length} — ${f.help} → ${shown}${more} (${f.helpUrl})`;
-        (BLOCKING_IMPACTS.has(f.impact) ? blocking : advisory).push(line);
-      }
-
-      for (const line of advisory) {
-        testInfo.annotations.push({ type: "axe-advisory", description: `${rc.path} ${line}` });
-      }
-      await testInfo.attach(`axe-${rc.role}-${rc.path.replace(/\W+/g, "_")}.json`, {
-        body: JSON.stringify({ route: rc.path, role: rc.role, findings }, null, 2),
-        contentType: "application/json",
+      await assertAxeClean(results, {
+        testInfo,
+        label: rc.label,
+        path: rc.path,
+        role: rc.role,
+        scope: testInfo.project.name,
+        exceptions: KNOWN_EXCEPTIONS,
       });
-
-      const stale = exceptionsHere.filter((e) => !usedExceptions.has(e));
-      expect(
-        stale.map((e) => `${e.ruleId} @ ${e.target}（${e.ref}）`),
-        "KNOWN_EXCEPTIONS 中已不再發生的例外 —— 請刪除該條目"
-      ).toEqual([]);
-
-      expect(blocking, `${rc.label} ${rc.path} 的 critical／serious axe 違規`).toEqual([]);
     });
   }
 });

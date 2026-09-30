@@ -1,5 +1,5 @@
 {
-  "_comment": "UI Review 的唯一路由清單。measure-layout.mjs（診斷用截圖矩陣）與 tests/visual/*.spec.ts（canonical 視覺回歸）都從這裡讀。visual=true 的路由才進 toHaveScreenshot 基準。role=null 代表不登入。",
+  "_comment": "UI Review 的唯一路由清單。measure-layout.mjs（診斷用截圖矩陣）與 tests/visual/*.spec.ts（canonical 視覺回歸）都從這裡讀。visual=true 的路由才進 toHaveScreenshot 基準；a11y=false 的路由不進真實資料 axe（附 note 說明）。role=null 代表不登入。",
   "accounts": {
     "buyer": "buyer@ui-review.local",
     "buyerEmpty": "buyer-empty@ui-review.local",
@@ -17,7 +17,7 @@
     { "role": null, "path": "/login", "label": "登入", "visual": true },
     { "role": null, "path": "/register", "label": "註冊" },
     { "role": null, "path": "/support", "label": "聯絡平台" },
-    { "role": null, "path": "/terms", "label": "服務條款" },
+    { "role": null, "path": "/terms", "label": "服務條款", "a11y": false, "note": "UI Review 沒有已發布條文，這條路由渲染的是 404 頁 —— 掃它會變成假綠" },
     { "role": null, "path": "/403", "label": "403" },
 
     { "role": "buyer", "path": "/dashboard", "label": "購買者總覽", "visual": true },

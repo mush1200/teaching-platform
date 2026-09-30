@@ -84,7 +84,8 @@ export default function MaterialReviewsPage() {
                       屬版面改動而非 typography normalization —— 留待 UI-4B 一併處理。 */}
                   <h1 className="font-bold text-[#1F2937]">{material.title}</h1>
                   <p className="mt-1 text-xs text-emerald-700">{material.ageLabel}</p>
-                  <p className="mt-2 text-sm font-semibold text-amber-500">
+                  {/* `UI-QA-A11Y-05` 同類（2026-09-30 真實資料 axe 發現）：`amber-500` 對白僅約 2.2 → `amber-700`（5.02），與教材詳情一致。 */}
+                  <p className="mt-2 text-sm font-semibold text-amber-700">
                     {count > 0 ? <>平均 ★ {avg.toFixed(1)}</> : <>尚無評分</>}
                   </p>
                 </div>

@@ -200,7 +200,8 @@ export default function RegisterPage() {
                     }`}
                   >
                     <p className="text-sm font-bold text-[#0F172A]">我要購買教材</p>
-                    <p className="mt-1 text-xs text-[#64748B]">適合家長、教育相關科系學生、在職老師、補教老師與自學使用者</p>
+                    {/* `UI-QA-A11Y-SWEEP`（2026-09-30）：角色卡選取時底色為 #F4F1FF，`#64748B` 在上面只有 4.34 → canonical `ds-textMuted`（4.59）。 */}
+                    <p className="mt-1 text-xs text-ds-textMuted">適合家長、教育相關科系學生、在職老師、補教老師與自學使用者</p>
                   </button>
                   <button
                     type="button"
@@ -215,7 +216,7 @@ export default function RegisterPage() {
                     }`}
                   >
                     <p className="text-sm font-bold text-[#0F172A]">我要上架教材</p>
-                    <p className="mt-1 text-xs text-[#64748B]">適合創作者、教材設計者、教保員與教育工作者</p>
+                    <p className="mt-1 text-xs text-ds-textMuted">適合創作者、教材設計者、教保員與教育工作者</p>
                   </button>
                 </div>
               </div>

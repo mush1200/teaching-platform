@@ -112,14 +112,19 @@ test.describe("Public Pages", () => {
     }
 
     // 訪客則完全不受影響：`/` 直接 200，沒有任何重導。
-    await page.context().clearCookies();
-    const anonPage = await page.context().newPage();
+    /*
+     * 用**全新的 context**：`signInAs` 也把 `tp_role`／`tp_token` 寫進 localStorage，
+     * 同一個 context 只清 cookie 時 localStorage 仍在，「訪客」頁有時會帶著上一個角色被 client 端導走
+     * （2026-09-30 以 `--repeat-each=10` 重現 2／20）。
+     */
+    const anonContext = await page.context().browser()!.newContext({ baseURL: test.info().project.use.baseURL });
+    const anonPage = await anonContext.newPage();
     const anonResponse = await anonPage.goto("/");
     expect(anonPage.url(), "訪客不得被導離公開首頁").toMatch(/\/$/);
     expect(anonResponse?.status(), "訪客的 GET / 應為 200").toBe(200);
     expect(anonResponse?.request().redirectedFrom() ?? null, "訪客不該有任何重導").toBeNull();
     await expect(anonPage.getByRole("heading", { name: "找到適合孩子的優質教學資源" })).toBeVisible();
-    await anonPage.close();
+    await anonContext.close();
   });
 
   /*
