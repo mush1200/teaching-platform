@@ -37,22 +37,42 @@ export function Topbar({ onMenuClick, cartBadge = 2, menuButtonRef, drawerId, dr
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [q, setQ] = useState(searchParams.get("q") ?? "");
+  /*
+   * `UI-REV-F`（2026-09-30）：先前這裡把關鍵字寫進目前路徑的 `?q=` —— 但買家頁面**沒有任何地方讀 `q`**
+   * （`/explore` 的 `ExplorePage` 讀的是 `?search=`，與公開 `/materials` 同一個契約），
+   * 所以按 Enter 之後網址變了、清單卻完全不變。
+   *
+   * 現在收斂到教材清單唯一的搜尋契約 `?search=`：
+   *   - 在 `/explore`：保留其他篩選、回到第 1 頁，就地更新清單；
+   *   - 在其他買家頁（例如 `/dashboard`，它沒有搜尋結果區）：**導向** `/explore?search=…`，
+   *     不假裝在一個不會過濾的頁面上過濾；
+   *   - 空字串：在 `/explore` 清除關鍵字，其他頁不導向。
+   * 一律 `push`（不是 `replace`），瀏覽器「上一頁」會回到搜尋前的狀態。
+   * Admin／Creator 列表的 `?q=`（`lib/useListQueryState.ts`）是另一組 API 的契約，不在這個外殼裡，不受影響。
+   */
+  const onExplore = pathname === "/explore";
+  const [q, setQ] = useState(onExplore ? searchParams.get("search") ?? "" : "");
 
   useEffect(() => {
-    setQ(searchParams.get("q") ?? "");
-  }, [searchParams]);
+    setQ(onExplore ? searchParams.get("search") ?? "" : "");
+  }, [onExplore, searchParams]);
 
   const pushQuery = useCallback(
     (nextQ: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (nextQ.trim()) params.set("q", nextQ.trim());
-      else params.delete("q");
-      const qs = params.toString();
-      const url = qs ? `${pathname}?${qs}` : pathname;
-      router.replace(url, { scroll: false });
+      const keyword = nextQ.trim();
+      if (onExplore) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (keyword) params.set("search", keyword);
+        else params.delete("search");
+        params.delete("page");
+        const qs = params.toString();
+        router.push(qs ? `/explore?${qs}` : "/explore", { scroll: false });
+        return;
+      }
+      if (!keyword) return;
+      router.push(`/explore?${new URLSearchParams({ search: keyword }).toString()}`);
     },
-    [pathname, router, searchParams],
+    [onExplore, router, searchParams],
   );
 
   return (
@@ -78,21 +98,31 @@ export function Topbar({ onMenuClick, cartBadge = 2, menuButtonRef, drawerId, dr
       </button>
 
       <div className="flex min-w-0 flex-1 justify-center md:justify-start">
-        <label className="relative mx-auto w-full max-w-2xl md:mx-0">
+        {/*
+          `UI-REV-F`：以 `<form role="search">` 的 submit 取代 `onKeyDown` Enter ——
+          中文輸入法選字時的 Enter 不會送出表單，先前的 keydown 會在選字途中就以半截字串搜尋。
+        */}
+        <form
+          role="search"
+          aria-label="搜尋教材"
+          onSubmit={(e) => {
+            e.preventDefault();
+            pushQuery(q);
+          }}
+          className="relative mx-auto w-full max-w-2xl md:mx-0"
+        >
           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ds-textSubtle" aria-hidden>
             🔍
           </span>
           <input
             type="search"
+            aria-label="搜尋教材"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") pushQuery(q);
-            }}
             placeholder="搜尋教材、主題、年齡..."
             className="w-full rounded-full border border-ds-borderControl bg-[#FAFAFA] py-2 pl-11 pr-4 text-sm text-[#1F2937] placeholder:text-ds-textSubtle transition focus:border-edu-primary/40 focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ds-focus"
           />
-        </label>
+        </form>
       </div>
 
       {/*
