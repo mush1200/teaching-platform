@@ -39,7 +39,7 @@ export function CartItem({ item, selected, onToggle, onQtyChange, onRemove }: Pr
         <p className="col-span-4 col-start-3 truncate text-base font-semibold leading-tight text-[#1F2937] sm:col-span-1 sm:col-start-3">{item.title}</p>
         <p className="col-span-4 col-start-3 row-start-2 truncate text-[12.5px] leading-[1.15] text-ds-textSubtle sm:col-span-1 sm:col-start-3">{item.ageLabel}</p>
 
-        <span className="col-start-3 row-start-3 whitespace-nowrap text-base font-bold text-[#1F2937] sm:col-start-4 sm:row-start-2">NT${subtotal.toLocaleString()}</span>
+        <span className="col-start-3 row-start-3 whitespace-nowrap text-base font-bold text-commerce-price sm:col-start-4 sm:row-start-2">NT${subtotal.toLocaleString()}</span>
         <div className="col-span-2 col-start-4 row-start-3 flex items-center justify-end gap-1.5 sm:col-span-1 sm:col-start-5 sm:row-start-2 sm:justify-start">
           <button
             type="button"

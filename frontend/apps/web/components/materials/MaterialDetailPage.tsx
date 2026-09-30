@@ -21,6 +21,7 @@ import { MaterialDetailHeader } from "./detail/MaterialDetailHeader";
 import { MaterialDetailHeroInfo } from "./detail/MaterialDetailHeroInfo";
 import { MaterialDetailPurchasePanel } from "./detail/MaterialDetailPurchasePanel";
 import { MaterialReportDialog } from "./detail/MaterialReportDialog";
+import { discountPercent as computeDiscountPercent } from "../../lib/commerce";
 
 type Props = {
   materialId: string;
@@ -61,10 +62,10 @@ export function MaterialDetailPage({ materialId }: Props) {
     };
   }, [materialId]);
 
-  const discountPercent = useMemo(() => {
-    if (!material || material.originalPrice <= material.price) return 0;
-    return Math.round((1 - material.price / material.originalPrice) * 100);
-  }, [material]);
+  const discountPercent = useMemo(
+    () => (material ? computeDiscountPercent(material.price, material.originalPrice) : 0),
+    [material]
+  );
 
   const latestReviews = useMemo(
     () => [...reviews].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 3),

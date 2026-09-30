@@ -8,6 +8,8 @@ import { emitFavoritesUpdated } from "../../lib/favorites-storage";
 import { recordMaterialView } from "../../lib/recent-materials";
 import { IconHeart, IconStar } from "../ui/icons";
 import { categoryLabel } from "../../lib/material-categories";
+import { discountPercent } from "../../lib/commerce";
+import { DiscountChip } from "../ds/DiscountChip";
 
 type Props = {
   material: MockMaterial;
@@ -22,15 +24,12 @@ export function MaterialCard({ material, trackRecent }: Props) {
   const [isFavorite, setIsFavorite] = useState(false);
   const favoriteBtnRef = useRef<HTMLButtonElement | null>(null);
   const href = `/materials/${material.id}`;
-  const off =
-    material.originalPrice > material.price
-      ? Math.round((1 - material.price / material.originalPrice) * 100)
-      : 0;
+  const off = discountPercent(material.price, material.originalPrice);
   const priceLabel =
     material.price === 0 ? (
       <span className="text-lg font-bold text-emerald-600">免費</span>
     ) : (
-      <p className="text-lg font-bold text-[#1F2937]">NT${material.price.toLocaleString()}</p>
+      <p className="text-lg font-bold text-commerce-price">NT${material.price.toLocaleString()}</p>
     );
 
   useEffect(() => {
@@ -152,9 +151,7 @@ export function MaterialCard({ material, trackRecent }: Props) {
               <p className="text-xs text-ds-textSubtle line-through">NT${material.originalPrice}</p>
             ) : null}
           </div>
-          {off > 0 && material.price > 0 ? (
-            <span className="rounded-full bg-[#FF6B73]/10 px-2 py-0.5 text-xs font-bold text-feedback-errorText">{off}% OFF</span>
-          ) : null}
+          {off > 0 && material.price > 0 ? <DiscountChip percent={off} /> : null}
         </div>
       </Link>
     </div>

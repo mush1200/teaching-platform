@@ -57,6 +57,27 @@
   --color-intent-purchase-hover: #fe7512;
   --color-intent-purchase-active: #f16d02;
   --color-intent-purchase-text: #111827;
+
+  /*
+   * Commerce（`UI-QA-COMMERCE-COLOR-2`，2026-10-01，**Owner 決定**）—— 價格、數量徽章、折扣標籤的語意色。
+   * 與 danger／warning **刻意分開**：價格不再用與 danger ΔE 2.3 的紅；強折扣是暖橘棕，不是錯誤紅
+   * （原提案 #fff0f1＋#b91c1c 因與錯誤樣式 ΔE 0.0 被否決）。對比（WCAG 2.x）：
+   *   price                      #111827 on 白 17.74／#f4f1ff 15.94／#faf8ff 16.84
+   *   badge-purchase             白 on #c81e6e 5.43   —— 購物車數量、需買家處理的訂單數（10px 粗體需 4.5）
+   *   badge-notification         白 on #5c4eea 5.63   —— **保留**給未來的一般通知／未讀數；目前沒有任何使用處，不得為了用它新增通知 UI
+   *   discount-mild   （<30%）  #111827 on #fff0e9 15.96
+   *   discount-strong （≥30%）  #7c2d12 on #ffd4b8  6.85 —— 與錯誤文字 ΔE 12.5、錯誤底 ΔE 8.8
+   * 門檻 30% 的唯一實作在 `lib/commerce.ts`。`tailwind.config.ts` 的 `commerce.*` 是寫死的 hex，必須同步。
+   */
+  --color-commerce-price: #111827;
+  --color-commerce-badge-purchase-bg: #c81e6e;
+  --color-commerce-badge-purchase-text: #ffffff;
+  --color-commerce-badge-notification-bg: #5c4eea;
+  --color-commerce-badge-notification-text: #ffffff;
+  --color-commerce-discount-mild-bg: #fff0e9;
+  --color-commerce-discount-mild-text: #111827;
+  --color-commerce-discount-strong-bg: #ffd4b8;
+  --color-commerce-discount-strong-text: #7c2d12;
   --color-intent-neutral: #ffffff;
   /*
    * `UI-CONS-01`（2026-09-08 closeout，Owner 核准 #EF4444 → #E81414）。

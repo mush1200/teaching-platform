@@ -1,6 +1,7 @@
 export { AccentTextLink } from "./AccentTextLink";
 export { BrandCtaLink } from "./BrandCtaLink";
 export { DangerCtaLink } from "./DangerCtaLink";
+export { DiscountChip } from "./DiscountChip";
 export { PrimaryCtaLink } from "./PrimaryCtaLink";
 export { SurfaceCard } from "./SurfaceCard";
 export { PageContainer, PAGE_GUTTER_CLASS } from "./PageContainer";

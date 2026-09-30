@@ -146,7 +146,7 @@ export function Topbar({ onMenuClick, cartBadge = 2, menuButtonRef, drawerId, dr
         >
           <CartIcon />
           {cartBadge > 0 ? (
-            <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.125rem] items-center justify-center rounded-full bg-[#FF6B73] px-1 text-[10px] font-bold text-white">
+            <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.125rem] items-center justify-center rounded-full bg-commerce-badgePurchase px-1 text-[10px] font-bold text-commerce-badgePurchaseText">
               {cartBadge > 99 ? "99+" : cartBadge}
             </span>
           ) : null}

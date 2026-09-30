@@ -74,7 +74,7 @@ export default function CartPage() {
           {/* `UI-QA-A11Y-04`：群組 `<div>` 只能直接包 `dt`／`dd`；原本多一層 `<div>` 且夾著 `<p>`。 */}
           <div className="flex justify-between gap-4 border-t border-[#E5E7EB] pt-4">
             <dt className="text-base font-semibold text-[#1F2937]">總金額</dt>
-            <dd className="text-[28px] font-bold leading-none text-[#111827]">NT${total.toLocaleString()}</dd>
+            <dd className="text-[28px] font-bold leading-none text-commerce-price">NT${total.toLocaleString()}</dd>
           </div>
         </dl>
         <p className="mt-1 text-xs text-ds-textSubtle">共 {count} 項商品</p>
@@ -161,7 +161,7 @@ export default function CartPage() {
           <div className="mx-auto flex max-w-6xl flex-col gap-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-ds-textMuted">總計（{count} 項）</span>
-              <span className="text-xl font-bold text-[#1F2937]">NT${total.toLocaleString()}</span>
+              <span className="text-xl font-bold text-commerce-price">NT${total.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-ds-textSubtle">
               <span>🔒 安全付款保障</span>

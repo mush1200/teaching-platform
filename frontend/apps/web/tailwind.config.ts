@@ -98,6 +98,18 @@ const config: Config = {
           /* `UI-CONS-01`（2026-09-08）：與 `--color-intent-danger` 同步（見 globals.css 註解）。 */
           danger: "#DE1313",
         },
+        /* `UI-QA-COMMERCE-COLOR-2`（2026-10-01）：與 `globals.css` 的 `--color-commerce-*` 同步（說明見該處）。 */
+        commerce: {
+          price: "#111827",
+          badgePurchase: "#C81E6E",
+          badgePurchaseText: "#FFFFFF",
+          badgeNotification: "#5C4EEA",
+          badgeNotificationText: "#FFFFFF",
+          discountMild: "#FFF0E9",
+          discountMildText: "#111827",
+          discountStrong: "#FFD4B8",
+          discountStrongText: "#7C2D12",
+        },
         status: {
           draftBg: "#F3F4F6",
           draftText: "#4B5563",

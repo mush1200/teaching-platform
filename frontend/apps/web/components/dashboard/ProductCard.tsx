@@ -38,7 +38,7 @@ export function ProductCard({ material, subtitle }: Props) {
             <span className="text-sm font-semibold text-[#1F2937]">{material.rating.toFixed(1)}</span>
             <span className="text-xs text-ds-textMuted">({material.reviewCount})</span>
           </div>
-          <p className="pt-1 text-lg font-bold text-edu-cta">NT${material.price.toLocaleString()}</p>
+          <p className="pt-1 text-lg font-bold text-commerce-price">NT${material.price.toLocaleString()}</p>
         </Link>
       </div>
     </article>

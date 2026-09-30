@@ -151,17 +151,11 @@ export default function UiReviewIndexPage() {
           /materials 頂欄：已決定方案 B 並已實作（UI-REV-E，比較頁已移除）
         </p>
         <p className="mt-1 text-sm">
-          <strong className="text-ds-heading">待 Owner 選擇：</strong>{" "}
-          <Link href="/dev/ui-review/commerce-color-2" className="text-ds-textAccent underline">
-            價格／數量徽章／折扣 配色（各選 A／B／C，UI-QA-COMMERCE-COLOR-2）→
-          </Link>
+          <strong className="text-ds-heading">已決定並已實作：</strong>
+          價格／數量徽章／折扣 語意配色（UI-QA-COMMERCE-COLOR-2，2026-10-01；比較頁已移除，決策理由見 docs/ui-commerce-color-2-inventory.md）
           <span className="mx-2 text-ds-textSubtle">·</span>
-          <Link href="/dev/ui-review/commerce-color-2-final-review" className="text-ds-textAccent underline">
-            商業配色語意規則 —— 最終審閱 →
-          </Link>
-          <span className="mx-2 text-ds-textSubtle">·</span>
-          <Link href="/dev/ui-review/commerce-color-2-strong-discount" className="text-ds-textAccent underline">
-            折扣 ≥30% 樣式（A／B／C）→
+          <Link href="/dev/ui-review/commerce-discount-fixture" className="text-ds-textAccent underline">
+            折扣標籤驗證 fixture →
           </Link>
         </p>
       </header>

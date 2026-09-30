@@ -443,7 +443,7 @@ export default function CheckoutPage() {
                           ))}
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-[#1F2937]">NT${(Number(item.price ?? 0) * item.quantity).toLocaleString()}</p>
+                      <p className="text-sm font-bold text-commerce-price">NT${(Number(item.price ?? 0) * item.quantity).toLocaleString()}</p>
                     </div>
                   </li>
                 ))}
@@ -460,7 +460,7 @@ export default function CheckoutPage() {
                 >
                   優惠折扣：-{discount > 0 ? `NT$${discount.toLocaleString()}` : "NT$0"}
                 </p>
-                <p className={`mt-2 text-base font-bold text-[#1F2937] transition ${amountAnimating ? "scale-[1.02] opacity-90" : "scale-100 opacity-100"}`}>
+                <p className={`mt-2 text-base font-bold text-commerce-price transition ${amountAnimating ? "scale-[1.02] opacity-90" : "scale-100 opacity-100"}`}>
                   總金額：NT${payable.toLocaleString()}
                 </p>
               </div>

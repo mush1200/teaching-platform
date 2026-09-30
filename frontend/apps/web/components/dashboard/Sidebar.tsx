@@ -129,7 +129,7 @@ function NavTooltip({ label, children, show }: { label: string; children: ReactN
 function InlineNavBadge({ count }: { count: number }) {
   const label = count > 9 ? "9+" : String(count);
   return (
-    <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[#FF6B7A] px-1 text-[10px] font-semibold leading-none text-white">
+    <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-commerce-badgePurchase px-1 text-[10px] font-semibold leading-none text-commerce-badgePurchaseText">
       {label}
     </span>
   );
@@ -138,7 +138,7 @@ function InlineNavBadge({ count }: { count: number }) {
 function CollapsedNavBadge({ count }: { count: number }) {
   const label = count > 9 ? "9+" : String(count);
   return (
-    <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B7A] px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-white">
+    <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-commerce-badgePurchase px-1 text-[10px] font-semibold leading-none text-commerce-badgePurchaseText ring-2 ring-white">
       {label}
     </span>
   );

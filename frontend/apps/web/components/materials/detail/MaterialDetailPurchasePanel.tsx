@@ -3,6 +3,7 @@
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 import { IconCart } from "../../ui/icons";
+import { DiscountChip } from "../../ds/DiscountChip";
 
 type Props = {
   price: number;
@@ -61,11 +62,11 @@ function QuantityStepper({
 function PriceBlock({ price, originalPrice, discountPercent }: Pick<Props, "price" | "originalPrice" | "discountPercent">) {
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <p className="text-3xl font-extrabold leading-none tracking-tight text-edu-cta sm:text-[2rem]">NT${price}</p>
+      <p className="text-3xl font-extrabold leading-none tracking-tight text-commerce-price sm:text-[2rem]">NT${price}</p>
       {discountPercent > 0 ? (
         <>
           <span className="text-sm text-ds-textSubtle line-through">NT${originalPrice}</span>
-          <span className="rounded-full bg-edu-cta/10 px-2 py-0.5 text-xs font-bold text-edu-cta">{discountPercent}% OFF</span>
+          <DiscountChip percent={discountPercent} />
         </>
       ) : null}
     </div>
@@ -143,7 +144,7 @@ export function MaterialDetailPurchasePanel({
         <div className="mx-auto flex max-w-wide items-center gap-3">
           <div className="min-w-0 shrink-0">
             <p className="text-xs text-ds-textMuted">合計</p>
-            <p className="text-xl font-extrabold text-edu-cta">NT${price * quantity}</p>
+            <p className="text-xl font-extrabold text-commerce-price">NT${price * quantity}</p>
           </div>
           <div className="min-w-0 flex-1">
             <PurchaseActions busy={busy} feedback={null} onAddToCart={onAddToCart} onBuyNow={onBuyNow} purchasable={purchasable} compact />

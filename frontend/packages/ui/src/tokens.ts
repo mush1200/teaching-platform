@@ -34,6 +34,7 @@ export const designTokens = {
       pendingReview: { bg: "#fef3c7", text: "#b45309" },
       published: { bg: "#ecfdf5", text: "#047857" },
       unpublished: { bg: "#f3f4f6", text: "#4b5563" },
+      /** @deprecated legacy-frozen；零消費者（`badgeToneStyles` 已於 2026-10-01 刪除）。#ff6b73 on #ffe4e6 僅 2.30:1，勿再使用 —— web 端的待付款狀態色見 `globals.css` `--color-status-pending-payment-*`。 */
       pendingPayment: { bg: "#ffe4e6", text: "#ff6b73" },
       approved: { bg: "#ecfdf5", text: "#047857" },
       rejected: { bg: "#fee2e2", text: "#b91c1c" },
