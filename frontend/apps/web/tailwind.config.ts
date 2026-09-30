@@ -5,6 +5,9 @@ const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx}",
+    /* `lib/material-mapper.ts` 等檔案組出 class 字串（例如無封面時的 coverGradient）；
+       不掃描的話那些 class 會被 purge，無封面的卡片變成一片空白（SEC-04 移除啟動補值後才顯露）。 */
+    "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
