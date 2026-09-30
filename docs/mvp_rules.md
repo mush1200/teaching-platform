@@ -3006,6 +3006,20 @@ canonical source：`Backend/utils/materialDeliverability.js`（`isDeliverable()`
 改成在**販售路徑**上擋住。**既有 entitlement 不受影響**：本不變條件只作用於購買路徑，
 不碰下載授權判斷（第 3 條仍然成立）。
 
+## 21A.1.2 啟動不得替使用者資料補值（`SEC-04`，2026-09-30）
+
+**backend 啟動（`ensureCoreTables()` → `runIdempotentMigrations()`）只負責 schema，不得改寫任何教材或使用者資料。**
+
+- 2026-09-30 之前，每次啟動（含 production，無環境判斷）都會把 `cover_image_url` 為 NULL／空字串／`example.com`
+  的教材改寫成第三方 `https://picsum.photos/seed/tp-<md5(id)>/640/480`。這是**對正式資料的未經請求寫入**，
+  且讓瀏覽者的請求被送到第三方。已移除，**沒有替代寫入**。
+- 沒有封面時由前端顯示預設漸層（`MaterialCard` 的 `coverGradient`），資料庫維持 NULL。
+- 正式建立教材本來就必填封面（`POST /materials`：`cover_image_url is required`），因此 NULL 只會來自 legacy／seed 資料。
+- `Backend/migrations/20260503_material_cover_placeholder_urls.sql` 為**歷史紀錄，不得套用**。
+- **既有已被改寫的列不在啟動時處理**；是否清理、清理成什麼，必須先唯讀取證、再由 Owner 明確決定（tracker `SEC-04`）。
+- 回歸：`Backend/tests/bootstrapNoContentBackfill.test.js`（靜態，`test:unit`／CI）與
+  `Backend/tests/bootstrapNoContentBackfill.db.test.js`（真資料庫，`test:db`）。
+
 ## 21A.2 儲存
 
 教材本體存在 `Backend/private-storage/`，**不在** `express.static` 服務範圍內

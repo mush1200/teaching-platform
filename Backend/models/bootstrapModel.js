@@ -1716,16 +1716,19 @@ async function runIdempotentMigrations() {
   // 完全 additive：不改任何既有表的既有欄位。
   await applySettlementSchema(db);
 
-  // Dev/demo: stable placeholder cover art when missing (Lorem Picsum — one image per material id).
-  await db.query(`
-    UPDATE materials
-    SET cover_image_url = 'https://picsum.photos/seed/tp-' || md5(id::text) || '/640/480'
-    WHERE cover_image_url IS NULL
-       OR trim(cover_image_url) = ''
-       OR lower(trim(cover_image_url)) IN ('https://example.com/cover.jpg', 'http://example.com/cover.jpg');
-  `).catch((err) => {
-    console.warn("material cover_image_url placeholder seed skipped:", err.message);
-  });
+  /*
+   * `SEC-04`（2026-09-30）：這裡曾經有一段「Dev/demo 封面 placeholder」——
+   * 每次 backend 啟動（**含 production**，沒有任何環境判斷）都執行
+   *   UPDATE materials SET cover_image_url = 'https://picsum.photos/…'
+   *   WHERE cover_image_url IS NULL OR 空字串 OR example.com
+   * 也就是**啟動時對正式資料寫入第三方網址**，並讓瀏覽者的請求被送到 picsum.photos。
+   * 已移除，且**刻意不留替代寫入**：
+   *   - 啟動只負責 schema，**不得**替使用者資料補值（`docs/mvp_rules.md` §21A.1.2）；
+   *   - 沒有封面時由前端顯示預設漸層（`components/materials/MaterialCard.tsx` 的 `coverGradient`），不需要 DB 有值；
+   *   - 正式建立教材本來就必填封面（`routes/materials.js` 的 `cover_image_url is required`）。
+   * **既有已被改寫的列不在這裡處理** —— production 清理必須是另外、明確、先唯讀取證的動作（見 tracker `SEC-04`）。
+   * 回歸：`tests/bootstrapNoContentBackfill.test.js`（靜態）＋ `tests/bootstrapNoContentBackfill.db.test.js`（真資料庫）。
+   */
 }
 
 function ensureCoreTables() {
