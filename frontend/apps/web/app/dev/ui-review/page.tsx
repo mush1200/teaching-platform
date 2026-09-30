@@ -155,6 +155,10 @@ export default function UiReviewIndexPage() {
           <Link href="/dev/ui-review/commerce-color-2" className="text-ds-textAccent underline">
             價格／數量徽章／折扣 配色（各選 A／B／C，UI-QA-COMMERCE-COLOR-2）→
           </Link>
+          <span className="mx-2 text-ds-textSubtle">·</span>
+          <Link href="/dev/ui-review/commerce-color-2-final-review" className="text-ds-textAccent underline">
+            商業配色語意規則 —— 最終審閱 →
+          </Link>
         </p>
       </header>
 
