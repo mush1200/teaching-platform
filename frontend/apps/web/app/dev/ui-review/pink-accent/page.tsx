@@ -88,7 +88,9 @@ export default function PinkAccentComparisonPage() {
         <p className="text-caption font-semibold uppercase tracking-wider text-ds-textAccent">DEV ONLY · UI-QA-A11Y-03</p>
         <h1 className="mt-1 text-2xl font-bold text-ds-heading">粉色強調色候選比較</h1>
         <p className="mt-2 max-w-3xl text-sm text-ds-body">
-          請在 A／B／C 之中選一個。每一欄是同一組實際元件，只有粉色不同；每一欄也放了品牌紫
+          <strong>2026-09-30：本題已由「紫＋橘商業配色」取代</strong>（購買 CTA 改走橘色、徽章改走品牌紫，見
+          <Link href="/dev/ui-review/purple-orange-options" className="mx-1 text-ds-textAccent underline">/dev/ui-review/purple-orange-options</Link>）。
+          本頁保留作為紀錄。每一欄是同一組實際元件，只有粉色不同；每一欄也放了品牌紫
           <code className="mx-1">{BRAND_PURPLE}</code>與結帳紅<code className="mx-1">{FLOW_RED}</code>，
           方便判斷粉色是否仍與它們分得開。「現行」欄只作對照 —— 它的白字對比未達 AA。
         </p>

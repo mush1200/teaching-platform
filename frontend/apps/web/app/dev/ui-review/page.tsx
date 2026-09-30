@@ -134,7 +134,17 @@ export default function UiReviewIndexPage() {
           </Link>
           <span className="mx-2 text-ds-textSubtle">·</span>
           <Link href="/dev/ui-review/pink-accent" className="text-ds-textAccent underline">
-            粉色強調色候選比較（UI-QA-A11Y-03，待 Owner 選擇）→
+            粉色強調色候選比較（UI-QA-A11Y-03，已由紫＋橘方案取代）→
+          </Link>
+        </p>
+        <p className="mt-1 text-sm">
+          <strong className="text-ds-heading">待 Owner 選擇：</strong>{" "}
+          <Link href="/dev/ui-review/purple-orange-options" className="text-ds-textAccent underline">
+            紫＋橘商業配色（A／B／C／D）→
+          </Link>
+          <span className="mx-2 text-ds-textSubtle">·</span>
+          <Link href="/dev/ui-review/materials-topbar" className="text-ds-textAccent underline">
+            /materials 頂欄方案（A／B／C）→
           </Link>
         </p>
       </header>
