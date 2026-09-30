@@ -18,8 +18,6 @@ export type Variant = {
   label: string;
   /** 注入到 iframe `<head>` 的 CSS。 */
   css?: string;
-  /** 具名、固定的 DOM 調整（不接受任意程式碼）。 */
-  mutate?: "merge-cart-into-global-bar";
 };
 
 type Width = { w: number; h: number; scale: number };
@@ -31,17 +29,6 @@ function applyVariant(doc: Document, variant: Variant) {
     style.textContent = variant.css;
     doc.head.appendChild(style);
   }
-  if (variant.mutate === "merge-cart-into-global-bar") {
-    /* 方案 C 的示意：把路由頂欄的購物車捷徑移到全站頂欄右側，再隱藏路由頂欄。 */
-    const globalBar = doc.querySelector('header:has([data-testid="nav-drawer-trigger"])');
-    const cart = doc.querySelector('header:has(button[aria-label="選單"]) a[aria-label="購物車"]');
-    if (globalBar && cart && !globalBar.querySelector("[data-ui-review-merged]")) {
-      const clone = cart.cloneNode(true) as HTMLElement;
-      clone.setAttribute("data-ui-review-merged", "");
-      clone.style.marginLeft = "auto";
-      globalBar.appendChild(clone);
-    }
-  }
 }
 
 function Frame({ src, variant, width }: { src: string; variant: Variant; width: Width }) {
@@ -51,16 +38,6 @@ function Frame({ src, variant, width }: { src: string; variant: Variant; width: 
       const doc = frame.contentDocument;
       if (!doc) return;
       applyVariant(doc, variant);
-      /*
-       * 頁面在 hydration 後才渲染（或重新渲染）頂欄 —— 固定延遲在 dev server 上會錯過。
-       * 以 MutationObserver 在 DOM 變動時重套（調整本身是冪等的），30 秒後停止。CSS 則常駐不需重套。
-       */
-      if (variant.mutate && doc.body) {
-        const dom = { ...variant, css: undefined };
-        const observer = new MutationObserver(() => applyVariant(doc, dom));
-        observer.observe(doc.body, { childList: true, subtree: true });
-        setTimeout(() => observer.disconnect(), 30_000);
-      }
     },
     [variant]
   );

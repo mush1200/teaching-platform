@@ -210,7 +210,9 @@ export default function PurpleOrangeOptionsPage() {
         <p className="text-caption font-semibold uppercase tracking-wider text-ds-textAccent">DEV ONLY · UI-QA-COMMERCE-COLOR</p>
         <h1 className="mt-1 text-2xl font-bold text-ds-heading">紫＋橘商業配色方案比較</h1>
         <p className="mt-2 max-w-3xl text-sm text-ds-body">
-          請在 A／B／C／D 之中選一個「立即購買」的橘色。加入購物車維持品牌紫 <code>{PURPLE}</code>。
+          <strong>已決定（Owner，2026-09-30）：方案 A <code>#FE8742</code>。</strong>本頁保留作為決策紀錄；
+          下一題「橘色上的文字色」見 <Link href="/dev/ui-review/orange-cta-text" className="text-ds-textAccent underline">/dev/ui-review/orange-cta-text</Link>。
+          原題：請在 A／B／C／D 之中選一個「立即購買」的橘色。加入購物車維持品牌紫 <code>{PURPLE}</code>。
           「現行」欄只作對照（現行結帳紅）。每一欄最下方也放了 warning／error／success／粉色，方便判斷語意是否分得開。
         </p>
         <p className="mt-1 text-sm">

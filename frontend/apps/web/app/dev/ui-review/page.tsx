@@ -139,13 +139,16 @@ export default function UiReviewIndexPage() {
         </p>
         <p className="mt-1 text-sm">
           <strong className="text-ds-heading">待 Owner 選擇：</strong>{" "}
+          <Link href="/dev/ui-review/orange-cta-text" className="text-ds-textAccent underline">
+            立即購買（橘 #FE8742）文字色（A／B／C／D）→
+          </Link>
+        </p>
+        <p className="mt-1 text-sm">
           <Link href="/dev/ui-review/purple-orange-options" className="text-ds-textAccent underline">
-            紫＋橘商業配色（A／B／C／D）→
+            紫＋橘商業配色（已決定：方案 A 底色 #FE8742）→
           </Link>
           <span className="mx-2 text-ds-textSubtle">·</span>
-          <Link href="/dev/ui-review/materials-topbar" className="text-ds-textAccent underline">
-            /materials 頂欄方案（A／B／C）→
-          </Link>
+          /materials 頂欄：已決定方案 B 並已實作（UI-REV-E，比較頁已移除）
         </p>
       </header>
 
