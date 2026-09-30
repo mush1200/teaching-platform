@@ -471,7 +471,14 @@ canonical 的頁面標題是 24px（`text-h2`），全 app 41 個 `<PageHeader>`
 | Buyer | `Sidebar`（240px 展開 / 72px 收合，`--sidebar-offset` 同步 padding，transition 200ms）+ `Topbar` | `Topbar` 漢堡 → overlay drawer；部分頁另有 `MobileHeader` + `BottomNav` |
 | Creator | `RoleShell` 內建 creator sidebar | `RoleShell` 內建 |
 | Admin | `AdminSidebar`（`lg:fixed`，240px）+ `main` 的 `lg:ml-60` + `max-w-[1440px]` 容器 | **compact top bar（漢堡）→ slide-in drawer + overlay**；側欄在 `lg` 以下 `hidden`，不進文件流（2026-08-19） |
-| Public | 無 sidebar；`MobileHeader` + 可選 `BottomNav` | 同左 |
+| Public | `RoleShell` 的 `SimpleNavSidebar`（首頁／教材列表／登入／註冊／聯絡平台） | `RoleShell` 的 `MobileNavBar` → `NavDrawer`（同一份清單）。**例外：`/materials`**（見下） |
+
+**[規則] 路由擁有頂欄（`UI-REV-E` 方案 B，Owner 決定，2026-09-30）：** `/materials` 的購物導向頂欄（`MobileHeader`：品牌／搜尋／購物車）
+是該路由**唯一**的頂欄，`RoleShell` 在此不渲染 `MobileNavBar`（`components/layout/shell-nav-context.tsx` 的 `ROUTES_OWNING_MOBILE_BAR`，**整段相等**比對）。
+導覽內容仍由外殼擁有：頂欄選單鈕透過 `ShellNavContext` 開啟**外殼的** `NavDrawer`，頁面**不得**自帶第二份抽屜；
+`lg` 以上抽屜不存在，選單鈕隱藏（側欄就是選單）。`MobileHeader` 的搜尋鈕**只在有 handler 時渲染**（不得出現 dead control）。
+加入 `ROUTES_OWNING_MOBILE_BAR` 的路由，每個分支（含 hydration 前）都必須渲染接上 `useShellNav()` 的頂欄。
+契約：`tests/e2e/materials-topbar-contract.spec.ts`（390／768／1440 只有一條頂欄、五個公開入口＋購物車＋搜尋皆可達）。
 
 **Toggle 唯一入口：** Buyer 側欄 toggle 只在 Header，收合狀態存 `localStorage`（`tp-sidebar-collapsed`）。詳見 `docs/buyer-sidebar-ui-spec.md`。
 

@@ -10,7 +10,10 @@ import { MobileNavBar, NavDrawer } from "./NavDrawer";
 import { CreatorSidebar, SimpleNavSidebar } from "./CreatorSidebar";
 import type { CreatorSection } from "./CreatorSidebar";
 import { CONTENT_OFFSET_CLASS } from "./shell-constants";
+import { ShellNavContext, routeOwnsMobileBar } from "./shell-nav-context";
 import { ADMIN_NAV_ITEMS, navPathOf } from "../../lib/admin-nav";
+
+const SHELL_TRIGGER_LABEL = "開啟側邊選單";
 
 type RoleKind = "public" | "parent" | "teacher" | "creator" | "admin";
 type NavItem = { href: string; label: string; exact?: boolean };
@@ -334,6 +337,14 @@ export function RoleShell({ children }: { children: ReactNode }) {
   const isCreator = role === "creator" || role === "teacher";
   const title = roleTitle(role);
   const drawerId = isCreator ? "creator-mobile-nav" : "role-mobile-nav";
+  const ownsMobileBar = routeOwnsMobileBar(pathname);
+  const shellNav = {
+    open: mobileOpen,
+    onOpen: openNav,
+    drawerId,
+    triggerRef,
+    triggerLabel: SHELL_TRIGGER_LABEL,
+  };
 
   const creatorActiveId = getCreatorActiveId(pathname, {
     status: searchParams.get("status"),
@@ -378,14 +389,21 @@ export function RoleShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-gradient-to-br from-[#F4F1FF] via-white to-[#F4F1FF]">
       {sidebar("desktop")}
 
-      <MobileNavBar
-        title={title}
-        onOpen={openNav}
-        open={mobileOpen}
-        controls={drawerId}
-        triggerRef={triggerRef}
-        triggerLabel="開啟側邊選單"
-      />
+      {/*
+        `UI-REV-E` 方案 B（Owner 決定，2026-09-30）：`/materials` 由路由自己的頂欄（品牌／搜尋／購物車）
+        擔任唯一的頂欄，外殼在此不再渲染第二條。抽屜仍是外殼這一份 ——
+        路由頂欄的選單鈕透過 `ShellNavContext` 開啟它，所以「註冊」「聯絡平台」等入口不會遺失。
+      */}
+      {ownsMobileBar ? null : (
+        <MobileNavBar
+          title={title}
+          onOpen={openNav}
+          open={mobileOpen}
+          controls={drawerId}
+          triggerRef={triggerRef}
+          triggerLabel={SHELL_TRIGGER_LABEL}
+        />
+      )}
 
       <NavDrawer
         open={mobileOpen}
@@ -442,7 +460,9 @@ export function RoleShell({ children }: { children: ReactNode }) {
           漏掉 gutter 而沒人發現的原因。`tests/e2e/layout-contract.spec.ts` 現在同時實測
           「不會有兩層」與「不會是零層」。
         */}
-        <main className="min-h-dvh">{children}</main>
+        <ShellNavContext.Provider value={shellNav}>
+          <main className="min-h-dvh">{children}</main>
+        </ShellNavContext.Provider>
       </div>
     </div>
   );

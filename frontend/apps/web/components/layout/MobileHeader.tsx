@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import Link from "next/link";
 import { IconCart, IconMenu, IconSearch } from "../ui/icons";
 
@@ -14,6 +14,25 @@ type Props = {
   /** Extra actions on the right (e.g. 分享教學回饋) */
   trailing?: ReactNode;
   onMenuClick?: () => void;
+  /**
+   * 選單鈕改為開啟**外殼的 canonical 抽屜**（`RoleShell` 的 `NavDrawer`），而不是頁面自己的抽屜
+   * （`UI-REV-E` 方案 B，2026-09-30）。給了這個值，這顆按鈕就是外殼抽屜的觸發鈕：
+   * 同樣的 testid、aria 與焦點歸還目標。`hideAtDesktop`：`lg` 以上外殼有常駐側欄、抽屜不存在，
+   * 觸發鈕在那裡會是點了沒反應的按鈕，所以隱藏。
+   */
+  shellMenu?: {
+    onOpen: () => void;
+    expanded: boolean;
+    controls: string;
+    triggerRef: RefObject<HTMLButtonElement | null>;
+    label: string;
+    hideAtDesktop?: boolean;
+  };
+  /**
+   * 搜尋鈕的行為。**沒有給就不渲染搜尋鈕** —— 先前它在所有使用處都沒有 handler，
+   * 是點了沒反應的 dead control（`UI-REV-E`）。
+   */
+  search?: { onToggle: () => void; expanded: boolean; controls: string };
 };
 
 /*
@@ -30,10 +49,16 @@ export function MobileHeader({
   right = "search-cart",
   trailing,
   onMenuClick,
+  shellMenu,
+  search,
 }: Props) {
   return (
+    /*
+     * `z-30` 與外殼的 `MobileNavBar`／買家 `Topbar` 同層：外殼抽屜的遮罩是 `z-40`，
+     * 頂欄必須被它蓋住（先前 `z-40` 且 DOM 在遮罩之後，抽屜打開時頂欄仍浮在遮罩上）。
+     */
     <header
-      className="sticky top-0 z-40 border-b border-[#E5E7EB]/80 bg-white/90 backdrop-blur"
+      className="sticky top-0 z-30 border-b border-[#E5E7EB]/80 bg-white/90 backdrop-blur"
     >
       <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -47,7 +72,23 @@ export function MobileHeader({
               ←
             </Link>
           ) : null}
-          {leading !== "none" && !backHref ? (
+          {leading !== "none" && !backHref && shellMenu ? (
+            <button
+              ref={shellMenu.triggerRef}
+              type="button"
+              className={`flex size-11 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF] ${
+                shellMenu.hideAtDesktop ? "lg:hidden" : ""
+              }`.trim()}
+              aria-label={shellMenu.label}
+              aria-expanded={shellMenu.expanded}
+              aria-controls={shellMenu.controls}
+              data-testid="nav-drawer-trigger"
+              onClick={shellMenu.onOpen}
+            >
+              <IconMenu />
+            </button>
+          ) : null}
+          {leading !== "none" && !backHref && !shellMenu ? (
             <button
               type="button"
               className="flex size-11 shrink-0 items-center justify-center rounded-2xl text-[#1F2937] hover:bg-[#F4F1FF]"
@@ -68,13 +109,18 @@ export function MobileHeader({
         {trailing ? <div className="shrink-0">{trailing}</div> : null}
         {right === "search-cart" ? (
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              className="flex size-11 items-center justify-center rounded-2xl text-ds-textMuted hover:bg-[#F4F1FF] hover:text-ds-textAccent"
-              aria-label="搜尋"
-            >
-              <IconSearch />
-            </button>
+            {search ? (
+              <button
+                type="button"
+                className="flex size-11 items-center justify-center rounded-2xl text-ds-textMuted hover:bg-[#F4F1FF] hover:text-ds-textAccent"
+                aria-label="搜尋教材"
+                aria-expanded={search.expanded}
+                aria-controls={search.controls}
+                onClick={search.onToggle}
+              >
+                <IconSearch />
+              </button>
+            ) : null}
             <Link
               href="/cart"
               className="flex size-11 items-center justify-center rounded-2xl text-ds-textMuted hover:bg-[#F4F1FF] hover:text-ds-textAccent"
