@@ -46,7 +46,12 @@ export async function normalizeDynamicText(page: Page) {
       const text = node.nodeValue ?? "";
       const next = text.replace(pattern, (m) => {
         changed += 1;
-        return m.replace(/\d/g, "0");
+        /*
+         * 每一段數字換成**固定寬度**（1–2 位 → "00"，其餘保留位數）。先前是逐位換 0，保留了位數 ——
+         * 於是「今天」的圖表軸標籤在 9/30（→ 0/00）與 10/1（→ 00/0）畫出不同寬度，
+         * 基準會隨日期翻動（2026-10-01 實測 admin 與 creator-sales）。
+         */
+        return m.replace(/\d+/g, (d) => (d.length <= 2 ? "00" : "0".repeat(d.length)));
       });
       if (next !== text) node.nodeValue = next;
     }
