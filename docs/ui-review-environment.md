@@ -107,6 +107,17 @@ canonical source：`Backend/scripts/ui-review/guard.js`。
 
 ---
 
+## 4A. Owner UI Review Index（全部 UI 連結，2026-10-01）
+
+- **網址：** `http://localhost:3110/dev/ui-review/all-ui`（與 `/dev/ui-review` 相同的 production 護欄；`/dev/ui-review` 頂端有連結）。
+- **用途：** 讓 Owner 依角色（不需登入／購買者／創作者／管理員）逐頁點開檢查所有 UI；每條附「要看什麼」、角色徽章與新分頁開啟連結。
+  另列錯誤／空狀態／權限導向、舊網址別名、dev-only 審閱頁（正式／歷史紀錄／驗證用／舊網址），以及 390／768／1440 必看清單。
+- **唯一資料來源：** `frontend/apps/web/tests/ui-review/all-ui.json`。新增或移除路由時改這一份；頁面與驗證腳本都讀它。
+- **驗證：** `node tests/ui-review/verify-all-ui.mjs`（在 `frontend/apps/web`，需先啟動 UI Review backend 與 frontend）——
+  逐條以 fixture 角色登入、檢查最終網址／標題／404，React hydration 錯誤列為 WARN；任何 FAIL 時 exit 1。只讀不寫。
+- **涵蓋日：** 2026-10-01（`app/` 下 64 個 page route 全數盤點；沒有 fixture 的詳情頁與不存在的流程列在頁面底部並說明原因）。
+- 密碼不在頁面或文件上：仍在 git-ignored 的 `Backend/.ui-review-credentials.txt`。
+
 ## 5. Fixture 內容
 
 | 類別 | 筆數 | 備註 |

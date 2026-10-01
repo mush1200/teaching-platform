@@ -128,6 +128,11 @@ export default function UiReviewIndexPage() {
           </Link>{" "}
           正常登入。密碼在 <code>Backend/.ui-review-credentials.txt</code>（未進版控）。
         </p>
+        <p className="mt-3 text-sm">
+          <Link href="/dev/ui-review/all-ui" className="font-semibold text-ds-textAccent underline">
+            全部 UI 連結（Owner UI Review Index：依角色分組、可直接開啟）→
+          </Link>
+        </p>
         <p className="mt-2 text-sm">
           <Link href="/dev/ui-review/brand-purple" className="text-ds-textAccent underline">
             品牌紫候選色比較（UI-QA-A11Y-01，已決定）→

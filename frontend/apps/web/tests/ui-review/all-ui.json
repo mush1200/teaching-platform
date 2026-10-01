@@ -1,0 +1,164 @@
+{
+  "_comment": "Owner UI Review Index 的唯一資料來源（/dev/ui-review/all-ui 渲染它；scripts 驗證它）。role：public／buyer／buyerEmpty／creator／creatorEmpty／admin（對應 routes.json 的 fixture 帳號）。expect：path＝最終網址的 pathname（預設等於 path）、h1＝main h1 必須包含的字（選填）、notFound＝刻意是 404。status：ACTIVE／REVIEW／HISTORICAL／DEPRECATED／FIXTURE。",
+  "coverageDate": "2026-10-01",
+  "sections": [
+    {
+      "key": "public",
+      "title": "公開頁面",
+      "items": [
+        { "name": "首頁", "path": "/", "role": "public", "fixture": true, "status": "ACTIVE", "check": "首屏、主要入口、登入後會自動導到各角色首頁" },
+        { "name": "教材列表", "path": "/materials", "role": "public", "fixture": true, "status": "ACTIVE", "check": "頂欄方案 B（一條頂欄、搜尋、購物車）、分類、教材卡、價格 #111827；已登入買家會導到 /explore" },
+        { "name": "教材詳情（標準）", "path": "/materials/uir_mat_baseline", "role": "public", "fixture": true, "status": "ACTIVE", "check": "價格、紫色加入購物車、橘色立即購買、手機 sticky 購買列、檢舉入口" },
+        { "name": "教材詳情（長中文標題）", "path": "/materials/uir_mat_long_title_zh", "role": "public", "fixture": true, "status": "ACTIVE", "check": "長標題換行、版面不溢出" },
+        { "name": "教材詳情（長英文標題）", "path": "/materials/uir_mat_long_title_en", "role": "public", "fixture": true, "status": "ACTIVE", "check": "長英文斷字、無封面時的漸層" },
+        { "name": "全部教學回饋", "path": "/materials/uir_mat_baseline/reviews", "role": "public", "fixture": true, "status": "ACTIVE", "check": "回饋列表、評分星等" },
+        { "name": "聯絡平台", "path": "/support", "role": "public", "fixture": true, "status": "ACTIVE", "check": "依問題類型分流的客服入口" },
+        { "name": "服務條款", "path": "/terms", "role": "public", "fixture": false, "status": "REVIEW", "check": "UI Review 沒有已發布條文 → 刻意顯示 404（產品行為：未發布不顯示）", "expect": { "notFound": true } },
+        { "name": "隱私權政策", "path": "/privacy", "role": "public", "fixture": false, "status": "REVIEW", "check": "同上：未發布 → 404", "expect": { "notFound": true } },
+        { "name": "退款政策", "path": "/refund", "role": "public", "fixture": false, "status": "REVIEW", "check": "同上：未發布 → 404", "expect": { "notFound": true } },
+        { "name": "創作者協議", "path": "/creator-agreement", "role": "public", "fixture": false, "status": "REVIEW", "check": "同上：未發布 → 404", "expect": { "notFound": true } }
+      ]
+    },
+    {
+      "key": "auth",
+      "title": "登入／註冊",
+      "items": [
+        { "name": "登入", "path": "/login", "role": "public", "fixture": true, "status": "ACTIVE", "check": "登入表單、紫色漸層 CTA（鎖定不變）、錯誤訊息" },
+        { "name": "註冊", "path": "/register", "role": "public", "fixture": true, "status": "ACTIVE", "check": "角色卡（購買者／創作者）、表單" }
+      ]
+    },
+    {
+      "key": "buyer",
+      "title": "購買者",
+      "items": [
+        { "name": "購買者總覽", "path": "/dashboard", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "頂欄搜尋與購物車徽章（#C81E6E）、側欄徽章、Hero、推薦教材" },
+        { "name": "探索教材", "path": "/explore", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "篩選、排序、教材卡、價格" },
+        { "name": "搜尋結果", "path": "/explore?search=%E6%95%B8%E5%AD%B8", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "頂欄搜尋（?search=）的結果；輸入框回填關鍵字", "expect": { "path": "/explore" } },
+        { "name": "收藏清單", "path": "/favorites", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "收藏的教材卡" },
+        { "name": "購物車", "path": "/cart", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "品項、價格、合計、橘色前往結帳、手機版標題不被擠壓" },
+        { "name": "結帳", "path": "/checkout", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "步驟指示（橘色目前格）、下一步、確認送出訂單" },
+        { "name": "我的訂單", "path": "/me/orders", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "四種狀態的訂單、狀態 pill" },
+        { "name": "訂單詳情（已核准）", "path": "/me/orders/uir_ord_approved", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "進度時間軸、下載入口" },
+        { "name": "訂單詳情（待付款）", "path": "/me/orders/uir_ord_pending_payment", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "付款期限、上傳付款憑證 CTA" },
+        { "name": "訂單詳情（審核中）", "path": "/me/orders/uir_ord_pending_review", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "等待審核的狀態" },
+        { "name": "訂單詳情（付款被退回）", "path": "/me/orders/uir_ord_rejected", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "退回原因、重新上傳（錯誤紅色區塊，非商業色）" },
+        { "name": "上傳付款憑證", "path": "/orders/uir_ord_pending_payment/payment-proof", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "匯款資訊、上傳表單" },
+        { "name": "退回後重新上傳", "path": "/orders/uir_ord_rejected/payment-proof", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "退回原因與重新上傳" },
+        { "name": "我的教材", "path": "/me/materials", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "已購教材、下載" },
+        { "name": "分享教學回饋", "path": "/me/materials/uir_mat_baseline/feedback", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "回饋表單（已購教材）" },
+        { "name": "我的教學回饋", "path": "/my-reviews", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "已送出的回饋" },
+        { "name": "申訴與消費爭議", "path": "/me/complaints", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "申訴列表（fixture 無申訴 → 空狀態）" },
+        { "name": "新增申訴", "path": "/me/complaints/new", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "申訴表單" }
+      ]
+    },
+    {
+      "key": "creator",
+      "title": "創作者",
+      "items": [
+        { "name": "教材管理", "path": "/creator/materials", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "教材列表、狀態徽章、側欄計數" },
+        { "name": "個人資料", "path": "/creator/materials?view=profile", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "創作者個人資料檢視", "expect": { "path": "/creator/materials" } },
+        { "name": "新增教材", "path": "/creator/materials/new", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "建立表單、檔案上傳、教材特色" },
+        { "name": "編輯教材（已上架）", "path": "/creator/materials/uir_mat_baseline/edit", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "已上架時檔案鎖定的說明" },
+        { "name": "編輯教材（退回修改）", "path": "/creator/materials/uir_mat_changes_requested/edit", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "退回原因、可換檔、重新送審" },
+        { "name": "編輯教材（待審核）", "path": "/creator/materials/uir_mat_pending/edit", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "審核中的鎖定狀態" },
+        { "name": "編輯教材（已下架）", "path": "/creator/materials/uir_mat_unpublished/edit", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "已下架通知（警示紅玫瑰色，非商業色）" },
+        { "name": "教材的教學回饋", "path": "/creator/materials/uir_mat_baseline/reviews", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "單一教材的回饋" },
+        { "name": "我的銷售", "path": "/creator/sales", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "銷售總覽、趨勢圖、表格" },
+        { "name": "平台案件", "path": "/creator/cases", "role": "creator", "fixture": true, "status": "ACTIVE", "check": "檢舉案件、待回覆數" }
+      ]
+    },
+    {
+      "key": "admin",
+      "title": "管理員",
+      "items": [
+        { "name": "營運總覽", "path": "/admin", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "KPI、趨勢圖、待處理事項" },
+        { "name": "教材審核", "path": "/admin/materials", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "審核佇列、狀態篩選、搜尋" },
+        { "name": "教材的檢舉（情境唯讀）", "path": "/admin/materials/uir_mat_no_tags/reports", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "單一教材的檢舉（唯讀，處置在檢舉管理）" },
+        { "name": "教材活動紀錄", "path": "/admin/materials/uir_mat_baseline/activity-logs", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "單一教材的稽核軌跡" },
+        { "name": "付款憑證審核", "path": "/admin/payment-proofs", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "審核佇列、逾期標記、核准／退回" },
+        { "name": "訂單管理", "path": "/admin/orders", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "訂單列表、狀態" },
+        { "name": "訂單活動紀錄", "path": "/admin/orders/uir_ord_rejected/activity-logs", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "單一訂單的稽核軌跡" },
+        { "name": "檢舉管理", "path": "/admin/reports", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "案件列表與處置（唯一正式入口）" },
+        { "name": "消費申訴", "path": "/admin/complaints", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "申訴列表（fixture 無申訴 → 空狀態）" },
+        { "name": "個資權利請求", "path": "/admin/privacy-requests", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "請求列表（fixture 無資料 → 空狀態）" },
+        { "name": "退款補救", "path": "/admin/remedy-cases", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "補救案件列表" },
+        { "name": "活動紀錄", "path": "/admin/activity-logs", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "全站稽核紀錄、篩選" },
+        { "name": "使用者活動紀錄", "path": "/admin/users/uir_user_buyer_main/activity-logs", "role": "admin", "fixture": true, "status": "ACTIVE", "check": "單一使用者的稽核軌跡" },
+        { "name": "用戶管理（相容路由）", "path": "/admin/users", "role": "admin", "fixture": true, "status": "HISTORICAL", "check": "誠實的 placeholder（不在側欄；IA-07 移除一級入口）" },
+        { "name": "系統設定（相容路由）", "path": "/admin/settings", "role": "admin", "fixture": true, "status": "HISTORICAL", "check": "列出在程式碼中設定的項目（不在側欄）" },
+        { "name": "教學回饋總覽（相容路由）", "path": "/admin/reviews-hub", "role": "admin", "fixture": true, "status": "HISTORICAL", "check": "可直達、不在側欄（IA-01）" }
+      ]
+    },
+    {
+      "key": "commerce",
+      "title": "商業配色（快速檢查）",
+      "note": "與上方重複的連結，集中檢查已定案的商業配色：價格 #111827、購買相關徽章 #C81E6E、加入購物車紫、立即購買橘、折扣 <30%／≥30%。",
+      "items": [
+        { "name": "教材詳情購買區", "path": "/materials/uir_mat_baseline", "role": "public", "fixture": true, "status": "ACTIVE", "check": "價格、紫色加入購物車、橘色立即購買", "duplicate": true },
+        { "name": "頂欄與側欄徽章", "path": "/dashboard", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "購物車與待處理訂單徽章 #C81E6E", "duplicate": true },
+        { "name": "購物車", "path": "/cart", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "品項價格、合計、前往結帳", "duplicate": true },
+        { "name": "結帳", "path": "/checkout", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "總金額、步驟、送出訂單", "duplicate": true },
+        { "name": "折扣標籤驗證", "path": "/dev/ui-review/commerce-discount-fixture", "role": "public", "fixture": true, "status": "FIXTURE", "check": "10／20／29% 溫和、30／40／50% 強（產品目前無原價資料，折扣只在這裡看得到）", "duplicate": true }
+      ]
+    },
+    {
+      "key": "edge",
+      "title": "錯誤／空狀態／權限",
+      "items": [
+        { "name": "無權限頁", "path": "/403", "role": "public", "fixture": true, "status": "ACTIVE", "check": "403 說明與返回入口" },
+        { "name": "找不到頁面（刻意 404）", "path": "/this-page-does-not-exist", "role": "public", "fixture": true, "status": "ACTIVE", "check": "404 頁", "expect": { "notFound": true } },
+        { "name": "未登入進購物車 → 登入", "path": "/cart", "role": "public", "fixture": true, "status": "ACTIVE", "check": "權限導向：未登入被導到 /login", "expect": { "path": "/login" } },
+        { "name": "購買者進管理後台 → 403", "path": "/admin", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "權限導向：非管理員被導到 /403", "expect": { "path": "/403" } },
+        { "name": "搜尋無結果", "path": "/explore?search=zzzzzz", "role": "buyer", "fixture": true, "status": "ACTIVE", "check": "清單無結果的空狀態", "expect": { "path": "/explore" } },
+        { "name": "收藏清單（空）", "path": "/favorites", "role": "buyerEmpty", "fixture": true, "status": "ACTIVE", "check": "空狀態" },
+        { "name": "我的訂單（空）", "path": "/me/orders", "role": "buyerEmpty", "fixture": true, "status": "ACTIVE", "check": "沒有訂單的空狀態" },
+        { "name": "我的教材（空）", "path": "/me/materials", "role": "buyerEmpty", "fixture": true, "status": "ACTIVE", "check": "沒有已購教材的空狀態" },
+        { "name": "教材管理（空）", "path": "/creator/materials", "role": "creatorEmpty", "fixture": true, "status": "ACTIVE", "check": "創作者沒有教材的空狀態" }
+      ]
+    },
+    {
+      "key": "legacy",
+      "title": "舊網址／別名（不需檢查）",
+      "note": "仍可用、但不是正式入口；列出來是為了完整。",
+      "items": [
+        { "name": "/teacher/* → /creator/*", "path": "/teacher/materials", "role": "creator", "fixture": true, "status": "DEPRECATED", "check": "舊網址自動導到 /creator/materials", "expect": { "path": "/creator/materials" } },
+        { "name": "/downloads（＝ 我的教材）", "path": "/downloads", "role": "buyer", "fixture": true, "status": "DEPRECATED", "check": "與 /me/materials 同一頁" },
+        { "name": "/orders（＝ 我的訂單）", "path": "/orders", "role": "buyer", "fixture": true, "status": "DEPRECATED", "check": "與 /me/orders 同一頁" },
+        { "name": "upload-proof → payment-proof", "path": "/orders/uir_ord_pending_payment/upload-proof", "role": "buyer", "fixture": true, "status": "DEPRECATED", "check": "舊網址導到付款憑證頁", "expect": { "path": "/orders/uir_ord_pending_payment/payment-proof" } }
+      ]
+    },
+    {
+      "key": "dev",
+      "title": "UI Review（dev-only）",
+      "note": "只在本機 UI Review 環境存在；production 一律 404。",
+      "items": [
+        { "name": "UI Review 索引與 fixture 帳號", "path": "/dev/ui-review", "role": "public", "fixture": true, "status": "ACTIVE", "check": "路由索引、fixture 帳號（密碼不在頁面上）" },
+        { "name": "全部 UI 連結（本頁）", "path": "/dev/ui-review/all-ui", "role": "public", "fixture": true, "status": "ACTIVE", "check": "本索引" },
+        { "name": "折扣標籤驗證 fixture", "path": "/dev/ui-review/commerce-discount-fixture", "role": "public", "fixture": true, "status": "FIXTURE", "check": "休眠中的折扣路徑" },
+        { "name": "品牌紫候選（已決定 B）", "path": "/dev/ui-review/brand-purple", "role": "public", "fixture": true, "status": "HISTORICAL", "check": "決策紀錄：#5C4EEA" },
+        { "name": "紫＋橘（已決定 A）", "path": "/dev/ui-review/purple-orange-options", "role": "public", "fixture": true, "status": "HISTORICAL", "check": "決策紀錄：立即購買底色 #FE8742" },
+        { "name": "立即購買文字色（已決定 C）", "path": "/dev/ui-review/orange-cta-text", "role": "public", "fixture": true, "status": "HISTORICAL", "check": "決策紀錄：#111827" },
+        { "name": "粉色強調色（已被取代）", "path": "/dev/ui-review/pink-accent", "role": "public", "fixture": true, "status": "DEPRECATED", "check": "已被紫＋橘方案取代，只作紀錄" }
+      ]
+    }
+  ],
+  "noFixture": [
+    { "path": "/me/complaints/[id]", "reason": "fixture 沒有申訴 —— 從 /me/complaints 建立後點入" },
+    { "path": "/admin/activity-logs/[id]", "reason": "活動紀錄 id 是隨機 UUID —— 從 /admin/activity-logs 點入" },
+    { "path": "/admin/privacy-requests/[requestId]", "reason": "fixture 沒有個資權利請求" },
+    { "path": "密碼重設", "reason": "平台沒有密碼重設流程（P1-08 誠實移除），不是缺頁" },
+    { "path": "結算／收益頁", "reason": "前端沒有結算 UI（SETTLEMENT_WRITE_ENABLED OFF，Gate 2 KEEP OFF）" },
+    { "path": "教材暫停販售（無檔案的已上架教材）", "reason": "fixture 沒有這個狀態（只在真實資料出現）" }
+  ],
+  "responsive": [
+    { "name": "教材列表", "path": "/materials", "role": "public" },
+    { "name": "教材詳情", "path": "/materials/uir_mat_baseline", "role": "public" },
+    { "name": "購買者總覽", "path": "/dashboard", "role": "buyer" },
+    { "name": "購物車", "path": "/cart", "role": "buyer" },
+    { "name": "結帳", "path": "/checkout", "role": "buyer" },
+    { "name": "教材管理", "path": "/creator/materials", "role": "creator" },
+    { "name": "我的銷售", "path": "/creator/sales", "role": "creator" },
+    { "name": "營運總覽", "path": "/admin", "role": "admin" },
+    { "name": "教材審核", "path": "/admin/materials", "role": "admin" }
+  ]
+}
